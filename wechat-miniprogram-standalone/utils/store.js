@@ -257,7 +257,9 @@ function listOverview(filters) {
   const state = read();
   const user = currentUser(state);
   const config = { ...require("./task-overview").DEFAULT_FILTERS, ...(filters || {}) };
-  const relatedTasks = listTasks({});
+  let relatedTasks = listTasks({});
+  if (config.source === "executive" && config.departmentId) relatedTasks = relatedTasks.filter((task) => task.departmentId === config.departmentId);
+  if (config.source === "executive" && config.employeeNo) relatedTasks = relatedTasks.filter((task) => task.mainAssigneeEmployeeNo === config.employeeNo);
   const terminal = ["completed", "archived", "cancelled", "withdrawn", "merged", "closed"];
   const statusCounts = {};
   ["pending_acceptance", "in_progress", "blocked", "pending_report", "pending_review"].forEach((status) => {
@@ -729,17 +731,71 @@ function readNotification(notificationId) {
 function markAllRead() { const state = read(); state.notifications.forEach((item) => { if (item.recipientEmployeeNo === state.currentEmployeeNo) item.unread = false; }); write(state); }
 function switchUser(employeeNo) { const state = read(); if (!userByNo(state, employeeNo)) throw new Error("USER_NOT_FOUND"); state.currentEmployeeNo = employeeNo; write(state); return currentUser(state); }
 
-function executiveOverview() {
+function executiveOverview(filters) {
   const state = read();
   const actor = currentUser(state);
   if (!actor?.permissions?.canAccessExecutive) throw new Error("PERMISSION_DENIED");
-  const scopes = activeScopes(state, actor.employeeNo);
-  const inScope = (task) => scopes.some((scope) => scopeMatchesTask(scope, task));
-  const teamTasks = state.tasks.filter(inScope);
-  const departmentIds = new Set(scopes.filter((scope) => scope.scopeType === "department").map((scope) => scope.scopeId));
-  const members = state.users.filter((user) => departmentIds.has(user.departmentId) && user.roleType === "employee").map((user) => ({ ...user, taskCount: teamTasks.filter((task) => task.mainAssigneeEmployeeNo === user.employeeNo && !["archived", "cancelled", "withdrawn"].includes(task.status)).length, blockedCount: teamTasks.filter((task) => task.mainAssigneeEmployeeNo === user.employeeNo && task.status === "blocked").length }));
-  const activeTasks = teamTasks.filter((task) => !["archived", "cancelled", "withdrawn", "closed"].includes(task.status));
-  return { members, activeCount: activeTasks.length, blockedCount: activeTasks.filter((task) => task.status === "blocked").length, pendingReviewCount: activeTasks.filter((task) => task.status === "pending_review").length, onTrackRate: Math.round((activeTasks.filter((task) => !task.hasIssue).length / Math.max(activeTasks.length, 1)) * 100), snapshotId: "WS20260902" };
+  const scopes = activeScopes(state, actor.employeeNo).filter((scope) => scope.scopeType === "department" && ["view", "manage", "export"].includes(scope.permissionType));
+  const authorizedDepartmentIds = [...new Set(scopes.map((scope) => scope.scopeId))];
+  if (!authorizedDepartmentIds.length) throw new Error("SCOPE_DENIED");
+  const requestedDepartmentId = filters?.departmentId || "";
+  if (requestedDepartmentId && !authorizedDepartmentIds.includes(requestedDepartmentId)) throw new Error("SCOPE_DENIED");
+  const selectedDepartmentIds = new Set(requestedDepartmentId ? [requestedDepartmentId] : authorizedDepartmentIds);
+  const teamTasks = state.tasks.filter((task) => selectedDepartmentIds.has(task.departmentId));
+  const execution = teamTasks.filter((task) => ["in_progress", "blocked", "pending_report"].includes(task.status) && task.effectiveAt);
+  const progressTasks = teamTasks.filter((task) => ["in_progress", "blocked", "pending_report", "pending_review"].includes(task.status) && task.effectiveAt);
+  const linkedTasks = progressTasks.filter((task) => Boolean(task.performanceMetric));
+  const linkedMetrics = new Set(linkedTasks.map((task) => task.performanceMetric));
+  const weightTotal = progressTasks.reduce((sum, task) => sum + Number(task.taskWeight || 0), 0);
+  const weightedProgress = progressTasks.reduce((sum, task) => sum + Number(task.progressPercent || 0) * Number(task.taskWeight || 0), 0);
+  const quadrants = { important_urgent: 0, important_not_urgent: 0, not_important_urgent: 0, not_important_not_urgent: 0, unscored_count: 0 };
+  execution.forEach((task) => {
+    const code = task.priorityQuadrant === "urgent_not_important" ? "not_important_urgent" : task.priorityQuadrant === "routine" ? "not_important_not_urgent" : task.priorityQuadrant;
+    if (Object.prototype.hasOwnProperty.call(quadrants, code)) quadrants[code] += 1;
+    else quadrants.unscored_count += 1;
+  });
+  const period = filters?.period === "month" ? "month" : "week";
+  const base = new Date("2026-09-01T00:00:00+08:00");
+  const dayCount = period === "month" ? 22 : 5;
+  const days = [];
+  for (let index = 0; days.length < dayCount && index < 40; index += 1) {
+    const day = new Date(base); day.setDate(base.getDate() + index);
+    if (day.getDay() === 0 || day.getDay() === 6) continue;
+    days.push({ date: day.toISOString().slice(0, 10), label: `周${"日一二三四五六"[day.getDay()]}` });
+  }
+  const members = state.users.filter((user) => selectedDepartmentIds.has(user.departmentId) && user.roleType !== "admin").map((user, userIndex) => ({
+    employeeNo: user.employeeNo,
+    name: user.name,
+    departmentId: user.departmentId,
+    cells: days.map((day, dayIndex) => {
+      const score = Math.max(0, Math.min(100, Number(user.workloadScore || 0) + ((dayIndex + userIndex) % 3) * 4 - 4));
+      const level = score <= 40 ? "idle" : score <= 70 ? "normal" : score <= 90 ? "busy" : "overloaded";
+      return {
+        date: day.date, snapshotId: `MOCK-${user.employeeNo}-${day.date}`, workloadScore: score, workloadLevel: level,
+        activeTaskCount: execution.filter((task) => task.mainAssigneeEmployeeNo === user.employeeNo).length,
+        urgentTaskCount: execution.filter((task) => task.mainAssigneeEmployeeNo === user.employeeNo && task.isUrgent).length,
+        blockedTaskCount: execution.filter((task) => task.mainAssigneeEmployeeNo === user.employeeNo && task.status === "blocked").length,
+        overdueTaskCount: 0,
+        hoursPressure: score, weightPressure: Math.max(0, score - 8), countPressure: Math.max(0, score - 4), urgentPressure: 0, blockedOverduePressure: execution.some((task) => task.mainAssigneeEmployeeNo === user.employeeNo && task.status === "blocked") ? 70 : 0,
+      };
+    }),
+  }));
+  return {
+    scope: {
+      selectedDepartmentId: requestedDepartmentId || null,
+      departments: authorizedDepartmentIds.map((departmentId) => ({ departmentId, departmentName: state.users.find((user) => user.departmentId === departmentId)?.departmentName || departmentId, departmentType: "department", parentDepartmentId: null })),
+    },
+    period: { type: period },
+    metrics: {
+      activeTasks: { count: execution.length, previousCount: execution.length, changeRate: 0, changeDirection: "flat" },
+      onTimeRate: { completedCount: 0, onTimeCount: 0, rate: null, previousRate: null, changePercentagePoints: null },
+      kpiLinks: { linkedTaskCount: new Set(linkedTasks.map((task) => task.taskId)).size, linkedMetricCount: linkedMetrics.size },
+      overallProgress: { rate: weightTotal ? Math.round((weightedProgress / weightTotal) * 100) / 100 : null, taskCount: progressTasks.length, dataQualityIssueCount: 0 },
+    },
+    quadrants,
+    workloadHeatmap: { days, members },
+    members,
+  };
 }
 
 module.exports = { ensureInitialized, read, reset, currentUser, listTasks, listOverview, getTask, getDashboard, getCreationDraft, saveCreationDraft, saveTaskDraft, listPerformanceMetrics, suggestPerformanceMatches, confirmPerformanceMatch, clearPerformanceMatch, sendTask, acceptTask, completeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, reviewTask, lifecycle, submitChangeRequest, decideChangeRequest, cancelChangeRequest, listNotifications, readNotification, markAllRead, switchUser, executiveOverview };

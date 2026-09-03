@@ -1,11 +1,14 @@
 <view class="page task-overview-page">
   <view class="safe-top"></view>
   <view class="overview-header">
-    <view><text class="overview-title">任务概览</text><text class="overview-subtitle">当前用户参与的任务</text></view>
+    <view class="overview-heading">
+      <button wx:if="{{executiveContext}}" class="overview-back" bindtap="backExecutive" aria-label="返回高管看板">‹</button>
+      <view><text class="overview-title">{{executiveContext ? '团队任务' : '任务概览'}}</text><text class="overview-subtitle">{{executiveContext ? '高管授权范围内任务 · 可按员工筛选' : '当前用户参与的任务'}}</text></view>
+    </view>
     <button class="notification-button" bindtap="openNotifications" aria-label="打开通知"><text class="notification-icon">♢</text><text wx:if="{{unread}}" class="notification-dot"></text></button>
   </view>
 
-  <scroll-view class="overview-counts" scroll-x enhanced show-scrollbar="{{false}}">
+  <scroll-view wx:if="{{!executiveContext}}" class="overview-counts" scroll-x enhanced show-scrollbar="{{false}}">
     <view class="overview-count-row">
       <button wx:for="{{statusCards}}" wx:key="value" class="overview-count {{filters.mode === 'tasks' && filters.status === item.value ? 'active' : ''}}" data-status="{{item.value}}" bindtap="selectStatus">
         <text>{{item.label}}任务</text><text class="count-number">{{item.count || 0}}</text>
@@ -19,17 +22,20 @@
       <button class="filter-button" bindtap="openFilter"><text>⌁</text> 更多筛选</button>
     </view>
 
-    <view class="mode-tabs">
+    <view wx:if="{{!executiveContext}}" class="mode-tabs">
       <button class="mode-tab {{filters.mode === 'tasks' ? 'active' : ''}}" data-mode="tasks" bindtap="setMode">主任务</button>
       <button class="mode-tab {{filters.mode === 'nodes' ? 'active' : ''}}" data-mode="nodes" bindtap="setMode">我的节点任务</button>
     </view>
 
-    <scroll-view class="quick-status" scroll-x enhanced show-scrollbar="{{false}}">
+    <scroll-view wx:if="{{!executiveContext}}" class="quick-status" scroll-x enhanced show-scrollbar="{{false}}">
       <view class="quick-status-row"><button wx:for="{{quickStatuses}}" wx:key="value" class="quick-chip {{filters.mode === 'tasks' && filters.status === item.value ? 'active' : ''}}" data-status="{{item.value}}" bindtap="selectStatus">{{item.label}}</button></view>
     </scroll-view>
 
     <view class="summary-row">
-      <view wx:if="{{filterSummary.length}}" class="filter-summary"><text wx:for="{{filterSummary}}" wx:key="*this" class="summary-badge">{{item}}</text></view>
+      <view wx:if="{{filters.employeeNo || filterSummary.length}}" class="filter-summary">
+        <button wx:if="{{executiveContext && filters.employeeNo}}" class="employee-summary-chip" bindtap="clearEmployeeFilter">员工：{{filters.employeeName || filters.employeeNo}} ×</button>
+        <text wx:for="{{filterSummary}}" wx:key="*this" class="summary-badge">{{item}}</text>
+      </view>
       <text wx:else class="all-visible">当前显示全部可见任务</text>
       <button class="reset-link" bindtap="resetFilters">重置筛选</button>
     </view>
@@ -37,7 +43,7 @@
     <view wx:if="{{loading}}" class="overview-loading">
       <view class="skeleton wide"></view><view class="skeleton"></view><view class="skeleton"></view>
     </view>
-    <view wx:elif="{{error}}" class="overview-empty"><text class="empty-mark">!</text><text class="empty-title">任务概览暂时无法加载</text><text class="empty-detail">{{error}}</text><button class="empty-action" bindtap="retry">重试</button></view>
+    <view wx:elif="{{error}}" class="overview-empty"><text class="empty-mark">!</text><text class="empty-title">{{errorTitle}}</text><text class="empty-detail">{{error}}</text><button class="empty-action" bindtap="retry">重试</button></view>
     <view wx:elif="{{!items.length}}" class="overview-empty"><text class="empty-mark">○</text><text class="empty-title">当前筛选条件下暂无{{filters.mode === 'nodes' ? '节点' : '任务'}}</text><text class="empty-detail">清空筛选后可查看全部可见结果</text><button class="empty-action" bindtap="resetFilters">重置筛选</button></view>
 
     <block wx:elif="{{filters.mode === 'tasks'}}">
@@ -68,11 +74,18 @@
     <view class="sheet-handle"></view>
     <view class="sheet-head"><text class="sheet-title">任务筛选</text><button class="sheet-close" bindtap="closeFilter">×</button></view>
     <scroll-view class="sheet-content" scroll-y enhanced show-scrollbar="{{false}}">
-      <view class="filter-group">
+      <view wx:if="{{executiveContext}}" class="filter-group">
+        <text class="filter-label">员工姓名</text>
+        <text class="filter-help">仅显示当前高管授权部门范围内的员工</text>
+        <picker range="{{employeeOptions}}" range-key="name" value="{{employeeIndex}}" bindchange="chooseDraftEmployee">
+          <view class="employee-picker"><text>{{draftFilters.employeeName || '全部员工'}}</text><text>›</text></view>
+        </picker>
+      </view>
+      <view wx:if="{{!executiveContext}}" class="filter-group">
         <text class="filter-label">搜索</text>
         <view class="filter-search"><text>⌕</text><input value="{{draftFilters.search}}" bindinput="inputSearch" placeholder="任务或节点名称" /></view>
       </view>
-      <view class="filter-group">
+      <view wx:if="{{!executiveContext}}" class="filter-group">
         <text class="filter-label">任务类型</text>
         <view class="filter-options"><button class="filter-choice {{draftFilters.mode === 'tasks' ? 'active' : ''}}" data-value="tasks" bindtap="chooseDraftMode">主任务</button><button class="filter-choice {{draftFilters.mode === 'nodes' ? 'active' : ''}}" data-value="nodes" bindtap="chooseDraftMode">我的节点任务</button></view>
       </view>
@@ -84,14 +97,14 @@
         <text class="filter-label">优先级四象限</text>
         <view class="filter-options"><button wx:for="{{quadrantOptions}}" wx:key="value" class="filter-choice {{draftFilters.quadrant === item.value ? 'active' : ''}}" data-value="{{item.value}}" bindtap="chooseDraftQuadrant">{{item.label}}</button></view>
       </view>
-      <view class="filter-group switch-group"><view><text class="filter-label">仅看未来3天临期</text><text class="filter-help">不包含已完成、已归档、已取消或已撤回</text></view><switch checked="{{draftFilters.nearDue}}" color="#1769ff" bindchange="toggleNearDue" /></view>
-      <view class="filter-group switch-group"><view><text class="filter-label">需要支持</text><text class="filter-help">仅查看存在未关闭卡点的任务</text></view><switch checked="{{draftFilters.support === 'open'}}" color="#1769ff" bindchange="toggleSupport" /></view>
+      <view wx:if="{{!executiveContext}}" class="filter-group switch-group"><view><text class="filter-label">仅看未来3天临期</text><text class="filter-help">不包含已完成、已归档、已取消或已撤回</text></view><switch checked="{{draftFilters.nearDue}}" color="#1769ff" bindchange="toggleNearDue" /></view>
+      <view wx:if="{{!executiveContext}}" class="filter-group switch-group"><view><text class="filter-label">需要支持</text><text class="filter-help">仅查看存在未关闭卡点的任务</text></view><switch checked="{{draftFilters.support === 'open'}}" color="#1769ff" bindchange="toggleSupport" /></view>
       <view class="filter-group">
         <text class="filter-label">开始时间</text>
         <view class="filter-options"><button wx:for="{{dateOptions}}" wx:key="value" class="filter-choice {{draftFilters.datePreset === item.value ? 'active' : ''}}" data-value="{{item.value}}" bindtap="chooseDraftDatePreset">{{item.label}}</button></view>
         <view wx:if="{{draftFilters.datePreset === 'custom'}}" class="date-row"><picker mode="date" value="{{draftFilters.startDate}}" bindchange="chooseStartDate"><view class="picker-field"><text>开始日期</text><text class="picker-value">{{draftFilters.startDate || '请选择'}}</text></view></picker><picker mode="date" value="{{draftFilters.endDate}}" bindchange="chooseEndDate"><view class="picker-field"><text>结束日期</text><text class="picker-value">{{draftFilters.endDate || '请选择'}}</text></view></picker></view>
       </view>
-      <view class="filter-group sort-row">
+      <view wx:if="{{!executiveContext}}" class="filter-group sort-row">
         <picker range="{{sortOptions}}" range-key="label" bindchange="chooseSort"><view class="picker-field"><text>排序</text><text class="picker-value">{{sortLabel}} ›</text></view></picker>
         <picker range="{{orderOptions}}" range-key="label" bindchange="chooseOrder"><view class="picker-field"><text>顺序</text><text class="picker-value">{{orderLabel}} ›</text></view></picker>
       </view>

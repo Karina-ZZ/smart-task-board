@@ -81,13 +81,21 @@ Page({
     canReassign: false,
     canWithdraw: false,
     canCancelTask: false,
+    returnContext: {},
   },
 
   onLoad(options) {
     const taskId = options.taskId || "";
     const focusNodeId = options.nodeId || "";
+    const returnContext = {
+      source: options.source || "",
+      employeeNo: options.employeeNo || "",
+      employeeName: options.employeeName || "",
+      departmentId: options.departmentId || "",
+      period: options.period || "",
+    };
     this.sectionOffsets = [];
-    this.setData({ taskId, focusNodeId, expandedNodeId: focusNodeId });
+    this.setData({ taskId, focusNodeId, expandedNodeId: focusNodeId, returnContext });
   },
 
   onShow() {
@@ -107,7 +115,12 @@ Page({
   },
 
   back() {
-    wx.navigateBack({ fail: () => wx.reLaunch({ url: "/pages/tasks/index" }) });
+    wx.navigateBack({
+      fail: () => router.replace("/pages/tasks/index", {
+        ...this.data.returnContext,
+        mode: "tasks",
+      }),
+    });
   },
 
   load() {

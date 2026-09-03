@@ -1,12 +1,66 @@
-<view class="page"><view class="safe-top"></view><view class="topbar"><view class="topbar-main"><text class="eyebrow">EXECUTIVE VIEW</text><text class="title">团队任务态势</text><text class="subtitle">授权范围 · 人力资源部 · 本周</text></view></view>
-  <view wx:if="{{loading}}" class="card empty">正在计算团队态势…</view>
-  <view wx:elif="{{denied}}" class="card denied"><text class="denied-mark">锁</text><text class="section-title">无权限访问高管看板</text><text class="muted">该页面仅向服务端授权范围内的高管开放。</text><button class="btn btn-secondary" bindtap="profile">返回我的</button></view>
+<view class="page executive-page">
+  <view class="safe-top"></view>
+  <view class="exec-head">
+    <view class="exec-title-row">
+      <view><text class="eyebrow">EXECUTIVE VIEW</text><text class="title">团队任务态势</text><text class="subtitle">仅展示服务端授权的负责部门数据</text></view>
+    </view>
+    <view class="exec-filters">
+      <picker range="{{departmentOptions}}" range-key="departmentName" value="{{departmentIndex}}" bindchange="chooseDepartment">
+        <view class="filter-select"><text>{{departmentOptions[departmentIndex].departmentName}}</text><text>⌄</text></view>
+      </picker>
+      <view class="period-tabs"><button wx:for="{{periods}}" wx:key="value" class="period-tab {{period === item.value ? 'active' : ''}}" data-period="{{item.value}}" bindtap="choosePeriod">{{item.label}}</button></view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card executive-state"><view class="skeleton wide"></view><view class="skeleton"></view><text>正在计算团队态势…</text></view>
+  <view wx:elif="{{denied}}" class="card denied"><text class="denied-mark">锁</text><text class="section-title">无权限访问高管看板</text><text class="muted">你只能查看已明确授权的负责部门；服务端未授权的数据不会返回。</text><button class="btn btn-secondary" bindtap="profile">返回我的</button></view>
+  <view wx:elif="{{error}}" class="card executive-state error-state"><text class="state-mark">!</text><text class="section-title">团队态势暂时无法加载</text><text class="muted">{{error}}</text><button class="btn btn-secondary" bindtap="retry">重试</button></view>
+
   <block wx:else>
-    <view class="executive-hero"><view><text class="hero-kicker">团队在轨率</text><text class="hero-number">{{overview.onTrackRate}}%</text><text class="hero-sub">排除受阻任务后的当前推进状态</text></view><view class="donut" style="--score: {{overview.onTrackRate}}"><view><text class="bold">{{overview.activeCount}}</text><text>活跃任务</text></view></view></view>
-    <view class="metric-grid exec-metrics"><view class="metric"><text class="muted small">受阻任务</text><text class="metric-value danger">{{overview.blockedCount}}</text></view><view class="metric"><text class="muted small">待验收</text><text class="metric-value teal">{{overview.pendingReviewCount}}</text></view></view>
-    <view class="section-head"><text class="section-title">团队负荷热力图</text><text class="muted small">点击数值下钻</text></view>
-    <view class="heatmap card"><view class="heat-head"><text>成员</text><text>综合负荷</text><text>任务</text><text>卡点</text></view><button wx:for="{{overview.members}}" wx:key="employeeNo" class="heat-row" data-employee-no="{{item.employeeNo}}" bindtap="openMember"><view><text class="mini-avatar">{{item.avatarText}}</text><view><text class="bold">{{item.name}}</text><text>{{item.employeeNo}}</text></view></view><text class="heat-score {{item.workloadScore >= 80 ? 'high' : item.workloadScore < 50 ? 'low' : ''}}">{{item.workloadScore}}</text><text>{{item.taskCount}}</text><text class="{{item.blockedCount ? 'danger' : ''}}">{{item.blockedCount}}</text></button></view>
-    <view class="legend"><text><view class="low"></view>轻载 &lt;50</text><text><view></view>适中 50-79</text><text><view class="high"></view>偏高 ≥80</text></view>
+    <view class="exec-metrics">
+      <view class="mini-metric card"><text>进行中</text><text class="metric-number">{{overview.activeCountText}}</text><text class="metric-note">执行态任务</text></view>
+      <view class="mini-metric card"><text>按期率</text><text class="metric-number teal">{{overview.onTimeText}}</text><text class="metric-note">周期内完成</text></view>
+      <view class="mini-metric card"><text>KPI关联</text><text class="metric-number">{{overview.kpiTaskText}}</text><text class="metric-note">涉及{{overview.kpiMetricText}}项绩效指标</text></view>
+      <view class="mini-metric card"><text>总体进度</text><text class="metric-number">{{overview.progressText}}</text><text class="metric-note">按任务权重加权</text></view>
+    </view>
+
+    <view class="section-head"><text class="section-title">团队任务四象限</text><text class="muted small">点击查看对应任务</text></view>
+    <view class="quadrant-grid">
+      <button wx:for="{{quadrants}}" wx:key="value" class="quadrant-card {{item.tone}}" data-quadrant="{{item.value}}" bindtap="openQuadrant"><view class="quad-dot"></view><view><text class="quad-count">{{item.count}}</text><text class="quad-label">{{item.label}}</text></view><text class="quad-arrow">›</text></button>
+    </view>
+
+    <view class="section-head heat-title"><text class="section-title">团队负荷热力图</text><text class="muted small">点击有数据的格子查看构成</text></view>
+    <view wx:if="{{!overview.workloadHeatmap.members.length}}" class="card executive-empty"><text>当前授权范围暂无员工负荷快照</text></view>
+    <scroll-view wx:else class="heat-scroll card" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="heat-table" style="--day-count: {{overview.workloadHeatmap.days.length}}">
+        <view class="heat-header"><text class="member-head">成员</text><text wx:for="{{overview.workloadHeatmap.days}}" wx:key="date" class="day-head">{{item.label}}<text>{{item.shortDate}}</text></text></view>
+        <view wx:for="{{overview.workloadHeatmap.members}}" wx:key="employeeNo" wx:for-item="member" wx:for-index="memberIndex" class="heat-line">
+          <view class="member-cell"><text class="mini-avatar">{{member.avatarText}}</text><view><text class="member-name">{{member.name}}</text><text class="member-no">{{member.employeeNo}}</text></view></view>
+          <button wx:for="{{member.cells}}" wx:key="date" wx:for-item="cell" wx:for-index="cellIndex" class="heat-cell {{cell.workloadLevel || 'empty'}}" disabled="{{!cell.snapshotId}}" data-member-index="{{memberIndex}}" data-cell-index="{{cellIndex}}" bindtap="openSnapshot"><text>{{cell.workloadScore === null ? '–' : cell.workloadScore}}</text></button>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="legend"><text><view class="idle"></view>空闲 ≤40</text><text><view class="normal"></view>正常 ≤70</text><text><view class="busy"></view>偏忙 ≤90</text><text><view class="overloaded"></view>过载 &gt;90</text></view>
+
+    <view wx:if="{{overview.metrics.overallProgress.dataQualityIssueCount}}" class="quality-hint">发现 {{overview.metrics.overallProgress.dataQualityIssueCount}} 条待验收任务进度数据异常，当前值未被看板强制改写。</view>
   </block>
+
   <bottom-nav active="executive" executive="{{true}}" unread="{{unread}}" />
+</view>
+
+<view wx:if="{{sheetOpen}}" class="sheet-overlay" bindtap="closeSheet">
+  <view class="snapshot-sheet" catchtap="stopOverlay">
+    <view class="sheet-handle"></view>
+    <view class="sheet-head"><view><text class="sheet-title">{{selectedSnapshot.employeeName}} · 负荷构成</text><text class="muted small">{{selectedSnapshot.date}}</text></view><button class="sheet-close" bindtap="closeSheet">×</button></view>
+    <view class="snapshot-summary"><view><text>综合负荷</text><text class="snapshot-score">{{selectedSnapshot.workloadScore}}</text></view><view><text>负荷等级</text><text class="level-badge {{selectedSnapshot.workloadLevel}}">{{selectedSnapshot.workloadLevelLabel}}</text></view></view>
+    <view class="pressure-list">
+      <view class="pressure-row"><text>剩余工时压力</text><text>{{selectedSnapshot.hoursPressure}}</text></view>
+      <view class="pressure-row"><text>任务权重压力</text><text>{{selectedSnapshot.weightPressure}}</text></view>
+      <view class="pressure-row"><text>任务数量压力</text><text>{{selectedSnapshot.countPressure}}</text></view>
+      <view class="pressure-row"><text>突发任务压力</text><text>{{selectedSnapshot.urgentPressure}}</text></view>
+      <view class="pressure-row"><text>受阻/逾期压力</text><text>{{selectedSnapshot.blockedOverduePressure}}</text></view>
+    </view>
+    <view class="snapshot-facts"><text>执行任务 {{selectedSnapshot.activeTaskCount || 0}}</text><text>突发 {{selectedSnapshot.urgentTaskCount || 0}}</text><text>受阻 {{selectedSnapshot.blockedTaskCount || 0}}</text><text>逾期 {{selectedSnapshot.overdueTaskCount || 0}}</text></view>
+    <button class="employee-task-button" bindtap="viewEmployeeTasks">查看该员工任务</button>
+  </view>
 </view>

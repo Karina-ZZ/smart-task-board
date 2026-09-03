@@ -194,6 +194,7 @@ function tasks(filters) {
   return request("GET", `/api/v1/tasks${query ? `?${query}` : ""}`).then((response) => (response.items || []).map(normalizeTaskSummary));
 }
 function taskOverview(filters) {
+  if (filters?.source === "executive") return executiveTasks(filters).then((response) => ({ ...response, items: (response.items || []).map(normalizeTaskSummary), statusCounts: response.statusCounts || {} }));
   if (useMock()) return mock("listOverview", filters || {});
   const query = Object.keys(filters || {})
     .filter((key) => filters[key] !== "" && filters[key] !== false && filters[key] !== undefined)
@@ -477,7 +478,37 @@ function notifications(type) {
   if (useMock()) return mock("listNotifications", type).then((items) => (items || []).map(normalizeNotification));
   return request("GET", `/api/v1/notifications${type && type !== "all" ? `?notification_type=${type}` : ""}`).then((items) => (items || []).map(normalizeNotification));
 }
-function executiveOverview() { return useMock() ? mock("executiveOverview") : request("GET", "/api/v1/executive/overview"); }
+function executiveOverview(filters) {
+  if (useMock()) return mock("executiveOverview", filters || {});
+  const query = Object.keys(filters || {})
+    .filter((key) => filters[key] !== "" && filters[key] !== undefined && filters[key] !== null)
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(filters[key])}`)
+    .join("&");
+  return request("GET", `/api/v1/executive/overview${query ? `?${query}` : ""}`);
+}
+function executiveTasks(filters) {
+  if (useMock()) return mock("listOverview", { ...(filters || {}), mode: "tasks" });
+  const query = Object.keys(filters || {})
+    .filter((key) => filters[key] !== "" && filters[key] !== undefined && filters[key] !== null && key !== "source" && key !== "mode" && key !== "employeeName")
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(filters[key])}`)
+    .join("&");
+  return request("GET", `/api/v1/executive/tasks${query ? `?${query}` : ""}`);
+}
+function executiveMembers(filters) {
+  if (useMock()) {
+    const overview = store.executiveOverview(filters || {});
+    return (overview.workloadHeatmap?.members || []).map((member) => ({
+      employeeNo: member.employeeNo,
+      name: member.name,
+      departmentId: member.departmentId,
+    }));
+  }
+  const query = Object.keys(filters || {})
+    .filter((key) => filters[key] !== "" && filters[key] !== undefined && filters[key] !== null)
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(filters[key])}`)
+    .join("&");
+  return request("GET", `/api/v1/executive/members${query ? `?${query}` : ""}`);
+}
 function users() { return useMock() ? Promise.resolve(store.read().users) : request("GET", "/api/v1/users"); }
 
-module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, executiveOverview, users };
+module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, executiveOverview, executiveTasks, executiveMembers, users };

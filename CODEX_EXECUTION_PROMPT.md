@@ -25,6 +25,8 @@ CURRENT_TASK = DEV-00
 7. 当前仓库的 `README.md`、`pyproject.toml`、`web/package.json`、Alembic迁移链、与CURRENT_TASK有关的源代码和测试
 8. `PLANS.md`、`FEATURE_COVERAGE.md`、`AUTONOMOUS_RUN.md`，但这三份只作为历史进度参考
 9. 当 `CURRENT_TASK = DEV-15`（功能13）时，必须额外完整读取 `docs/FEATURE_13_NOTIFICATION_RULES.md`；其中的用户最新确认规则优先于旧通知/提醒实现。
+10. 当 `CURRENT_TASK = DEV-16`（功能14）时，必须额外完整读取 `docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`；KPI确认口径、停用指标、pending_review总体进度与禁止核心KPI规则均以该P0文件为准。
+11. 当 `CURRENT_TASK = DEV-17`（功能15）时，必须额外完整读取 `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`；旧历史快照任务明细方案已被P0废止，不得新增 `workload_snapshot_task_details`，必须复用现有任务概览并以 `employee_no` 做员工筛选。
 
 必须按照 `docs/DEVELOPMENT_PLAN_V1.1.md` 第1.3节的方法读取DOCX正文、表格和附录。不能只看文件名、摘要或搜索片段。如果DOCX无法完整读取，立即停止并报告具体文件和缺失部分，不得凭经验猜测。
 

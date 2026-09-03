@@ -90,7 +90,7 @@
 - 任务变更、更换承办人、撤回、取消、合并、关闭。
 - 完成申请、验收退回、多轮验收、自动归档。
 - 绩效匹配、优先级、负荷、冲突和提醒的已确认能力对齐。
-- 高管负荷热力图、负荷构成、员工快照任务明细和任务详情。
+- 高管负荷热力图、负荷构成、按员工筛选当前任务并进入现有任务详情。
 - 响应式视觉、可访问性、性能、安全、可观测性和CI门禁。
 
 ### 2.3 本期不包含
@@ -126,7 +126,7 @@
 | 接受 | `accept_task`直接写 `in_progress` | 必须进入 `decomposing` |
 | 自建自办 | 测试明确允许直接进行中 | 必须改为仍需接受和拆解 |
 | AI拆解 | 手工planning/decompose与人工确认 | 必须改为接受后自动、系统校验、成功即生效 |
-| 数据 | 缺少拆解尝试表、快照任务明细表 | 分阶段新增两表及关联字段 |
+| 数据 | 缺少拆解尝试表 | 仅按已确认拆解流程新增必要结构；功能15员工任务筛选不新增表 |
 | 工时 | DTO、模型、算法、页面仍有 estimated_hours | 新MVP路径必须禁写、禁显、禁计算 |
 | 归档 | 仍写和使用 archive_snapshot | 新流程自动归档且快照不写 |
 | 权限 | 部分协同权限宽于PRD | 收紧任务级汇报/资源权限 |
@@ -184,7 +184,7 @@
 | `/create/confirm` | 确认发送 | 草稿所有者 | 已确认草稿摘要 | 工作台/任务详情 |
 | `/notifications` | 通知中心 | 登录 | 本人通知 | 任务详情 |
 | `/profile` | 我的 | 登录 | 当前用户和本人摘要 | 个人资料说明 |
-| `/executive/employee-tasks` | 员工负荷任务明细 | 高管+授权+第二阶段 | 指定快照任务明细 | 任务详情/高管页；PRD V1.1优先于旧`/executive/workload-tasks`记法 |
+| `/tasks?source=executive&employeeNo=...` | 高管员工任务筛选 | 高管+授权范围 | 当前任务列表；员工姓名仅展示，查询用employee_no | 现有任务详情/高管页 |
 
 旧 `/create/nodes` 不进入生产路由。旧根路径可重定向到 `/workbench`，旧 `/tasks/:taskId` 可在过渡期重定向到 `/task/:taskId`。
 
@@ -280,9 +280,9 @@
 | UI-EX-02 | 团队四象限 | `ExecutiveQuadrants` | priority_scores、tasks | 第一阶段 | 点击筛选 |
 | UI-EX-03 | 负荷热力图 | `WorkloadHeatmap` | workload_snapshots | 第一阶段 | 周期、颜色、范围 |
 | UI-EX-04 | 负荷构成抽屉 | `WorkloadBreakdownSheet` | 快照五维压力 | 第一阶段 | 分数一致 |
-| UI-EX-05 | 查看该员工任务 | `WorkloadTasksLink` | snapshot detail count | 第二阶段上线 | 参数完整、入口权限 |
-| UI-EX-06 | 员工任务明细 | `EmployeeWorkloadTasksPage` | workload_snapshot_task_details | 第二阶段 | 历史不漂移 |
-| UI-EX-07 | 明细任务卡 | `WorkloadTaskCard` | tasks、priority、issues、conflicts | 第二阶段 | 数量/风险/跳转 |
+| UI-EX-05 | 查看该员工任务 | `ExecutiveEmployeeTasksLink` | employee_no + executive scope | 第二阶段上线 | 参数完整、入口权限 |
+| UI-EX-06 | 员工姓名筛选 | 复用任务概览筛选组件 | tasks.main_assignee_employee_no + users | 第二阶段 | employeeNo过滤、姓名展示、可清除 |
+| UI-EX-07 | 筛选后的现有任务卡 | 复用任务概览TaskCard | tasks及既有聚合 | 第二阶段 | 当前任务信息/详情跳转 |
 
 ### 6.6 HTML原始交互索引
 
@@ -404,27 +404,11 @@ pending_review --approve--> completed -> archived (one transaction)
 
 索引/约束至少包括：task查询、状态查询、幂等唯一、一个有效拆解尝试、节点到拆解记录外键。
 
-### 8.3 第二阶段：负荷任务下钻（功能上线前必须）
+### 8.3 第二阶段：高管员工任务筛选下钻（P0最新确认）
 
-新增 `workload_snapshot_task_details`，最低字段：
+功能15不新增历史快照任务明细表。正式实现复用现有任务概览：高管在负荷构成抽屉点击“查看该员工任务”后，携带 `source=executive`、`departmentId`、`employeeNo`、`employeeName`、`period` 进入任务概览；页面新增“员工姓名”筛选，展示姓名但后端只使用 `employee_no` 过滤。默认员工任务口径为 `tasks.main_assignee_employee_no = employeeNo`。员工筛选可与状态、四象限、日期等既有条件按 AND 关系叠加。所有查询先执行高管显式授权部门校验；授权外员工/部门统一拒绝且不得泄漏数据。点击任务复用现有任务详情，返回时恢复任务筛选/滚动，再返回高管看板时恢复部门/周期上下文。
 
-| 字段 | 作用 |
-|---|---|
-| `workload_snapshot_task_detail_id` | 显式主键 |
-| `workload_snapshot_id` | 所属快照 |
-| `employee_no` | 快照员工 |
-| `department_id` | 快照组织范围 |
-| `task_id` | 当时纳入计算的任务 |
-| `period_start/period_end` | 统计周期 |
-| `task_status_snapshot` | 当时任务状态 |
-| `task_weight_snapshot` | 当时权重 |
-| `remaining_hours_snapshot` | 开始时间至截止时间之间尚未过去的工作时段，最小0；按系统工作日历计算 |
-| `is_urgent/is_blocked/is_overdue` | 压力贡献快照 |
-| `priority_quadrant_snapshot` | 当时象限 |
-| `contribution_json` | 五维贡献与参数解释 |
-| `created_at` | 生成时间 |
-
-该表在计算 `workload_snapshots` 的同一事务/同一计算批次写入。历史明细不随当前任务修改。
+数据库变更：0张新表、0个新字段、0个Alembic migration。旧 `workload_snapshot_task_details` / `snapshotId` 历史任务下钻方案由本P0口径废止。
 
 ### 8.4 历史字段兼容
 
@@ -484,7 +468,7 @@ pending_review --approve--> completed -> archived (one transaction)
 | NO1 | `GET /notifications`及真实read动作 | 通知 | notifications |
 | E1 | `GET /executive/overview` | 高管聚合 | scopes、tasks、计算表 |
 | E2 | `GET /executive/workload-snapshots/{snapshotId}` | 负荷构成 | workload_snapshots |
-| E3 | `GET /executive/workload-snapshots/{snapshotId}/tasks` | 员工快照任务明细 | snapshot_task_details、tasks、风险表 |
+| E3 | `GET /executive/tasks?employeeNo=...` | 高管按员工筛选当前任务 | scopes、users、tasks、priority |
 
 执行时优先复用当前已存在且语义一致的接口；语义冲突时新增或调整动作接口并更新OpenAPI。不得为迁就旧前端保留两套业务规则。
 
@@ -532,7 +516,7 @@ pending_review --approve--> completed -> archived (one transaction)
 | DEV-14 | 绩效、优先级、负荷、冲突口径对齐 | DEV-13 | 智能计算 | TODO |
 | DEV-15 | 通知、提醒、我的和生产演示清理 | DEV-12,DEV-13 | 支撑 | TODO |
 | DEV-16 | 高管基础看板 | DEV-14,DEV-15 | 第一阶段 | TODO |
-| DEV-17 | 员工负荷快照任务下钻 | DEV-16 | 第二阶段 | TODO |
+| DEV-17 | 高管按员工筛选任务下钻 | DEV-16 | 第二阶段 | BLOCKED |
 | DEV-18 | 全链路E2E、性能、安全、CI与发布验收 | DEV-17 | 发布 | TODO |
 
 ## 12. 通用功能任务卡模板
@@ -775,23 +759,25 @@ pending_review --approve--> completed -> archived (one transaction)
 
 **组件**：UI-EX-01～04。
 
+**P0规则**：执行本任务前必须完整读取 `docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`。KPI正式关系只认 `task_performance_matches.is_confirmed=true`，不得增加 `match_level=strong` 门槛；不定义核心KPI；当前看板排除inactive绩效指标；总体进度包含 `pending_review`，但待验收任务不进入进行中、负荷和执行四象限。
+
 **目标**：实现第二版高管团队指标、四象限、负荷热力图和负荷构成。
 
-**实现**：授权组织筛选、周期、聚合、五维压力、颜色阈值、风险/卡点摘要；第一阶段可通过feature flag隐藏下钻入口，但参数契约已固定。
+**实现**：显式部门授权+下级部门展开、周/月周期、四项团队指标、读取现有优先级结果聚合四象限、读取现有负荷快照生成热力图和五维构成；第一阶段隐藏员工任务明细下钻入口。
 
-**测试**：员工403、高管授权/越权、团队/周期切换、热力分数与抽屉一致、空团队、聚合P95<4s。
+**测试**：员工403、高管授权/越权、团队/周期切换、KPI 4任务/2指标去重、inactive指标排除、pending_review总体进度、四象限只读最新priority、热力分数与抽屉一致、空团队、聚合P95<4s。
 
-### DEV-17 员工负荷快照任务下钻
+### DEV-17 高管按员工筛选任务下钻
 
 **组件**：UI-EX-05～08。
 
-**目标**：完成热力图→负荷构成→员工任务明细→单任务详情。
+**目标**：完成热力图→负荷构成→“查看该员工任务”→现有任务概览自动按员工姓名筛选→现有单任务详情。
 
-**数据库**：新增 `workload_snapshot_task_details`，与快照同批次写入。
+**数据库**：新增业务表0、字段0、Alembic migration 0；复用users、departments、user_authorized_scopes、tasks及既有任务聚合表。
 
-**实现**：入口显示快照任务数；传递departmentId、employeeNo、workloadSnapshotId、period；任务卡显示快照状态/象限/风险；详情显示当前任务但保留来源返回状态。
+**实现**：负荷构成抽屉增加真实“查看该员工任务”按钮；传递source=executive、departmentId、employeeNo、employeeName、period；复用现有任务概览，新增员工姓名筛选（后端仅用employeeNo过滤，默认主承办人口径），并允许与状态/四象限/日期筛选AND叠加；点击现有任务卡进入现有详情；返回恢复员工及其他筛选和高管上下文。
 
-**测试**：快照数与明细一致；当前任务变更不影响历史明细；错误员工/部门组合403或404；猜snapshotId不可越权；分页排序；返回恢复筛选和滚动；迁移往返。
+**测试**：员工筛选使用employeeNo而非姓名；授权内员工可查、授权外employeeNo/departmentId返回403且不泄漏；员工+状态/四象限/日期AND叠加；清除员工筛选恢复授权范围全部任务；任务卡进入现有详情；详情返回恢复筛选/滚动，再返回高管页恢复部门/周期；无新增迁移。
 
 ### DEV-18 全链路E2E、性能、安全、CI和发布验收
 
@@ -852,8 +838,8 @@ pending_review --approve--> completed -> archived (one transaction)
 | E2E-13 | 工时口径 | 全站无预计/计划工时输入；实际工时不可编辑且系统计算 |
 | E2E-14 | 协同权限 | 协同人只能完成授权节点，不能任务级汇报/资源 |
 | E2E-15 | 高管基础 | 授权高管可看正确团队；员工和越权高管被拒绝 |
-| E2E-16 | 负荷下钻 | 热力快照→员工任务数一致→任务卡→详情；返回恢复团队/周期 |
-| E2E-17 | 历史快照 | 任务后续完成/取消不改变历史快照明细 |
+| E2E-16 | 员工任务筛选下钻 | 热力格→负荷构成→查看该员工任务→员工筛选任务列表→任务详情；返回恢复员工/其他筛选及团队/周期 |
+| E2E-17 | 高管员工范围权限 | 伪造授权外employeeNo/departmentId被403且不泄漏员工/任务数据 |
 | E2E-18 | 幂等事务 | 重复发送/接受/重试/汇报/验收不重复；中间失败全回滚 |
 | E2E-19 | 通知 | 发送、接受、拆解成功/失败、换人、撤回、验收等通知可追踪 |
 | E2E-20 | 无死交互 | 所有生产按钮真实调用、明确隐藏或删除，无fake/localStorage业务写 |
@@ -956,8 +942,8 @@ python -m alembic upgrade head
 | DEV-13 | TODO | — | — | — | — | — |
 | DEV-14 | TODO | — | — | — | — | — |
 | DEV-15 | TODO | — | — | — | — | — |
-| DEV-16 | TODO | — | — | — | — | — |
-| DEV-17 | TODO | — | — | — | — | — |
+| DEV-16 | BLOCKED | 功能14高管聚合Service/API/微信页；available_actions真实500缺陷修复；无迁移 | 非PG累计451 passed；微信17组PASS；compileall/OpenAPI PASS | PostgreSQL/Web/Ruff/微信开发者工具门禁当前环境不可执行 | 2026-09-03 | 实现完成；完整开发成功仍待真实PostgreSQL、Web依赖和微信开发者工具验收 |
+| DEV-17 | BLOCKED | 功能15高管负荷→员工任务筛选→现有详情；无迁移 | 非PG累计460 passed；微信19组PASS；compileall/JS语法/Alembic head PASS | 真实PostgreSQL/微信开发者工具门禁当前环境不可执行 | 2026-09-03 | 实现完成；最终开发成功仍待环境门禁 |
 | DEV-18 | TODO | — | — | — | — | — |
 
 ### 19.2 状态定义
@@ -1059,8 +1045,8 @@ python -m alembic upgrade head
 - HTML有效页面、交互、跳转和弹层已在React中工程化实现。
 - 创建人三步和接受后AI拆解完整生效。
 - `task_decomposition_records`及关联字段通过迁移/事务/并发验收。
-- 高管基础看板和第二阶段快照任务下钻通过授权与历史一致性验收。
-- `workload_snapshot_task_details`仅在第二阶段上线前新增并真实写入。
+- 高管基础看板和第二阶段员工任务筛选下钻通过授权、筛选叠加和返回恢复验收。
+- 功能15不新增 `workload_snapshot_task_details`；员工任务下钻复用现有任务概览和employee_no筛选。
 - 全站不写/不显/不计算预计工时；实际工时只读系统生成。
 - 协同、创建、承办、验收、高管和无关员工权限全部通过。
 - 验收通过自动归档且不写新 `archive_snapshot`。
@@ -1073,3 +1059,7 @@ python -m alembic upgrade head
 ## 21. 执行启动批准
 
 当前仅完成开发计划与架构约束。收到明确批准后，从 `DEV-00` 开始；每次只交付一个功能及其测试报告。不得跳过基础任务直接大规模重写前端或状态机。
+
+## P0补充｜功能15（DEV-17）最终口径覆盖
+
+2026-09-03 用户最终确认：DEV-17 不再实现“历史负荷快照任务明细”。旧 `workload_snapshot_task_details` / `snapshotId` 历史任务下钻方案废止。功能15改为：高管负荷构成点击“查看该员工任务” → 复用现有任务概览 → 自动增加员工姓名筛选（查询使用 employee_no）→ 叠加既有筛选 → 进入现有任务详情并恢复返回上下文。新增业务表/字段/Alembic migration 均为 0。开发前必须读取 `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`。

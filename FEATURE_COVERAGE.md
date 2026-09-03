@@ -103,3 +103,32 @@ Current Alembic head: `f7b8c9d0e1f2`.
 The P0 rules frozen in `docs/FEATURE_13_NOTIFICATION_RULES.md` are now implemented. Acceptance evidence is recorded in `docs/FEATURE_13_ACCEPTANCE.md`. Key deltas from the legacy Wave-6 baseline are: server-persisted collaborator node acceptance; no creator/main-assignee pure decomposition-success notice; no execution reminders before collaborator acceptance; dynamic 2h/4h/1-workday due-soon timing; server-side stale-rule revalidation; recipient-only notification listing; action-required target projection; and finite 5/10/20-minute retry on the same notification outbox row.
 
 Current cumulative non-PostgreSQL gate: `436 passed, 21 skipped`; migration contract `32 passed`; Alembic head `b1c2d3e4f5a6`; WeChat feature01-13 cumulative `16` test groups PASS. PostgreSQL opt-in tests were not executed in the current environment and are not claimed as passed.
+
+## Feature 14 executive dashboard checkpoint
+
+Feature 14 DEV-16 implementation is present but is **not marked fully accepted** because the current container cannot execute the required real PostgreSQL, React dependency, Ruff, or WeChat Developer Tools gates.
+
+Implemented coverage:
+
+- explicit `user_authorized_scopes + departments` team scope authorization before data retrieval;
+- week/month shared period context;
+- active task, on-time rate, user-confirmed KPI relation counts, and weighted overall progress;
+- no `match_level=strong` KPI-card gate and no core-KPI classification;
+- inactive performance metrics excluded from the current KPI card while confirmation history remains intact;
+- `pending_review` included only in overall progress;
+- latest persisted `task_priority_scores` used for executive quadrants without duplicating priority formulas;
+- persisted `workload_snapshots` used for the workday heatmap and five-pressure breakdown without duplicating workload formulas;
+- Mini Program quadrant route preserves executive source/department/period context;
+- Feature 15 P0 employee-task filter drilldown is implemented by reusing the existing task overview; no historical snapshot-task table is used;
+- `TaskBoardQueryService.available_actions()` undefined-priority defect fixed with direct service tests.
+
+Feature 15 implementation checkpoint:
+
+- workload breakdown sheet exposes a real “查看该员工任务” action;
+- existing task overview gains an employee-name filter backed by `employeeNo`;
+- employee filter composes with status/quadrant/date filters;
+- executive employee and task scope is revalidated server-side before data retrieval;
+- the obsolete standalone `pages/workload-tasks` fake-calculation page is removed from production registration;
+- no business table, field, or Alembic migration is added.
+
+Current executable evidence after Feature 15: `460 passed, 28 deselected` backend non-PostgreSQL; `19` WeChat test groups PASS; Python compileall and WeChat JS syntax PASS. Real PostgreSQL and WeChat Developer Tools are not available in this container and are not claimed as passed. Full Feature 14 evidence remains in `docs/FEATURE_14_ACCEPTANCE.md`; Feature 15 evidence is in `docs/FEATURE_15_ACCEPTANCE.md`.

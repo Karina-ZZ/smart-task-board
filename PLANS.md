@@ -31,3 +31,8 @@ state take precedence if this summary becomes stale.
 
 Every wave includes design review, additive migration, model, service, API, necessary UI, tests,
 documentation, real PostgreSQL acceptance and the complete quality gate before checkpointing.
+
+
+## Feature 15 P0 override (2026-09-03)
+
+DEV-17 no longer implements historical workload-snapshot task details. The approved flow is: executive workload breakdown -> “查看该员工任务” -> existing task overview with employee-name display / `employeeNo` backend filter -> existing task detail. No new business table, field, or Alembic migration is part of Feature 15. See `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`.

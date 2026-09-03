@@ -11,8 +11,9 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const app = JSON.parse(fs.readFileSync(path.join(root, "app.json"), "utf8"));
-// Feature 11 adds the real completion-submission page before review.
-assert.equal(app.pages.length, 14);
+// Feature 15 removes the obsolete workload-tasks placeholder page; the approved flow reuses tasks + task-detail.
+assert.equal(app.pages.length, 13);
+assert.ok(!app.pages.includes("pages/workload-tasks/index"));
 
 for (const page of app.pages) {
   for (const extension of ["js", "json", "wxml", "wxss"]) {

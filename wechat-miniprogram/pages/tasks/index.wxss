@@ -83,3 +83,8 @@
 .sheet-reset,.sheet-apply { min-height: 86rpx; border-radius: 24rpx; font-weight: 900; }
 .sheet-reset { border: 2rpx solid #bad0ff; color: #1769ff; background: #f5f8ff; }
 .sheet-apply { color: #fff; background: linear-gradient(135deg,#1769ff,#4b8cff); box-shadow: 0 14rpx 28rpx rgba(23,105,255,.2); }
+
+.overview-heading{display:flex;min-width:0;align-items:center;gap:12rpx}.overview-heading>view{min-width:0}.overview-back{display:flex;align-items:center;justify-content:center;width:64rpx;height:64rpx;flex:0 0 auto;border-radius:20rpx;color:#1769ff;background:#fff;font-size:46rpx;font-weight:500;box-shadow:0 8rpx 24rpx rgba(28,65,121,.08)}
+.employee-picker{display:flex;align-items:center;justify-content:space-between;min-height:78rpx;margin-top:14rpx;padding:0 20rpx;border:2rpx solid #dbe5f3;border-radius:20rpx;background:#f9fbfe;color:#11203a;font-size:22rpx;font-weight:800;box-sizing:border-box}
+
+.employee-summary-chip{display:inline-flex;align-items:center;min-height:48rpx;padding:0 16rpx;border:0;border-radius:99rpx;color:#1769ff;background:#eaf1ff;font-size:20rpx;font-weight:900}

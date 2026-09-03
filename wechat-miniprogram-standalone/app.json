@@ -12,8 +12,7 @@
     "pages/review/index",
     "pages/notifications/index",
     "pages/profile/index",
-    "pages/executive/index",
-    "pages/workload-tasks/index"
+    "pages/executive/index"
   ],
   "window": {
     "navigationStyle": "custom",

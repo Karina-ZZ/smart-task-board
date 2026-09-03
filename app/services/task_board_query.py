@@ -664,6 +664,7 @@ class TaskBoardQueryService:
         nodes, dependencies, task_participants, node_participants = self._context(task_id)
         current_review, latest_review, rework_node_reopened = self._review_context(task_id)
         nodes_by_id = {node.node_id: node for node in nodes}
+        priority = self._latest_priority(task.task_id)
         return {
             "task_id": task.task_id,
             "task_version": task.task_version,

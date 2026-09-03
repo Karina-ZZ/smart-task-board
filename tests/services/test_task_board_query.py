@@ -559,3 +559,74 @@ def test_executive_default_task_overview_can_consume_authorized_scope_candidates
     assert "WHERE" not in statement, (
         "default executive overview must not pre-filter to direct task relations"
     )
+
+
+def _available_actions_service(task: Task, node: TaskNode) -> TaskBoardQueryService:
+    service = TaskBoardQueryService.__new__(TaskBoardQueryService)
+    service._session = MagicMock()
+    service._tasks = MagicMock()
+    service._nodes = MagicMock()
+    service._users = MagicMock()
+    service._issues = MagicMock()
+    service._reports = MagicMock()
+    service._completion_reviews = MagicMock()
+    service._change_requests = MagicMock()
+    service._priorities = MagicMock()
+    service._tasks.get_by_id.return_value = task
+    service._tasks.list_participants.return_value = []
+    service._nodes.list_nodes.return_value = [node]
+    service._nodes.list_dependencies.return_value = []
+    service._nodes.list_participants_by_task_id.return_value = []
+    service._completion_reviews.get_current_submitted.return_value = None
+    service._completion_reviews.get_latest.return_value = None
+    service._change_requests.get_pending.return_value = None
+    service._issues.has_non_closed.return_value = False
+    service._issues.has_employee_relation.return_value = False
+    return service
+
+
+def test_available_actions_handles_task_without_priority_record(monkeypatch) -> None:
+    task = _task("in_progress")
+    node = _node(task)
+    service = _available_actions_service(task, node)
+    monkeypatch.setattr(
+        "app.services.task_board_query.PermissionScopeService.can_access_task",
+        lambda *_args, **_kwargs: True,
+    )
+    service._latest_priority = MagicMock(return_value=None)
+
+    result = service.available_actions(task.task_id, "E-ASSIGNEE")
+
+    assert result["priority_quadrant"] is None
+    assert result["importance_score"] is None
+    assert result["urgency_score"] is None
+    assert result["remaining_hours"] is None
+    assert result["sort_rank"] is None
+    service._latest_priority.assert_called_once_with(task.task_id)
+
+
+def test_available_actions_projects_latest_priority(monkeypatch) -> None:
+    task = _task("in_progress")
+    node = _node(task)
+    service = _available_actions_service(task, node)
+    monkeypatch.setattr(
+        "app.services.task_board_query.PermissionScopeService.can_access_task",
+        lambda *_args, **_kwargs: True,
+    )
+    service._latest_priority = MagicMock(
+        return_value=SimpleNamespace(
+            priority_quadrant="important_urgent",
+            importance_score=72,
+            urgency_score=88,
+            remaining_hours=4,
+            sort_rank=2,
+        )
+    )
+
+    result = service.available_actions(task.task_id, "E-ASSIGNEE")
+
+    assert result["priority_quadrant"] == "important_urgent"
+    assert result["importance_score"] == "72"
+    assert result["urgency_score"] == "88"
+    assert result["remaining_hours"] == "4"
+    assert result["sort_rank"] == 2

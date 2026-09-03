@@ -2,6 +2,63 @@
 
 本仓库所有显著变更都记录在此文件中。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [功能 15] - 2026-09-03 — 高管员工任务筛选
+
+> 本次交付实际包含功能 14（高管任务看板）与功能 15（员工任务筛选）两个功能。
+
+### 新增
+
+#### 后端
+
+- **高管成员只读接口**
+  - 新增 `GET /api/v1/executive/members`，只返回当前高管有效部门授权范围内的 active 员工，候选范围受显式部门授权限制。
+- **任务查询扩展**
+  - 扩展 `GET /api/v1/executive/tasks`，支持 `employeeNo`、状态、四象限、日期过滤，各条件按 AND 叠加。
+  - 员工筛选在 Repository 层使用 `Task.main_assignee_employee_no == employee_no`；查询前先校验高管显式授权部门，再校验目标员工所属部门，授权外员工在任务查询前拒绝并审计。
+  - 任务结果仍以授权部门集合为第一范围边界。
+  - 新增 `app/services/features/executive_dashboard/task_list.py`。
+
+#### 微信小程序
+
+- 高管看板负荷构成抽屉新增「查看该员工任务」真实按钮，携带 `source=executive`、`departmentId`、`employeeNo`、`employeeName`、`period`、`datePreset` 跳转现有任务概览页。
+- `employeeName` 仅用于展示，不作为后端数据库过滤条件。
+- 复用 `pages/tasks/index`（未创建第四个业务页）；任务详情复用 `pages/task-detail/index`，不新增高管专用详情页，不扩大高管业务写权限。
+- 高管上下文错误态区分无权限，403 时不展示员工/任务业务数据；清除员工筛选时保留高管部门授权上下文。
+- 返回时 `navigateBack` 保留完整任务页实例状态；无历史栈时按高管/员工上下文回退。
+
+#### 功能 14 高管任务看板（随本次交付）
+
+- 授权部门与本周/本月筛选、进行中/按期率/KPI 关联/总体进度、团队四象限、员工工作日负荷热力图、单快照五维负荷构成。
+- P0 规则：KPI 只认用户确认关系，不要求 strong；不区分核心 KPI；停用绩效指标不进入当前 KPI 卡；总体进度包含 `pending_review`。
+
+#### 测试
+
+- 新增 `tests/repositories/test_executive_dashboard_queries.py`。
+- 新增小程序测试 `executive-employee-tasks.test.js`、`executive-employee-tasks-flow.test.js`（功能 15）与 `executive-dashboard.test.js`（功能 14）。
+- 后端测试由 436 增至 **460 passed**；小程序测试由 16 组增至 **19 组**。
+
+#### 文档
+
+- 新增 `docs/FEATURE_14_ACCEPTANCE.md`、`docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`。
+- 新增 `docs/FEATURE_15_ACCEPTANCE.md`、`docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`。
+
+### 移除
+
+- 删除占位页面 `pages/workload-tasks/`（该页按 `employeeNo` 查询后在前端拼装假负荷压力，不符合 P0 三页流程）。小程序 `app.json` 注册页面数为 13。
+
+### 修复
+
+- 修复 `app/services/task_board_query.py` 中 `available_actions()` 引用未定义变量 `priority` 导致 `GET /api/v1/tasks/{task_id}/available-actions` 返回 500 的缺陷（ruff F821 已清零）。
+- 修复 `wechat-miniprogram/package.json` 与 `wechat-miniprogram-standalone/package.json` 的 `test` 脚本遗漏串联功能 14/15 新增的 3 个测试文件，导致 `npm test` 只跑 16 组而非 19 组。
+
+### 说明
+
+- 功能 15 无新增业务表、无新增数据库字段、无新增 Alembic 迁移，`alembic/versions` 文件集合与功能 14 基线一致，Alembic head 仍为 `b1c2d3e4f5a6`。
+- 明确不实现：`workload_snapshot_task_details`、snapshot task detail 字段、按 snapshotId 查询历史任务集合、独立员工负荷任务业务页、新负荷公式。
+- 功能 14 的 `period`-only 兼容保持不变；功能 15 显式 `datePreset=all` 时不会被 `period` 隐式覆盖。
+
+---
+
 ## [功能 13] - 2026-09-03 — 通知、提醒与协办节点承接
 
 ### 新增

@@ -143,6 +143,14 @@ def get_task_board_query_service(
     return TaskBoardQueryService(session)
 
 
+def get_executive_dashboard_service(
+    session: Annotated[Session, Depends(get_db)],
+):
+    from app.services.features.executive_dashboard import ExecutiveDashboardService
+
+    return ExecutiveDashboardService(session)
+
+
 def get_system_parameter_service(
     session: Annotated[Session, Depends(get_db)],
 ) -> SystemParameterService:

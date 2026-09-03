@@ -999,6 +999,11 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
         ("POST", "/api/v1/tasks/{task_id}/decomposition/execute"),
         ("POST", "/api/v1/tasks/{task_id}/decomposition/retry"),
     }
+    executive_operations = {
+        ("GET", "/api/v1/executive/overview"),
+        ("GET", "/api/v1/executive/members"),
+        ("GET", "/api/v1/executive/tasks"),
+    }
     business_operations = {
         ("GET", "/api/v1/system-parameters"),
         ("PUT", "/api/v1/system-parameters/{param_key}"),
@@ -1043,8 +1048,9 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
     assert batch2_operations <= api_operations
     assert wave2_operations <= api_operations
     assert business_operations <= api_operations
-    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 93
-    assert len(api_operations) == 99
+    assert executive_operations <= api_operations
+    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 96
+    assert len(api_operations) == 102
 
     security_schemes = specification["components"]["securitySchemes"]
     bearer_schemes = {

@@ -17,6 +17,11 @@ const DEFAULT_FILTERS = {
   pageSize: 20,
   sortBy: "deadline",
   sortOrder: "asc",
+  source: "",
+  departmentId: "",
+  period: "",
+  employeeNo: "",
+  employeeName: "",
 };
 
 const STATUS_OPTIONS = [
@@ -74,6 +79,7 @@ function labelOf(options, value) {
 
 function filterSummary(filters) {
   const labels = [];
+  if (filters.employeeNo) labels.push(`员工：${filters.employeeName || filters.employeeNo}`);
   if (filters.mode === "nodes") labels.push("我的节点任务");
   if (filters.status) labels.push(labelOf(STATUS_OPTIONS, filters.status));
   if (filters.quadrant) labels.push(labelOf(QUADRANT_OPTIONS, filters.quadrant));

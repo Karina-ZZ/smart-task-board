@@ -224,19 +224,21 @@ POST /api/v1/notifications/send-pending
 
 ## 五、已知问题（跑之前先看，免得以为是自己的错）
 
-### ⚠️ `GET /api/v1/tasks/{task_id}/available-actions` 会返回 500
+> 本节基于**功能 15 代码基线**（2026-09-03 复核）。
 
-**现象**：`app/services/task_board_query.py` 第 670~674 行的 `available_actions()` 引用了未定义的变量 `priority`，运行时抛 `NameError`。
+### ✅ 已修复：`GET /api/v1/tasks/{task_id}/available-actions` 返回 500
 
-**影响**：仅影响这一个接口（后端动作投影查询），任务列表、详情、节点执行等主链路不受影响。
+功能 13 版本曾存在此缺陷（`available_actions()` 引用未定义变量 `priority`，抛 `NameError`），**已在功能 15 交付包中由上游修复**，并补充了直接针对 service 层的回归测试。当前 `ruff --select F821` 已全部通过，该接口不再返回 500。
 
-**为什么测试没抓到**：唯一覆盖真实实现的测试是 PostgreSQL opt-in（默认 skipped），单元测试用 mock 绕过了真实代码路径。
+### Ruff 有 220 个告警（全部为风格类）
 
-**修复方向**：在该方法中补一行 `priority = self._latest_priority(task.task_id)`（同文件 `_summary()` 中已有正确写法）。修复需按 `docs/ACCEPTANCE_STANDARDS.md` 执行全量回归。
+按类型：163 行超长（E501）、35 import 未排序（I001）、10 未使用 import（F401）、6 单行多语句（E701/E702）、3 未使用变量（F841）、3 重复值/弃用 import（B033/UP035）。
 
-### Ruff 有 201 个告警
+**无功能性缺陷**。`ruff check .` 报红属当前基线状态，不代表你环境装错了。
 
-其中 190 个是风格类（137 行超长、31 import 排序等），不影响功能；11 个 `F821` 就是上面那个真缺陷。**跑 `ruff check .` 报红属当前基线状态，不代表你环境装错了。**
+### PostgreSQL 集成测试默认跳过
+
+`pytest` 的 28 项 skipped / deselected 全部是 PostgreSQL opt-in 集成测试，属预期行为，不是失败。需 `RUN_POSTGRESQL_INTEGRATION=1` + 隔离 PG 测试库才会执行。
 
 ### Python 版本口径
 
@@ -257,13 +259,13 @@ POST /api/v1/notifications/send-pending
 1. 环境：Python 3.12（没有就用 3.13 加 --ignore-requires-python，并在报告里注明）、Node 18+、Docker。
 2. 起 PostgreSQL 16（docker compose up -d postgres），执行 alembic upgrade head，确认停在 head b1c2d3e4f5a6。
 3. 配置 prototype 认证所需环境变量（DATABASE_URL、AUTH_MODE=prototype、PROTOTYPE_AUTH_ENABLED=true、PROTOTYPE_USER_EMPLOYEE_NOS、JWT_SECRET_KEY 至少 32 位、ALLOW_TEST_EMPLOYEE_HEADER=false），启动 uvicorn，确认 /health/live 和 /health/ready 正常。
-4. 跑测试：后端 pytest（基线 436 passed / 28 skipped）、ruff check、微信小程序 npm test（16 组）、React 前端 npm run lint/test/build（18 文件 / 109 测试）。
+4. 跑测试：后端 pytest（基线 460 passed / 28 skipped）、ruff check、微信小程序 npm test（19 组）、React 前端 npm run lint/test/build（18 文件 / 109 测试）。
 5. 按文档「四、功能 13 验证清单」的 8 个验证项逐项实测，每项都要给出：我实际执行的命令或请求、服务端真实返回、是否符合预期。不允许跳过或凭推断下结论。
 6. 用 prototype-login 取得不同员工（主承办人 / 协办人 / 高管）的 token，验证权限边界。
 
 重要提醒（已知问题，不要误判成你的环境问题）：
-- GET /api/v1/tasks/{task_id}/available-actions 会返回 500，这是仓库的既有缺陷（app/services/task_board_query.py 第 670~674 行引用了未定义变量 priority）。请在报告中确认并复现它，但不要擅自修改业务代码——除非我明确要求你修。
-- ruff check 会报 201 个错误，其中 190 个是风格类，属当前基线状态。
+- `GET /api/v1/tasks/{task_id}/available-actions` 的 500 缺陷（原 `app/services/task_board_query.py` 引用未定义变量 `priority`）**已在功能 15 交付中修复**，当前 `ruff --select F821` 已清零，该接口正常返回。无需再复现，若仍见 500 才是真异常。
+- ruff check 会报一批风格类错误（E501/I001 等），属当前基线状态，非环境装错。
 - pytest 的 28 项 skipped 是 PostgreSQL opt-in 集成测试，属预期行为。
 
 输出要求：给我一份中文报告，包含四个部分：(a) 环境与版本信息；(b) 各项测试结果对照表（实测值 vs 文档基线）；(c) 功能 13 八个验证项的逐项结论（通过 / 不通过 / 无法验证及原因）；(d) 发现的问题清单。如实汇报，任何一项没跑通就明确说没跑通，不要粉饰。

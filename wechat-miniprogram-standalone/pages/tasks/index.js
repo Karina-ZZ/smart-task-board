@@ -1,6 +1,6 @@
 /**
- * Feature 02: Task/node overview page.
- * Owns URL/storage-restorable UI filters and server-side pagination only.
+ * Feature 02 + Feature 15: Task/node overview and executive employee filter.
+ * Owns URL/storage-restorable UI filters, executive employee selection, and server-side pagination only.
  */
 
 const api = require("../../utils/api");
@@ -27,7 +27,7 @@ const NODE_STATUS_LABELS = { pending: "未开始", in_progress: "进行中", com
 
 function optionFilters(options) {
   const result = {};
-  ["mode", "status", "quadrant", "support", "datePreset", "startDate", "endDate", "search", "sortBy", "sortOrder"].forEach((key) => {
+  ["mode", "status", "quadrant", "support", "datePreset", "startDate", "endDate", "search", "sortBy", "sortOrder", "source", "departmentId", "period", "employeeNo", "employeeName"].forEach((key) => {
     if (options[key] !== undefined && options[key] !== "") result[key] = options[key];
   });
   if (options.nearDue === "true") result.nearDue = true;
@@ -57,6 +57,10 @@ Page({
     orderLabel: "升序",
     executive: false,
     unread: 0,
+    executiveContext: false,
+    employeeOptions: [{ employeeNo: "", name: "全部员工" }],
+    employeeIndex: 0,
+    errorTitle: "任务概览暂时无法加载",
   },
 
   onLoad(options) {
@@ -64,7 +68,7 @@ Page({
     const hasRouteFilters = Object.keys(routeFilters).length > 0;
     const stored = options.reset === "1" || hasRouteFilters ? {} : wx.getStorageSync(FILTER_KEY);
     const filters = mergeFilters(stored, routeFilters);
-    this.setData({ filters });
+    this.setData({ filters, executiveContext: filters.source === "executive" });
     wx.setStorageSync(FILTER_KEY, filters);
   },
 
@@ -74,11 +78,15 @@ Page({
 
   load(restoreScroll) {
     this.setData({ loading: true, error: "" });
+    const memberRequest = this.data.executiveContext
+      ? api.executiveMembers({ departmentId: this.data.filters.departmentId })
+      : Promise.resolve([]);
     return Promise.all([
       api.taskOverview(this.data.filters),
       api.currentUser(),
       api.notifications("all"),
-    ]).then(([result, user, notices]) => {
+      memberRequest,
+    ]).then(([result, user, notices, members]) => {
       const statusCounts = result.statusCounts || {};
       const statusCards = QUICK_STATUSES.map((item) => ({ ...item, count: statusCounts[item.value] || 0 }));
       const items = (result.items || []).map((item) => ({
@@ -90,22 +98,38 @@ Page({
       }));
       const total = Number(result.total || 0);
       const maxPage = Math.max(1, Math.ceil(total / this.data.filters.pageSize));
-      const filters = this.data.filters.page > maxPage ? { ...this.data.filters, page: maxPage } : this.data.filters;
+      let filters = this.data.filters.page > maxPage ? { ...this.data.filters, page: maxPage } : this.data.filters;
+      const employeeOptions = [{ employeeNo: "", name: "全部员工" }, ...(members || [])];
+      const employeeIndex = Math.max(0, employeeOptions.findIndex((item) => item.employeeNo === filters.employeeNo));
+      if (filters.employeeNo && employeeOptions[employeeIndex]?.employeeNo === filters.employeeNo) {
+        filters = { ...filters, employeeName: employeeOptions[employeeIndex].name };
+        wx.setStorageSync(FILTER_KEY, filters);
+      }
+      const summaries = filterSummary(filters);
       this.setData({
         items,
         total,
         maxPage,
         filters,
         statusCards,
-        filterSummary: filterSummary(filters),
+        filterSummary: this.data.executiveContext ? summaries.filter((item) => !item.startsWith("员工：")) : summaries,
         executive: access.canAccessExecutive(user),
         unread: (notices || []).filter((item) => item.actionRequired).length,
+        employeeOptions,
+        employeeIndex,
+        errorTitle: "任务概览暂时无法加载",
         loading: false,
       }, () => {
         if (restoreScroll) wx.pageScrollTo({ scrollTop: Number(wx.getStorageSync(SCROLL_KEY) || 0), duration: 0 });
       });
-    }).catch((error) => this.setData({ error: error.message || "任务概览加载失败", loading: false }));
+    }).catch((error) => this.setData({
+      error: error.message || "任务概览加载失败",
+      errorTitle: error.statusCode === 403 ? "无权查看该员工任务" : "任务概览暂时无法加载",
+      loading: false,
+    }));
   },
+
+  clearEmployeeFilter() { this.updateFilters({ employeeNo: "", employeeName: "" }); },
 
   updateFilters(patch, scroll) {
     const filters = mergeFilters(this.data.filters, patch, { page: 1 });
@@ -130,6 +154,7 @@ Page({
       draftFilters,
       sortLabel: labelOf(SORT_OPTIONS, draftFilters.sortBy),
       orderLabel: labelOf(ORDER_OPTIONS, draftFilters.sortOrder),
+      employeeIndex: Math.max(0, this.data.employeeOptions.findIndex((item) => item.employeeNo === draftFilters.employeeNo)),
     });
   },
 
@@ -137,6 +162,15 @@ Page({
   stopOverlay() {},
   chooseDraftMode(event) { this.setData({ "draftFilters.mode": event.currentTarget.dataset.value }); },
   chooseDraftStatus(event) { this.setData({ "draftFilters.status": event.currentTarget.dataset.value }); },
+  chooseDraftEmployee(event) {
+    const index = Number(event.detail.value || 0);
+    const item = this.data.employeeOptions[index] || this.data.employeeOptions[0];
+    this.setData({
+      employeeIndex: index,
+      "draftFilters.employeeNo": item.employeeNo || "",
+      "draftFilters.employeeName": item.employeeNo ? item.name : "",
+    });
+  },
   chooseDraftQuadrant(event) { this.setData({ "draftFilters.quadrant": event.currentTarget.dataset.value }); },
   chooseDraftDatePreset(event) { this.setData({ "draftFilters.datePreset": event.currentTarget.dataset.value }); },
   toggleNearDue(event) { this.setData({ "draftFilters.nearDue": event.detail.value }); },
@@ -169,10 +203,16 @@ Page({
   },
 
   resetFilters() {
-    const filters = { ...DEFAULT_FILTERS };
+    const context = this.data.executiveContext ? {
+      source: "executive",
+      departmentId: this.data.filters.departmentId || "",
+      period: this.data.filters.period || "",
+      mode: "tasks",
+    } : {};
+    const filters = { ...DEFAULT_FILTERS, ...context };
     wx.setStorageSync(FILTER_KEY, filters);
     wx.setStorageSync(SCROLL_KEY, 0);
-    this.setData({ filters, draftFilters: filters, filterOpen: false }, () => this.load(false).then(() => wx.pageScrollTo({ selector: "#overview-task-section", duration: 300 })));
+    this.setData({ filters, draftFilters: filters, employeeIndex: 0, filterOpen: false }, () => this.load(false).then(() => wx.pageScrollTo({ selector: "#overview-task-section", duration: 300 })));
   },
 
   previousPage() { if (this.data.filters.page > 1) this.setPage(this.data.filters.page - 1); },
@@ -185,8 +225,16 @@ Page({
 
   openTask(event) {
     const taskId = event.detail ? event.detail.taskId : event.currentTarget.dataset.taskId;
-    router.go("/pages/task-detail/index", { taskId });
+    router.go("/pages/task-detail/index", {
+      taskId,
+      source: this.data.filters.source || undefined,
+      employeeNo: this.data.filters.employeeNo || undefined,
+      employeeName: this.data.filters.employeeName || undefined,
+      departmentId: this.data.filters.departmentId || undefined,
+      period: this.data.filters.period || undefined,
+    });
   },
+  backExecutive() { wx.navigateBack({ fail: () => wx.reLaunch({ url: "/pages/executive/index" }) }); },
   openNode(event) {
     router.go("/pages/task-detail/index", {
       taskId: event.currentTarget.dataset.taskId,

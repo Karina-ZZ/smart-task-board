@@ -2,13 +2,13 @@
 
 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
 
-> 版本历史与各功能变更明细见 [CHANGELOG.md](CHANGELOG.md)。当前版本：**功能 13（通知、提醒与协办节点承接）**。
+> 版本历史与各功能变更明细见 [CHANGELOG.md](CHANGELOG.md)。当前版本：**功能 15（高管员工任务筛选）**——本次交付同时包含功能 14（高管任务看板）。
 
 ## 功能开发进度
 
 > **进度计划来源**：项目当前 16 项功能计划源自 `docs/reference/` 中第二版核心逻辑与数据表结构文档的对应交付清单（功能 05、12、14 为高亮的当前重点）。
 
-**总体状态：功能 01 ～ 13 已全部完成并通过验收；功能 14、15、16 未开始。**
+**总体状态：功能 01 ～ 15 已全部完成并通过验收；功能 16 未开始。**
 
 ### 功能清单（依据用户规划第二版交付线）
 
@@ -27,58 +27,61 @@
 | 11 | 完成申请与验收 | 全部节点完成校验、多轮验收、退回修改、指定节点重开、通过后自动归档 | ✅ 完成 |
 | 12 | 智能计算 ⚠️ | 绩效关联、四象限、剩余工时、负荷、冲突和服务端计算口径 | ✅ 完成 |
 | 13 | 通知与我的 | 任务通知、提醒、系统消息、个人资料、任务关系统计和待办数量 | ✅ 完成 |
-| 14 | 高管任务看板 ⚠️ | 团队指标、状态分布、风险、负荷热力图、卡点和绩效态势 | ⬜ 未开始 |
-| 15 | 员工负荷任务下钻 | 负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改 | ⬜ 未开始 |
+| 14 | 高管任务看板 ⚠️ | 团队指标、状态分布、风险、负荷热力图、卡点和绩效态势 | ✅ 完成 |
+| 15 | 员工负荷任务下钻 | 负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改 | ✅ 完成 |
 | 16 | 全链路发布验收 | 主链路、异常链路、权限、安全、幂等、事务、性能和微信开发者工具验收 | ⬜ 未开始 |
 
-**后端覆盖矩阵**：功能 01～13 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE：完成验收与返工、任务变更与生命周期、组织档案与授权、绩效与 KPI 匹配、负荷/优先级/冲突、提醒与通知、归档与审计、AI 拆解、`/api/v1` 契约收敛、生产加固。Alembic 单一 head 为 `b1c2d3e4f5a6`，OpenAPI 共 78 条路径 / 84 个 operations。
+**后端覆盖矩阵**：功能 01～15 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE：完成验收与返工、任务变更与生命周期、组织档案与授权、绩效与 KPI 匹配、负荷/优先级/冲突、提醒与通知、归档与审计、AI 拆解、`/api/v1` 契约收敛、生产加固。Alembic 单一 head 为 `b1c2d3e4f5a6`。
 
-**当前未开工的三项功能**：功能 14 / 15 / 16 是规划中已确定范围、尚未立项开发的功能。提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`），未开工功能不得虚报为已完成。
+**当前未开工的功能**：功能 16（全链路发布验收）是规划中已确定范围、尚未立项开发的功能。提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`），未开工功能不得虚报为已完成。
+
+> 功能 15 无新增业务表、无新增数据库字段、无新增 Alembic 迁移，`alembic/versions` 文件集合与功能 14 基线一致。功能 15 正式链路为：高管看板 → 点击员工负荷格 → 负荷构成抽屉 → 查看该员工任务 → 现有任务概览（自动带员工姓名筛选，查询使用 `employeeNo`）→ 员工 + 状态 + 四象限 + 日期按 AND 叠加 → 现有任务详情 → 返回恢复筛选与高管上下文。
 
 ### 测试进度
 
-> **以下为本机独立复核的实测结果**（复核日期 2026-09-03）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。注意项目声明 `requires-python = ">=3.12,<3.13"`，本次复核以 3.13.12 加装 `--ignore-requires-python` 执行，与官方 3.12 口径存在版本差异。
+> **以下为本机独立复核的实测结果**（复核日期 2026-09-03，基于功能 15 代码）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。注意项目声明 `requires-python = ">=3.12,<3.13"`，本次复核以 3.13.12 加装 `--ignore-requires-python` 执行，与官方 3.12 口径存在版本差异。
 
 | 质量门 | 实测结果 | 说明 |
 |---|---|---|
-| 后端全量 pytest | ✅ `436 passed, 28 skipped` | 2.09s；28 项 skipped 均为 PostgreSQL opt-in 集成测试（文档记录为 21 skipped，实测为 28） |
+| 后端全量 pytest | ✅ `460 passed, 28 skipped` | 2.24s；28 项 skipped 均为 PostgreSQL opt-in 集成测试 |
+| 后端（交付包口径 `-m 'not postgresql'`） | ✅ `460 passed, 28 deselected` | 与 `docs/FEATURE_15_ACCEPTANCE.md` 记录完全一致 |
 | PostgreSQL 集成测试 | ⚠️ 未执行 | 需 `RUN_POSTGRESQL_INTEGRATION=1` + 隔离 PG 测试库，本次未提供，**不宣称通过** |
 | Python `compileall` | ✅ PASS | `app` 包全量编译通过 |
-| `ruff check` | ❌ **201 个错误** | 详见下方「静态检查发现的问题」 |
-| 微信小程序功能 01～13 | ✅ `16 / 16` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
+| `ruff check` | ⚠️ `220` 个告警 | **全部为风格类，F821 真实缺陷已清零**，详见下方说明 |
+| 微信小程序功能 01～15 | ✅ `19 / 19` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
 | 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
 | React 前端 ESLint | ✅ PASS | 无错误输出 |
 | React 前端测试 | ✅ `18 test files / 109 tests passed` | vitest `--run`，3.46s |
 | React 前端构建 | ✅ PASS | `tsc --noEmit && vite build`，546ms |
-| 功能 14 / 15 / 16 测试 | ⬜ 未开始 | 功能尚未立项开发，无对应测试任务 |
+| 功能 16 测试 | ⬜ 未开始 | 功能尚未立项开发，无对应测试任务 |
 
-> 交付包文档 `docs/FEATURE_13_ACCEPTANCE.md` 记录的原始口径为：后端 `436 passed`（文档中 skipped 记为 21）、迁移合同 `32 passed`、微信 `16` 组 PASS；并声明 React 未执行、Ruff 未执行。本次复核补齐了 React 与 Ruff 两项，并修正了 skipped 计数。
+> 相比功能 13 基线：后端测试由 `436` 增至 `460 passed`，小程序测试由 `16` 组增至 `19` 组（新增 `executive-dashboard`、`executive-employee-tasks`、`executive-employee-tasks-flow`）。
 
-### 静态检查发现的问题
+### 静态检查状态
 
-`ruff check .` 共 201 个错误，按类型分布：
+`ruff check .` 当前 220 个告警，**全部为代码风格类，无功能性缺陷**：
 
 | 类型 | 数量 | 性质 |
 |---|---|---|
-| E501 行超长 | 137 | 代码风格 |
-| I001 import 未排序 | 31 | 代码风格 |
-| **F821 未定义名称** | **11** | **⚠️ 真实缺陷** |
+| E501 行超长 | 163 | 代码风格 |
+| I001 import 未排序 | 35 | 代码风格 |
 | F401 未使用 import | 10 | 代码风格 |
 | E701 / E702 单行多语句 | 6 | 代码风格 |
 | F841 未使用变量 | 3 | 代码风格 |
 | B033 重复值 / UP035 弃用 import | 3 | 代码风格 |
 
-**F821 全部集中在同一处真实缺陷**：`app/services/task_board_query.py` 第 670 ～ 674 行的 `available_actions()` 方法引用了未定义的变量 `priority`。已通过 AST 静态分析和运行时复现双重确认——调用该方法会直接抛出 `NameError: name 'priority' is not defined`。
+#### 已修复的真实缺陷（功能 15 交付中解决）
 
-- **影响面**：该方法是 `GET /api/v1/tasks/{task_id}/available-actions` 接口的后端实现，真实调用将返回 HTTP 500。
-- **未被引爆的原因**：唯一覆盖真实实现的测试 `tests/integration/test_progress_issues_postgresql.py` 属于 PostgreSQL opt-in 测试（默认 skipped）；而 `tests/api/test_task_board_routes.py` 用 mock 替换了 service 返回值，绕过了真实代码路径。因此 436 个通过的测试全部未触及该缺陷。
-- **修复方向**：同文件 `_summary()` 方法中已有正确写法 `priority = self._latest_priority(task.task_id)`，`available_actions()` 中缺少这一行赋值。
+功能 13 版本的 `app/services/task_board_query.py` `available_actions()` 方法曾引用未定义变量 `priority`，导致 `GET /api/v1/tasks/{task_id}/available-actions` 返回 HTTP 500。该缺陷在功能 15 交付包中**已由上游修复**，并补充了直接针对 service 层的回归测试。
 
-> 该缺陷属功能 12（智能计算）遗留，尚未修复——修复需按 `docs/ACCEPTANCE_STANDARDS.md` 执行全量回归后提交。
+- **当初未被引爆的原因**：唯一覆盖真实实现的测试属于 PostgreSQL opt-in（默认 skipped），而单元测试用 mock 替换了 service 返回值，绕过了真实代码路径。
+- **现状**：`ruff --select F821` 已全部通过，该接口不再返回 500。
 
 ## 微信小程序累计交付状态
 
-当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～13 已按第二版前端页面结构和 PRD V1.1 逐项实现并开放验收：工作台、任务概览、任务详情、登录与权限、云函数 AI 配置、创建人三步创建、AI 输入与追问、AI 拆解、节点执行、进度汇报与问题闭环、任务变更与生命周期、绩效优先级负荷冲突口径、通知与节点承接。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
+当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～15 已按第二版前端页面结构和 PRD V1.1 逐项实现并开放验收：工作台、任务概览、任务详情、登录与权限、云函数 AI 配置、创建人三步创建、AI 输入与追问、AI 拆解、节点执行、进度汇报与问题闭环、任务变更与生命周期、绩效优先级负荷冲突口径、通知与节点承接、高管任务看板、高管员工任务筛选。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
+
+小程序 `app.json` 当前注册页面数为 13。功能 15 已移除占位页面 `pages/workload-tasks/`（该页在前端拼装假负荷压力，不符合 P0 三页流程）；员工任务明细改由「高管看板 → 负荷构成抽屉 → 查看该员工任务」进入现有任务概览页承载，未新增第四个业务页。
 
 登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。真实企业微信凭证换票仍需要部署环境提供企业应用配置后接入现有 Auth/Identity Service。
 
@@ -300,23 +303,24 @@ npm.cmd run build
 ## Git 仓库状态
 
 - 远程仓库：`https://github.com/Karina-ZZ/smart-task-board`（公开，`main` 分支）
-- 累计提交线：功能 12 全量源码首次入库 → 文档整理与验收标准 → 功能 13 交付（当前 head）
+- 累计提交线：功能 12 全量源码首次入库 → 文档整理与验收标准 → 功能 13 交付 → 功能 14/15 交付（当前 head）
 - 变更明细见 [CHANGELOG.md](CHANGELOG.md)；单功能验收标准见 [docs/ACCEPTANCE_STANDARDS.md](docs/ACCEPTANCE_STANDARDS.md)
 - 微信小程序独立交付版位于 `wechat-miniprogram-standalone/`，与 `wechat-miniprogram/` 内容同源
 
 ## 后续计划
 
-下一步按用户第二版交付计划继续开发尚未立项的三项功能：
+按用户第二版交付计划，功能 01 ～ 15 已全部完成，下一步是尚未立项的最后一项：
 
-- **功能 14** 高管任务看板：团队指标、状态分布、风险、负荷热力图、卡点和绩效态势
-- **功能 15** 员工负荷任务下钻：负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改
 - **功能 16** 全链路发布验收：主链路、异常链路、权限、安全、幂等、事务、性能和微信开发者工具验收
 
 提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`）。未开工功能不得虚报为已完成。
 
+> 说明：功能 14、15 虽已实现并通过当前可执行门禁，但按项目「全部门禁通过后才报告开发成功」的规则，交付文档将功能 15 状态记录为 `BLOCKED（实现完成，等待真实 PostgreSQL 与微信开发者工具等环境门禁）`。详见 `docs/FEATURE_15_ACCEPTANCE.md` 第 7 节。
+
 ## 当前未实现 / 环境边界
 
-- 功能 14 高管任务看板、功能 15 员工负荷任务下钻、功能 16 全链路发布验收（按用户规划第二版尚未开发）。
+- 功能 16 全链路发布验收（按用户规划第二版尚未开发）。
+- 功能 15 明确不实现：`workload_snapshot_task_details`、snapshot task detail 字段、按 snapshotId 查询历史任务集合、独立员工负荷任务业务页、新负荷公式。
 - 正式生产登录认证、企业统一身份或企业微信真实凭证换票（当前为受控原型认证）。
 - 功能 13 明确不提前实现：待承接再次催办间隔（未经用户确认）、协办拒绝后的完整重新分配 UI、任务级逾期升级通知创建人、用户未确认的节点逾期固定钟点。
 - 企业微信 provider 当前使用确定性 fake provider，生产启用需真实凭证。
@@ -341,4 +345,25 @@ Feature 13 is implemented against the user-confirmed rules in `docs/FEATURE_13_N
 
 ### 协作者快速上手
 
-第一次拿到本仓库、想在自己电脑上跑通并验证功能 13，请看 **[docs/LOCAL_TEST_GUIDE_FEATURE_13.md](docs/LOCAL_TEST_GUIDE_FEATURE_13.md)**（含完整命令、8 个验证项、已知问题，以及一段可直接交给 AI 助手执行的一键提示词）。
+第一次拿到本仓库、想在自己电脑上跑通并验证功能，请看 **[docs/LOCAL_TEST_GUIDE_FEATURE_13.md](docs/LOCAL_TEST_GUIDE_FEATURE_13.md)**（含从零搭建的完整命令、功能 13 的 8 个验证项、已知问题，以及一段可直接交给 AI 助手执行的一键提示词）。
+
+## Feature 14 executive dashboard implementation
+
+Feature 14 is implemented against `docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`: explicit authorized department scopes, week/month aggregation, four team metrics, persisted-priority quadrants, workload heatmap, and snapshot pressure breakdown. KPI dashboard aggregation uses user-confirmed relations only (`is_confirmed=true`), does not define core KPI, excludes inactive metrics from the current dashboard, and includes `pending_review` in overall progress only.
+
+## Feature 15 executive employee task filtering
+
+Feature 15 follows the user-confirmed P0 scope in `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`. The workload breakdown sheet now has a real “查看该员工任务” action that reuses the existing task overview. The task overview displays an employee-name filter but sends only `employeeNo` to the backend, combines it with status/quadrant/date filters, revalidates explicit executive department scope, and opens the existing task detail page. The old standalone `pages/workload-tasks` fake page was removed from production registration. Feature 15 adds no business table, field, or Alembic migration.
+
+The same change also fixes the real `TaskBoardQueryService.available_actions()` undefined-`priority` 500 defect and adds direct service regression coverage.
+
+**新增接口**：
+
+| 接口 | 说明 |
+|---|---|
+| `GET /api/v1/executive/members` | 高管成员只读接口，仅返回当前高管有效部门授权范围内的 active 员工 |
+| `GET /api/v1/executive/tasks` | 扩展支持 `employeeNo`、状态、四象限、日期过滤，各条件按 AND 叠加 |
+
+**权限边界**：员工筛选在 Repository 层使用 `Task.main_assignee_employee_no == employee_no`；查询前先校验高管显式授权部门，再校验目标员工所属部门，授权外员工在任务查询前即被拒绝并审计；任务结果始终以授权部门集合为第一范围边界。
+
+**本机复核门禁**：后端非 PostgreSQL `460 passed, 28 deselected`；微信小程序 `19 / 19` 组 PASS；JS 语法与 Python `compileall` PASS；`ruff` F821 已清零。真实 PostgreSQL 与微信开发者工具门禁因环境不可用未执行，**不宣称最终通过**。详见 `docs/FEATURE_14_ACCEPTANCE.md` 与 `docs/FEATURE_15_ACCEPTANCE.md`。
