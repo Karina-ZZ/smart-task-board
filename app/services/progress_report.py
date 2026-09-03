@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta, UTC
 from uuid import UUID
 from zoneinfo import ZoneInfo
+import re
 
 from sqlalchemy import select
 
@@ -12,19 +12,14 @@ from app.db.unit_of_work import UnitOfWork
 from app.models import Notification, OperationLog, Task, TaskIssue, TaskNode, TaskProgressReport
 from app.services.clock import Clock, utc_now
 from app.services.commands import SubmitProgressReportCommand
-from app.services.errors import (
-    BusinessValidationError,
-    EntityNotFoundError,
-    PermissionDeniedError,
-)
+from app.services.errors import BusinessValidationError, EntityNotFoundError, PermissionDeniedError
 from app.services.task_workflow import (
-    TASK_IN_PROGRESS,
     _append_log,
     _aware_utc,
     _increment_task,
     _lock_task,
-    _require_state,
     _required_text,
+    TASK_IN_PROGRESS,
 )
 
 UowFactory = Callable[[], UnitOfWork]

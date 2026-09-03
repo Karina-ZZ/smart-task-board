@@ -20,7 +20,6 @@ def test_metadata_contains_only_approved_business_tables() -> None:
         "task_change_requests",
         "task_completion_reviews",
         "task_conflicts",
-    "task_decomposition_records",
         "task_decomposition_records",
         "task_node_dependencies",
         "task_node_participants",

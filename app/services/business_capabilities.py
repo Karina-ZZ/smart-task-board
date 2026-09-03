@@ -1975,7 +1975,7 @@ class PerformanceMetricService:
         *,
         expected_task_version: int | None = None,
     ) -> TaskPerformanceMatch:
-        task = self._locked_creator_task(actor, task_id, expected_task_version)
+        self._locked_creator_task(actor, task_id, expected_task_version)
         row = self.session.get(TaskPerformanceMatch, performance_match_id)
         if row is None or row.task_id != task_id:
             raise EntityNotFoundError("performance match was not found")
@@ -2015,7 +2015,7 @@ class PerformanceMetricService:
     def clear_confirmation(
         self, actor: str, task_id: UUID, *, expected_task_version: int | None = None
     ) -> list[TaskPerformanceMatch]:
-        task = self._locked_creator_task(actor, task_id, expected_task_version)
+        self._locked_creator_task(actor, task_id, expected_task_version)
         now = self.clock()
         rows = list(
             self.session.scalars(

@@ -16,6 +16,7 @@
 
 - 新增 `tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`、`tests/test_start_dev_secret_contract.py`（发布门禁：密钥契约校验）。
 - **Test3 发布门禁（2026-09-03）**：新增 `scripts/run_test3_release_gate.sh`（硬门禁：必须 Python 3.12 + 真实 PostgreSQL 16 + `RUN_POSTGRESQL_INTEGRATION=1` + `WANGXU_BACKEND_ENV_FILE` + `AUTH_MODE=wecom` + 真实企微 CorpId/AgentId/Secret + 非 `touristappid` 小程序 AppID，任一缺失即 `BLOCKED`）；新增 `tests/integration/v11_postgresql_helpers.py`、`tests/test_postgresql_v11_fixture_contract.py`（旧 PG fixture V1.1 前流程债务契约，已被门禁正确拦截）。Test3 结论 **BLOCKED（预期）**：当前环境缺 Python 3.12 / PostgreSQL 16 / 真实企微配置，非PG 实测 `477 passed, 2 failed`、微信 `20/20 PASS`；**非代码回归**，详见 `docs/FEATURE_16_TEST3_EXECUTION_REPORT.md`。
+- **Test4 修复与门禁（2026-09-03）**：修复 Test3 门禁拦出的旧 PG V1.1 fixture 债务（F1-F7：创建阶段不再提交 nodes/dependencies/estimated_hours，接受后断言 decomposing，移除旧 `confirm_task_plan()`）；Outbox 并发测试 `_BarrierProvider`→`_BlockingProvider` 正确验证 `FOR UPDATE SKIP LOCKED`（F8）；`/me` 权限投影断言更新（F9）。`pyproject.toml` 依赖包名 `httpx2`→`httpx` 修正（错误包名会致 pip 安装失败），新增 `tests/test_dev_dependency_contract.py` 防回流。ruff 清理 F401/F841/B033/E701/E702。新增 `scripts/run_test4_release_gate.sh`（强制 Py3.12+venv+`pip check`+`ruff`+真实 PG 28 项+5×20 并发 stress+企微配置，缺一即 BLOCKED）。Test4 本环境：`compileall PASS`、非PG `482 passed, 28 deselected`、微信 `20/20 PASS`；真实 PG/Py3.12/Ruff/企微仍待复验（不伪造 PASS），详见 `docs/FEATURE_16_TEST4_EXECUTION_REPORT.md`。
 - 后端测试保持 **460 passed**；`ruff` 仅风格类告警，F821 已清零。
 
 #### 文档

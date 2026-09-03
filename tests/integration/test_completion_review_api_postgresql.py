@@ -1,27 +1,30 @@
 from __future__ import annotations
 
-import os
-import secrets
 from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID, uuid4
+import os
+import secrets
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, delete, func, inspect, select, text
+from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
+import pytest
 
 from app.api import dependencies
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings, Settings
 from app.db.unit_of_work import UnitOfWork
 from app.main import app
 from app.models import (
     Department,
+    Notification,
     OperationLog,
+    ReminderRule,
     Task,
     TaskCompletionReview,
+    TaskDecompositionRecord,
     TaskNode,
     TaskNodeDependency,
     TaskNodeParticipant,
@@ -29,6 +32,7 @@ from app.models import (
     TaskStatusLog,
     User,
 )
+from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
 
 pytestmark = pytest.mark.postgresql
 
@@ -132,29 +136,31 @@ def _assert_error(response, status_code: int, code: str) -> None:
 
 def _create_ready_task(
     client: TestClient,
+    factory: sessionmaker[Session],
     refs: CompletionReferences,
     tokens: dict[str, str],
     task_ids: set[UUID],
     task_name: str,
 ) -> tuple[UUID, UUID, int]:
-    node_id = uuid4()
+    """Create one V1.1 task, run real decomposition, and complete its active node."""
     created = client.post(
         "/api/v1/tasks",
         headers=_bearer(tokens[refs.creator]),
         json={
             "task_name": task_name,
+            "task_description": f"{task_name} PostgreSQL completion review flow",
+            "task_goal": "Verify multi-round completion review behavior",
+            "task_source": "postgresql-integration",
             "main_assignee_employee_no": refs.assignee,
+            "report_to_employee_no": refs.reviewer,
+            "report_to_level": "manager",
             "reviewer_employee_no": refs.reviewer,
             "department_id": str(refs.department_id),
+            "start_time": "2026-08-20T09:00:00+00:00",
+            "deadline": "2026-08-22T18:00:00+00:00",
+            "task_weight": 3,
+            "deliverable": f"{task_name} deliverable",
             "acceptance_criteria": "Completion review integration accepted",
-            "nodes": [
-                {
-                    "node_id": str(node_id),
-                    "node_order": 1,
-                    "node_name": f"{task_name} deliverable",
-                    "owner_employee_no": refs.assignee,
-                }
-            ],
         },
     )
     assert created.status_code == 201
@@ -162,59 +168,47 @@ def _create_ready_task(
     task_ids.add(task_id)
 
     submitted = _post_action(
-        client,
-        tokens[refs.creator],
-        task_id,
-        "submit-for-confirmation",
-        1,
+        client, tokens[refs.creator], task_id, "submit-for-confirmation", 1
     )
     sent = _post_action(
-        client,
-        tokens[refs.creator],
-        task_id,
-        "confirm-and-send",
-        2,
+        client, tokens[refs.creator], task_id, "confirm-and-send", 2
     )
     accepted = _post_action(
-        client,
-        tokens[refs.assignee],
-        task_id,
-        "accept",
-        3,
+        client, tokens[refs.assignee], task_id, "accept", 3
     )
+    assert [response.status_code for response in (submitted, sent, accepted)] == [200] * 3
+    assert (accepted.json()["status"], accepted.json()["task_version"]) == (
+        "decomposing",
+        4,
+    )
+
+    node_ids, active_version = complete_v11_decomposition(
+        factory, task_id, refs.assignee, keep_active_nodes=1
+    )
+    node_id = node_ids[0]
+    assert active_version == 5
+
     started = client.post(
         f"/api/v1/tasks/{task_id}/nodes/{node_id}/actions/start",
         headers=_bearer(tokens[refs.assignee]),
-        json={"expected_task_version": 4},
+        json={"expected_task_version": active_version},
     )
     progressed = client.patch(
         f"/api/v1/tasks/{task_id}/nodes/{node_id}/progress",
         headers=_bearer(tokens[refs.assignee]),
         json={
-            "expected_task_version": 5,
+            "expected_task_version": 6,
             "progress_percent": 75,
-            "actual_hours": "2.5",
         },
     )
     completed = client.post(
         f"/api/v1/tasks/{task_id}/nodes/{node_id}/actions/complete",
         headers=_bearer(tokens[refs.assignee]),
-        json={"expected_task_version": 6},
+        json={"expected_task_version": 7},
     )
-    assert [
-        response.status_code
-        for response in (
-            submitted,
-            sent,
-            accepted,
-            started,
-            progressed,
-            completed,
-        )
-    ] == [200] * 6
-    assert completed.json()["task_version"] == 7
-    return task_id, node_id, 7
-
+    assert [response.status_code for response in (started, progressed, completed)] == [200] * 3
+    assert completed.json()["task_version"] == 8
+    return task_id, node_id, 8
 
 def _cleanup(
     engine: Engine,
@@ -226,6 +220,12 @@ def _cleanup(
             delete(OperationLog).where(OperationLog.operator_employee_no.in_(refs.employee_nos))
         )
         if task_ids:
+            connection.execute(
+                delete(Notification).where(Notification.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(ReminderRule).where(ReminderRule.task_id.in_(task_ids))
+            )
             connection.execute(
                 delete(TaskStatusLog).where(TaskStatusLog.task_id.in_(task_ids))
             )
@@ -252,6 +252,16 @@ def _cleanup(
             connection.execute(
                 delete(TaskNode).where(TaskNode.task_id.in_(task_ids))
             )
+            connection.execute(
+                update(Task)
+                .where(Task.task_id.in_(task_ids))
+                .values(latest_decomposition_id=None)
+            )
+            connection.execute(
+                delete(TaskDecompositionRecord).where(
+                    TaskDecompositionRecord.task_id.in_(task_ids)
+                )
+            )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         connection.execute(
             delete(User).where(User.employee_no.in_(refs.employee_nos))
@@ -275,6 +285,15 @@ def _cleanup(
                     ),
                     select(func.count()).select_from(TaskNode).where(
                         TaskNode.task_id.in_(task_ids)
+                    ),
+                    select(func.count()).select_from(TaskDecompositionRecord).where(
+                        TaskDecompositionRecord.task_id.in_(task_ids)
+                    ),
+                    select(func.count()).select_from(ReminderRule).where(
+                        ReminderRule.task_id.in_(task_ids)
+                    ),
+                    select(func.count()).select_from(Notification).where(
+                        Notification.task_id.in_(task_ids)
                     ),
                     select(func.count()).select_from(Task).where(
                         Task.task_id.in_(task_ids)
@@ -382,6 +401,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
             overall_task_id, overall_node_id, overall_version = (
                 _create_ready_task(
                     client,
+                    factory,
                     refs,
                     tokens,
                     task_ids,
@@ -390,6 +410,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
             )
             node_task_id, node_id, node_version = _create_ready_task(
                 client,
+                factory,
                 refs,
                 tokens,
                 task_ids,
@@ -409,7 +430,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
             assert (
                 first_submission.json()["status"],
                 first_submission.json()["task_version"],
-            ) == ("pending_review", 8)
+            ) == ("pending_review", 9)
             overall_review_one = first_submission.json()["review"]
             overall_review_one_id = UUID(
                 overall_review_one["completion_review_id"]
@@ -418,7 +439,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 overall_review_one["review_round"],
                 overall_review_one["review_status"],
                 overall_review_one["submitted_task_version"],
-            ) == (1, "submitted", 8)
+            ) == (1, "submitted", 9)
 
             pending_actions = client.get(
                 f"/api/v1/tasks/{overall_task_id}/available-actions",
@@ -467,7 +488,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 overall_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="This attempt must roll back",
             )
@@ -484,7 +505,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 assert stored_task is not None and stored_review is not None
                 assert (stored_task.status, stored_task.task_version) == (
                     "pending_review",
-                    8,
+                    9,
                 )
                 assert stored_review.review_status == "submitted"
                 assert session.scalar(
@@ -501,7 +522,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 overall_task_id,
                 "reject-completion",
-                7,
+                8,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="Stale",
             )
@@ -510,7 +531,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.outsider],
                 overall_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="Not allowed",
             )
@@ -522,7 +543,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 overall_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="Wrong task node",
                 rework_node_id=str(node_id),
@@ -547,7 +568,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 node_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="Wrong task review",
             )
@@ -564,7 +585,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 overall_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(overall_review_one_id),
                 reject_reason="Revise the overall evidence",
             )
@@ -574,13 +595,13 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 overall_rejected.json()["task_version"],
                 overall_rejected.json()["review"]["review_status"],
                 overall_rejected.json()["review"]["reviewed_task_version"],
-            ) == ("in_progress", 9, "rejected", 9)
+            ) == ("in_progress", 10, "rejected", 10)
             repeated_decision = _post_action(
                 client,
                 tokens[refs.reviewer],
                 overall_task_id,
                 "approve-completion",
-                9,
+                10,
                 completion_review_id=str(overall_review_one_id),
             )
             _assert_error(repeated_decision, 409, "invalid_state_transition")
@@ -605,7 +626,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.assignee],
                 overall_task_id,
                 "submit-completion",
-                9,
+                10,
                 completion_note="Revised overall submission",
                 deliverable_summary="Overall artifact version two",
             )
@@ -618,13 +639,13 @@ def test_completion_review_rounds_rework_api_and_atomicity(
             assert (
                 overall_second_submission.json()["task_version"],
                 overall_second_submission.json()["review"]["review_round"],
-            ) == (10, 2)
+            ) == (11, 2)
             outsider_approval = _post_action(
                 client,
                 tokens[refs.outsider],
                 overall_task_id,
                 "approve-completion",
-                10,
+                11,
                 completion_review_id=str(overall_review_two_id),
             )
             _assert_error(outsider_approval, 403, "permission_denied")
@@ -633,7 +654,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.reviewer],
                 overall_task_id,
                 "approve-completion",
-                10,
+                11,
                 completion_review_id=str(overall_review_two_id),
             )
             assert (
@@ -641,7 +662,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 overall_approved.json()["status"],
                 overall_approved.json()["task_version"],
                 overall_approved.json()["review"]["review_status"],
-            ) == (200, "completed", 11, "approved")
+            ) == (200, "completed", 12, "approved")
 
             history_page_one = client.get(
                 f"/api/v1/tasks/{overall_task_id}/completion-reviews",
@@ -681,14 +702,16 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 assert original_node is not None
                 original_completed_at = original_node.completed_at
                 assert original_completed_at is not None
-                assert original_node.actual_hours == Decimal("2.5")
+                original_actual_hours = original_node.actual_hours
+                assert original_actual_hours is not None
+                assert original_actual_hours >= Decimal("0")
 
             node_rejected = _post_action(
                 client,
                 tokens[refs.reviewer],
                 node_task_id,
                 "reject-completion",
-                8,
+                9,
                 completion_review_id=str(node_review_one_id),
                 reject_reason="Rework the selected node",
                 rework_node_id=str(node_id),
@@ -698,7 +721,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 node_rejected.json()["status"],
                 node_rejected.json()["task_version"],
                 node_rejected.json()["review"]["rework_node_id"],
-            ) == (200, "in_progress", 9, str(node_id))
+            ) == (200, "in_progress", 10, str(node_id))
             with factory() as session:
                 unchanged_node = session.get(TaskNode, node_id)
                 assert unchanged_node is not None
@@ -707,7 +730,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                     unchanged_node.progress_percent,
                     unchanged_node.completed_at,
                     unchanged_node.actual_hours,
-                ) == ("completed", 100, original_completed_at, Decimal("2.5"))
+                ) == ("completed", 100, original_completed_at, original_actual_hours)
 
             rework_actions = client.get(
                 f"/api/v1/tasks/{node_task_id}/available-actions",
@@ -732,7 +755,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 f"/api/v1/tasks/{node_task_id}/nodes/{node_id}/actions/reopen",
                 headers=_bearer(tokens[refs.assignee]),
                 json={
-                    "expected_task_version": 9,
+                    "expected_task_version": 10,
                     "completion_review_id": str(node_review_one_id),
                 },
             )
@@ -741,7 +764,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 f"/api/v1/tasks/{node_task_id}/nodes/{node_id}/actions/reopen",
                 headers=_bearer(tokens[refs.reviewer]),
                 json={
-                    "expected_task_version": 9,
+                    "expected_task_version": 10,
                     "completion_review_id": str(node_review_one_id),
                 },
             )
@@ -750,7 +773,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 reopened.json()["node_status"],
                 reopened.json()["progress_percent"],
                 reopened.json()["task_version"],
-            ) == (200, "in_progress", 0, 10)
+            ) == (200, "in_progress", 0, 11)
             with factory() as session:
                 reopened_node = session.get(TaskNode, node_id)
                 assert reopened_node is not None
@@ -759,13 +782,13 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                     reopened_node.progress_percent,
                     reopened_node.completed_at,
                     reopened_node.actual_hours,
-                ) == ("in_progress", 0, None, Decimal("2.5"))
+                ) == ("in_progress", 0, None, original_actual_hours)
 
             duplicate_reopen = client.post(
                 f"/api/v1/tasks/{node_task_id}/nodes/{node_id}/actions/reopen",
                 headers=_bearer(tokens[refs.reviewer]),
                 json={
-                    "expected_task_version": 10,
+                    "expected_task_version": 11,
                     "completion_review_id": str(node_review_one_id),
                 },
             )
@@ -775,7 +798,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 tokens[refs.assignee],
                 node_task_id,
                 "submit-completion",
-                10,
+                11,
                 completion_note="Premature",
                 deliverable_summary="Node is still open",
             )
@@ -789,29 +812,28 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 f"/api/v1/tasks/{node_task_id}/nodes/{node_id}/progress",
                 headers=_bearer(tokens[refs.assignee]),
                 json={
-                    "expected_task_version": 10,
+                    "expected_task_version": 11,
                     "progress_percent": 80,
-                    "actual_hours": "3.0",
                 },
             )
             second_completion = client.post(
                 f"/api/v1/tasks/{node_task_id}/nodes/{node_id}/actions/complete",
                 headers=_bearer(tokens[refs.assignee]),
-                json={"expected_task_version": 11},
+                json={"expected_task_version": 12},
             )
             assert (
                 second_progress.status_code,
                 second_progress.json()["task_version"],
                 second_completion.status_code,
                 second_completion.json()["task_version"],
-            ) == (200, 11, 200, 12)
+            ) == (200, 12, 200, 13)
 
             node_second_submission = _post_action(
                 client,
                 tokens[refs.assignee],
                 node_task_id,
                 "submit-completion",
-                12,
+                13,
                 completion_note="Reworked node completed",
                 deliverable_summary="Node artifact version two",
             )
@@ -822,20 +844,20 @@ def test_completion_review_rounds_rework_api_and_atomicity(
             assert (
                 node_second_submission.json()["task_version"],
                 node_second_submission.json()["review"]["review_round"],
-            ) == (13, 2)
+            ) == (14, 2)
             node_approved = _post_action(
                 client,
                 tokens[refs.reviewer],
                 node_task_id,
                 "approve-completion",
-                13,
+                14,
                 completion_review_id=str(node_review_two_id),
             )
             assert (
                 node_approved.status_code,
                 node_approved.json()["status"],
                 node_approved.json()["task_version"],
-            ) == (200, "completed", 14)
+            ) == (200, "completed", 15)
 
             node_logs_response = client.get(
                 f"/api/v1/tasks/{node_task_id}/status-logs",

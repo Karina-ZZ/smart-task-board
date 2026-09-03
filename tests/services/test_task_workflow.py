@@ -1,10 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
-import pytest
 from sqlalchemy.orm import Session
+import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
@@ -31,11 +31,7 @@ from app.services import (
     TaskVersionConflictError,
     TaskWorkflowService,
 )
-from app.services.task_workflow import (
-    PARTICIPANT_CONFIRM_ACCEPTED,
-    PARTICIPANT_CONFIRM_PENDING,
-    PARTICIPANT_CONFIRM_RETURNED,
-)
+from app.services.task_workflow import PARTICIPANT_CONFIRM_PENDING, PARTICIPANT_CONFIRM_RETURNED
 
 NOW = datetime(2026, 8, 18, 8, 0, tzinfo=UTC)
 

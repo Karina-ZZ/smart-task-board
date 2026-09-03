@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from uuid import UUID, uuid4
+import os
 
-import pytest
-from sqlalchemy import Engine, create_engine, delete, inspect, select, text
+from sqlalchemy import create_engine, delete, Engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
+import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
@@ -49,12 +49,8 @@ from app.services.business_capabilities import (
     SystemParameterService,
     TaskIntakeService,
 )
-from app.services.commands import (
-    TaskNodeDependencyDraft,
-    TaskNodeDraft,
-    TaskNodeParticipantDraft,
-)
 from app.services.task_workflow import TaskWorkflowService
+from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
 
 pytestmark = pytest.mark.postgresql
 
@@ -364,7 +360,7 @@ def test_full_business_capability_flow_with_real_postgresql(
             raw_text=(
                 "Revenue dashboard\n"
                 f"assignee: {refs.assignee}; report_to: {refs.reviewer}; "
-                "deadline: 2026-08-22T09:00:00+00:00; hours: 20; weight: 5; "
+                "deadline: 2026-08-22T09:00:00+00:00; weight: 5; "
                 "deliverable: Revenue dashboard; acceptance: KPI is measurable"
             ),
             voice_file_url=None,
@@ -381,7 +377,11 @@ def test_full_business_capability_flow_with_real_postgresql(
         task = intake.create_draft_from_extraction(
             refs.creator,
             extraction_id=clarified.extraction.extraction_id,
-            corrections={"department_id": str(refs.department_id)},
+            corrections={
+                "department_id": str(refs.department_id),
+                "task_goal": "Deliver a measurable revenue dashboard",
+                "start_time": "2026-08-20T09:00:00+00:00",
+            },
         )
         records.task_ids.add(task.task_id)
 
@@ -393,38 +393,18 @@ def test_full_business_capability_flow_with_real_postgresql(
         task.task_id, refs.creator, task.task_version, "postgresql-test"
     )
     task = workflow.accept_task(task.task_id, refs.assignee, task.task_version, "postgresql-test")
-    first_node_id = uuid4()
-    second_node_id = uuid4()
-    task = workflow.confirm_task_plan(
+    node_ids, decomposed_version = complete_v11_decomposition(
+        business_session_factory,
         task.task_id,
         refs.assignee,
-        task.task_version,
-        "postgresql-test",
-        (
-            TaskNodeDraft(
-                first_node_id,
-                1,
-                "Prepare dashboard scope",
-                owner_employee_no=refs.assignee,
-                planned_deadline=datetime(2026, 8, 21, 12, 0, tzinfo=UTC),
-                estimated_hours=Decimal("8"),
-                deliverable="Scope checklist",
-                acceptance_criteria="Scope is confirmed",
-            ),
-            TaskNodeDraft(
-                second_node_id,
-                2,
-                "Build KPI dashboard",
-                owner_employee_no=refs.assignee,
-                planned_deadline=datetime(2026, 8, 22, 8, 0, tzinfo=UTC),
-                estimated_hours=Decimal("12"),
-                deliverable="Revenue dashboard",
-                acceptance_criteria="KPI is measurable",
-            ),
-        ),
-        (TaskNodeDependencyDraft(first_node_id, second_node_id),),
-        (TaskNodeParticipantDraft(second_node_id, refs.reviewer, "reviewer"),),
+        keep_active_nodes=2,
+        clock=clock,
     )
+    first_node_id, second_node_id = node_ids[:2]
+    with business_session_factory() as session:
+        task = session.get(Task, task.task_id)
+        assert task is not None
+        assert (task.status, task.task_version) == ("in_progress", decomposed_version)
     _, change_request = workflow.submit_change_request(
         task.task_id,
         refs.assignee,

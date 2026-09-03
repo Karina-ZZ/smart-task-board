@@ -1,11 +1,11 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
 import pytest
 
-from app.models import Task, TaskNode, TaskNodeParticipant, TaskProgressReport
+from app.models import Task, TaskNode, TaskProgressReport
 from app.services import (
     BusinessValidationError,
     PermissionDeniedError,

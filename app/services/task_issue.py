@@ -14,13 +14,12 @@ from app.services.errors import (
     PermissionDeniedError,
 )
 from app.services.task_workflow import (
-    TASK_IN_PROGRESS,
     _append_log,
     _aware_utc,
     _increment_task,
     _lock_task,
-    _require_state,
     _required_text,
+    TASK_IN_PROGRESS,
 )
 
 UowFactory = Callable[[], UnitOfWork]

@@ -12,7 +12,7 @@ Plan task: DEV-09.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -20,7 +20,6 @@ from app.db.unit_of_work import UnitOfWork
 from app.models import (
     Notification,
     OperationLog,
-    ReminderRule,
     Task,
     TaskDecompositionRecord,
     TaskNode,
@@ -29,16 +28,16 @@ from app.models import (
 )
 from app.services.clock import utc_now
 from app.services.dependency_graph import validate_dependency_graph
-from app.services.features.notifications import (
-    emit_node_assignment_notification,
-    schedule_node_execution_reminders,
-)
 from app.services.errors import (
     BusinessValidationError,
     EntityNotFoundError,
     InvalidStateTransitionError,
     PermissionDeniedError,
     TaskVersionConflictError,
+)
+from app.services.features.notifications import (
+    emit_node_assignment_notification,
+    schedule_node_execution_reminders,
 )
 
 

@@ -1,25 +1,27 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
-from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, UTC
 from uuid import UUID, uuid4
+import os
 
-import pytest
-from sqlalchemy import Engine, create_engine, delete, inspect, select, text
+from sqlalchemy import create_engine, delete, Engine, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
     AIExtractionRecord,
     Department,
+    Notification,
     OperationLog,
+    ReminderRule,
     Task,
     TaskCompletionReview,
+    TaskDecompositionRecord,
     TaskInput,
     TaskNode,
     TaskNodeDependency,
@@ -36,13 +38,12 @@ from app.services import (
     DependencyNotSatisfiedError,
     InvalidStateTransitionError,
     PermissionDeniedError,
-    TaskNodeDependencyDraft,
-    TaskNodeDraft,
-    TaskNodeParticipantDraft,
     TaskNodeWorkflowService,
     TaskVersionConflictError,
     TaskWorkflowService,
 )
+from app.services.features.task_decomposition import TaskDecompositionService
+from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
 
 pytestmark = pytest.mark.postgresql
 
@@ -171,6 +172,12 @@ def phase4_records(phase4_engine: Engine) -> Iterator[Phase4Records]:
             )
         if task_ids:
             connection.execute(
+                delete(Notification).where(Notification.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(ReminderRule).where(ReminderRule.task_id.in_(task_ids))
+            )
+            connection.execute(
                 delete(TaskStatusLog).where(TaskStatusLog.task_id.in_(task_ids))
             )
             connection.execute(
@@ -193,6 +200,16 @@ def phase4_records(phase4_engine: Engine) -> Iterator[Phase4Records]:
             )
             connection.execute(
                 delete(TaskNode).where(TaskNode.task_id.in_(task_ids))
+            )
+            connection.execute(
+                update(Task)
+                .where(Task.task_id.in_(task_ids))
+                .values(latest_decomposition_id=None)
+            )
+            connection.execute(
+                delete(TaskDecompositionRecord).where(
+                    TaskDecompositionRecord.task_id.in_(task_ids)
+                )
             )
         if records.extraction_ids:
             connection.execute(
@@ -295,48 +312,31 @@ def _command(
     records: Phase4Records,
     *,
     self_assigned: bool = False,
-) -> tuple[CreateTaskDraftCommand, UUID, UUID]:
+) -> CreateTaskDraftCommand:
+    """Build a send-ready V1.1 draft without creator-owned nodes or hours."""
     task_id = uuid4()
-    first_node_id = uuid4()
-    second_node_id = uuid4()
     records.task_ids.add(task_id)
     assignee = refs.creator if self_assigned else refs.assignee
-    return (
-        CreateTaskDraftCommand(
-            task_id=task_id,
-            task_name="Phase 4 Core Workflow",
-            creator_employee_no=refs.creator,
-            main_assignee_employee_no=assignee,
-            reviewer_employee_no=refs.reviewer,
-            department_id=refs.department_id,
-            operation_source="phase4-integration",
-            acceptance_criteria="Both nodes completed",
-            nodes=(
-                TaskNodeDraft(
-                    first_node_id,
-                    1,
-                    "Prepare",
-                    owner_employee_no=assignee,
-                ),
-                TaskNodeDraft(
-                    second_node_id,
-                    2,
-                    "Deliver",
-                    owner_employee_no=assignee,
-                ),
-            ),
-            dependencies=(
-                TaskNodeDependencyDraft(first_node_id, second_node_id),
-            ),
-            node_participants=(
-                TaskNodeParticipantDraft(first_node_id, assignee, "owner"),
-            ),
-            extraction_record_ids=(refs.extraction_id,),
-        ),
-        first_node_id,
-        second_node_id,
+    return CreateTaskDraftCommand(
+        task_id=task_id,
+        task_name="Phase 4 Core Workflow",
+        task_description="Exercise the PostgreSQL core workflow under V1.1.",
+        task_goal="Complete AI-generated nodes and pass completion review.",
+        task_source="postgresql-integration",
+        creator_employee_no=refs.creator,
+        main_assignee_employee_no=assignee,
+        report_to_employee_no=refs.reviewer,
+        report_to_level="manager",
+        reviewer_employee_no=refs.reviewer,
+        department_id=refs.department_id,
+        start_time=datetime(2026, 8, 18, 9, 0, tzinfo=UTC),
+        deadline=datetime(2026, 8, 20, 18, 0, tzinfo=UTC),
+        task_weight=3,
+        deliverable="Phase 4 integration deliverable",
+        operation_source="phase4-integration",
+        acceptance_criteria="All active AI-generated nodes completed",
+        extraction_record_ids=(refs.extraction_id,),
     )
-
 
 def _services(factory: sessionmaker[Session]):
     clock = StepClock()
@@ -347,6 +347,7 @@ def _services(factory: sessionmaker[Session]):
     return (
         TaskWorkflowService(uow_factory, clock=clock),
         TaskNodeWorkflowService(uow_factory, clock=clock),
+        clock,
     )
 
 
@@ -355,20 +356,30 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, first_node_id, second_node_id = _command(refs, phase4_records)
-    tasks, nodes = _services(phase4_session_factory)
+    command = _command(refs, phase4_records)
+    tasks, nodes, clock = _services(phase4_session_factory)
 
     task = tasks.create_task_draft(command)
     tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
     tasks.confirm_and_send(task.task_id, refs.creator, 2, "phase4-integration")
-    tasks.accept_task(task.task_id, refs.assignee, 3, "phase4-integration")
+    accepted = tasks.accept_task(task.task_id, refs.assignee, 3, "phase4-integration")
+    assert (accepted.status, accepted.task_version) == ("decomposing", 4)
+    node_ids, active_version = complete_v11_decomposition(
+        phase4_session_factory,
+        task.task_id,
+        refs.assignee,
+        keep_active_nodes=2,
+        clock=clock,
+    )
+    first_node_id, second_node_id = node_ids[:2]
+    assert active_version == 5
 
     with pytest.raises(DependencyNotSatisfiedError):
         nodes.start_node(
             task.task_id,
             second_node_id,
             refs.assignee,
-            4,
+            active_version,
             "phase4-integration",
         )
 
@@ -376,43 +387,42 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
         task.task_id,
         first_node_id,
         refs.assignee,
-        4,
+        active_version,
         "phase4-integration",
     )
     nodes.update_node_progress(
         task.task_id,
         first_node_id,
         refs.assignee,
-        5,
+        6,
         "phase4-integration",
         60,
-        Decimal("1.5"),
     )
     nodes.complete_node(
         task.task_id,
         first_node_id,
         refs.assignee,
-        6,
+        7,
         "phase4-integration",
     )
     nodes.start_node(
         task.task_id,
         second_node_id,
         refs.assignee,
-        7,
+        8,
         "phase4-integration",
     )
     nodes.complete_node(
         task.task_id,
         second_node_id,
         refs.assignee,
-        8,
+        9,
         "phase4-integration",
     )
     _, review = tasks.submit_completion(
         task.task_id,
         refs.assignee,
-        9,
+        10,
         "phase4-integration",
         "All planned work is complete",
         "Both workflow deliverables are ready",
@@ -420,7 +430,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
     tasks.approve_completion(
         task.task_id,
         refs.reviewer,
-        10,
+        11,
         "phase4-integration",
         review.completion_review_id,
     )
@@ -430,19 +440,21 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
         assert stored_task is not None
         assert stored_task.status == "completed"
         assert stored_task.completed_at is not None
-        assert stored_task.task_version == 11
+        assert stored_task.task_version == 12
         stored_nodes = TaskNodeRepository(session).list_nodes(task.task_id)
-        assert [(node.status, node.progress_percent) for node in stored_nodes] == [
-            ("completed", 100),
-            ("completed", 100),
-        ]
+        assert len(stored_nodes) == 5
+        assert all(
+            (node.status, node.progress_percent) == ("completed", 100)
+            for node in stored_nodes
+        )
         logs = TaskStatusLogRepository(session).list_by_task_id(task.task_id)
-        assert [log.task_version for log in logs] == list(range(1, 12))
+        assert [log.task_version for log in logs] == list(range(1, 13))
         assert [log.action_type for log in logs] == [
             "task_created",
             "submitted_for_confirmation",
             "confirmed_and_sent",
-            "task_accepted",
+            "task_accepted_decomposition_started",
+            "task_decomposition_succeeded",
             "node_started",
             "node_progress_updated",
             "node_completed",
@@ -469,7 +481,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             stored_review.review_result,
             stored_review.submitted_task_version,
             stored_review.reviewed_task_version,
-        ) == (1, "approved", "approved", 10, 11)
+        ) == (1, "approved", "approved", 11, 12)
         extraction = session.get(AIExtractionRecord, refs.extraction_id)
         assert extraction is not None and extraction.task_id == task.task_id
         participant = TaskRepository(session).find_participant(
@@ -486,7 +498,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             task.task_id,
             first_node_id,
             refs.assignee,
-            11,
+            12,
             "phase4-integration",
         )
 
@@ -496,8 +508,8 @@ def test_return_resend_and_accept_flow(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, _, _ = _command(refs, phase4_records)
-    tasks, _ = _services(phase4_session_factory)
+    command = _command(refs, phase4_records)
+    tasks, _, clock = _services(phase4_session_factory)
     task = tasks.create_task_draft(command)
     tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
     tasks.confirm_and_send(task.task_id, refs.creator, 2, "phase4-integration")
@@ -518,19 +530,24 @@ def test_return_resend_and_accept_flow(
         "Need clarification",
     )
     tasks.resend_task(task.task_id, refs.creator, 4, "phase4-integration")
-    tasks.accept_task(task.task_id, refs.assignee, 5, "phase4-integration")
+    accepted = tasks.accept_task(task.task_id, refs.assignee, 5, "phase4-integration")
+    assert (accepted.status, accepted.task_version) == ("decomposing", 6)
+    _, active_version = complete_v11_decomposition(
+        phase4_session_factory, task.task_id, refs.assignee, keep_active_nodes=0, clock=clock
+    )
 
     with phase4_session_factory() as session:
         stored = session.get(Task, task.task_id)
         assert stored is not None
-        assert (stored.status, stored.task_version) == ("in_progress", 6)
+        assert (stored.status, stored.task_version) == ("in_progress", active_version)
         logs = TaskStatusLogRepository(session).list_by_task_id(task.task_id)
-        assert [log.action_type for log in logs][-3:] == [
+        assert [log.action_type for log in logs][-4:] == [
             "task_returned",
             "task_resent",
-            "task_accepted",
+            "task_accepted_decomposition_started",
+            "task_decomposition_succeeded",
         ]
-        assert logs[-3].reason == "Need clarification"
+        assert logs[-4].reason == "Need clarification"
 
 
 def test_self_assigned_confirmation_flow(
@@ -538,17 +555,24 @@ def test_self_assigned_confirmation_flow(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, _, _ = _command(refs, phase4_records, self_assigned=True)
-    tasks, _ = _services(phase4_session_factory)
+    command = _command(refs, phase4_records, self_assigned=True)
+    tasks, _, clock = _services(phase4_session_factory)
     task = tasks.create_task_draft(command)
     tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
-    tasks.confirm_self_assigned(task.task_id, refs.creator, 2, "phase4-integration")
+    sent = tasks.confirm_self_assigned(task.task_id, refs.creator, 2, "phase4-integration")
+    assert (sent.status, sent.task_version) == ("pending_acceptance", 3)
+    accepted = tasks.accept_task(task.task_id, refs.creator, 3, "phase4-integration")
+    assert (accepted.status, accepted.task_version) == ("decomposing", 4)
+    _, active_version = complete_v11_decomposition(
+        phase4_session_factory, task.task_id, refs.creator, keep_active_nodes=0, clock=clock
+    )
 
     with phase4_session_factory() as session:
         stored = session.get(Task, task.task_id)
         assert stored is not None
-        assert (stored.status, stored.task_version) == ("in_progress", 3)
-        assert stored.confirmed_at == stored.sent_at == stored.accepted_at
+        assert (stored.status, stored.task_version) == ("in_progress", active_version)
+        assert stored.confirmed_at == stored.sent_at
+        assert stored.accepted_at is not None and stored.accepted_at >= stored.sent_at
         participant = TaskRepository(session).find_participant(
             task.task_id,
             refs.creator,
@@ -563,8 +587,8 @@ def test_version_conflict_and_permission_failure_leave_no_partial_changes(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, _, _ = _command(refs, phase4_records)
-    tasks, _ = _services(phase4_session_factory)
+    command = _command(refs, phase4_records)
+    tasks, _, _ = _services(phase4_session_factory)
     task = tasks.create_task_draft(command)
 
     with pytest.raises(TaskVersionConflictError):
@@ -585,28 +609,64 @@ def test_version_conflict_and_permission_failure_leave_no_partial_changes(
         assert [log.action_type for log in logs] == ["task_created"]
 
 
-def test_cycle_is_rejected_without_persisting_task(
+def test_decomposition_cycle_is_rejected_without_persisting_nodes(
     phase4_session_factory: sessionmaker[Session],
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, first, second = _command(refs, phase4_records)
-    cyclic = replace(
-        command,
-        dependencies=(
-            TaskNodeDependencyDraft(first, second),
-            TaskNodeDependencyDraft(second, first),
-        ),
-    )
-    tasks, _ = _services(phase4_session_factory)
+    command = _command(refs, phase4_records)
+    tasks, _, clock = _services(phase4_session_factory)
+    task = tasks.create_task_draft(command)
+    tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
+    tasks.confirm_and_send(task.task_id, refs.creator, 2, "phase4-integration")
+    tasks.accept_task(task.task_id, refs.assignee, 3, "phase4-integration")
 
+    def uow_factory() -> UnitOfWork:
+        return UnitOfWork(phase4_session_factory)
+
+    decomposition = TaskDecompositionService(uow_factory, clock=clock)
+    record = decomposition.get_latest(task.task_id, refs.assignee)
+    start_time = command.start_time.isoformat() if command.start_time else ""
+    deadline = command.deadline.isoformat() if command.deadline else ""
+    result = {
+        "nodes": [
+            {
+                "client_node_id": f"node-{index}",
+                "node_name": f"Node {index}",
+                "action_detail": f"Execute step {index}",
+                "owner_employee_no": refs.assignee,
+                "planned_start_time": start_time,
+                "planned_deadline": deadline,
+                "deliverable": f"Deliverable {index}",
+                "acceptance_criteria": f"Step {index} accepted",
+            }
+            for index in range(1, 6)
+        ],
+        "dependencies": [
+            {
+                "predecessor_client_node_id": "node-1",
+                "successor_client_node_id": "node-2",
+                "dependency_type": "finish_to_start",
+            },
+            {
+                "predecessor_client_node_id": "node-2",
+                "successor_client_node_id": "node-1",
+                "dependency_type": "finish_to_start",
+            },
+        ],
+    }
     with pytest.raises(DependencyCycleError):
-        tasks.create_task_draft(cyclic)
+        decomposition.complete_result(
+            task.task_id, record.decomposition_id, refs.assignee, result
+        )
 
     with phase4_session_factory() as session:
-        assert session.get(Task, command.task_id) is None
+        stored = session.get(Task, task.task_id)
+        assert stored is not None
+        assert (stored.status, stored.task_version) == ("decomposing", 4)
+        assert TaskNodeRepository(session).list_nodes(task.task_id) == []
         extraction = session.get(AIExtractionRecord, refs.extraction_id)
-        assert extraction is not None and extraction.task_id is None
+        assert extraction is not None and extraction.task_id == task.task_id
 
 
 def test_mid_transaction_exception_rolls_back_entire_draft(
@@ -614,7 +674,7 @@ def test_mid_transaction_exception_rolls_back_entire_draft(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    command, _, _ = _command(refs, phase4_records)
+    command = _command(refs, phase4_records)
 
     class FailingLogUnitOfWork(UnitOfWork):
         def __enter__(self):
@@ -649,7 +709,7 @@ def test_database_constraint_error_rolls_back_second_draft(
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
     first_command, _, _ = _command(refs, phase4_records)
-    tasks, _ = _services(phase4_session_factory)
+    tasks, _, _ = _services(phase4_session_factory)
     tasks.create_task_draft(first_command)
 
     second_input_id = uuid4()

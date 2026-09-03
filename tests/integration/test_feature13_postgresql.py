@@ -11,19 +11,20 @@ Plan task: DEV-15 PostgreSQL gate.
 """
 from __future__ import annotations
 
-import os
-import threading
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from uuid import UUID, uuid4
+import os
+import threading
+import time
 
-import pytest
-from sqlalchemy import Engine, create_engine, delete, inspect, select, text
+from sqlalchemy import create_engine, delete, Engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import Notification, OperationLog, ReminderRule, Task, TaskNode, TaskStatusLog, User
@@ -336,9 +337,17 @@ def test_notification_unique_constraint_wins_concurrent_insert(session_factory, 
         assert len(rows) == 1
 
 
-class _BarrierProvider:
+class _BlockingProvider:
+    """Hold the first provider call open while a second worker races the outbox query.
+
+    A correct ``FOR UPDATE SKIP LOCKED`` implementation lets only one worker enter
+    ``send``. Requiring two provider callers here would make the success path fail by
+    construction, because the second worker should skip the locked notification row.
+    """
+
     def __init__(self) -> None:
-        self.barrier = threading.Barrier(2)
+        self.first_send_started = threading.Event()
+        self.release_first_send = threading.Event()
         self._lock = threading.Lock()
         self.send_count = 0
 
@@ -346,7 +355,10 @@ class _BarrierProvider:
         with self._lock:
             self.send_count += 1
             count = self.send_count
-        self.barrier.wait(timeout=3)
+        if count == 1:
+            self.first_send_started.set()
+            if not self.release_first_send.wait(timeout=3):
+                raise TimeoutError("test provider release timed out")
         return f"pg13-message-{count}"
 
 
@@ -367,7 +379,7 @@ def test_concurrent_outbox_workers_must_not_double_send(session_factory, seed: S
         )
         session.commit()
 
-    provider = _BarrierProvider()
+    provider = _BlockingProvider()
     start = threading.Barrier(2)
 
     def send_once():
@@ -378,10 +390,14 @@ def test_concurrent_outbox_workers_must_not_double_send(session_factory, seed: S
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = [pool.submit(send_once), pool.submit(send_once)]
+        assert provider.first_send_started.wait(timeout=3)
+        # Keep the first external send open briefly so the second worker executes its
+        # SELECT concurrently. With SKIP LOCKED it must skip the row instead of sending it.
+        time.sleep(0.1)
+        provider.release_first_send.set()
         [future.result(timeout=8) for future in futures]
 
-    # This assertion deliberately catches an outbox race: selecting without row locking
-    # allows two PostgreSQL workers to call the external provider for the same row.
+    # Selecting without row locking would allow two workers to enter the provider.
     assert provider.send_count == 1
     with session_factory() as session:
         row = session.scalar(select(Notification).where(

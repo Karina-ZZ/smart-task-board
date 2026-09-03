@@ -1256,9 +1256,9 @@ class TaskBoardQueryService:
         context: tuple[list[TaskNode], list[TaskNodeDependency]] | None = None,
     ) -> dict[str, object]:
         if context is None:
-            nodes, dependencies, participants, node_participants = self._context(task.task_id)
+            nodes, _dependencies, participants, node_participants = self._context(task.task_id)
         else:
-            nodes, dependencies = context
+            nodes, _dependencies = context
             participants = self._tasks.list_participants(task.task_id)
             node_participants = self._nodes.list_participants_by_task_id(task.task_id)
         current_review, latest_review, rework_node_reopened = self._review_context(task.task_id)
@@ -1279,7 +1279,6 @@ class TaskBoardQueryService:
             and task.status not in TERMINAL_TASK_STATUSES
             and deadline < now
         )
-        priority = self._latest_priority(task.task_id)
         relations = self._current_user_relations(
             task,
             actor,

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from uuid import UUID
+
 from sqlalchemy.orm import Session, sessionmaker
+
 from app.db.unit_of_work import UnitOfWork
 from app.models import Task, TaskNode
 from app.services.features.task_decomposition import TaskDecompositionService

@@ -1,28 +1,31 @@
 from __future__ import annotations
 
-import os
-import secrets
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from uuid import UUID, uuid4
+import os
+import secrets
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, delete, func, inspect, select, text
+from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
+import pytest
 
 from app.api import dependencies
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings, Settings
 from app.db.unit_of_work import UnitOfWork
 from app.main import app
 from app.models import (
     AIExtractionRecord,
     Department,
+    Notification,
     OperationLog,
+    ReminderRule,
     Task,
     TaskCompletionReview,
+    TaskDecompositionRecord,
     TaskNode,
     TaskNodeDependency,
     TaskNodeParticipant,
@@ -30,6 +33,7 @@ from app.models import (
     TaskStatusLog,
     User,
 )
+from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
 
 pytestmark = pytest.mark.postgresql
 
@@ -164,49 +168,31 @@ def _task_payload(
     is_urgent: bool,
     deadline: datetime,
     with_dependency: bool,
-) -> tuple[dict[str, object], tuple[UUID, ...]]:
-    first = uuid4()
-    node_ids = (first, uuid4()) if with_dependency else (first,)
-    nodes = [
-        {
-            "node_id": str(node_id),
-            "node_order": index,
-            "node_name": f"{task_name} Node {index}",
-            "owner_employee_no": refs.assignee,
-            "acceptance_criteria": f"Node {index} accepted",
-        }
-        for index, node_id in enumerate(node_ids, start=1)
-    ]
-    dependencies_payload: list[dict[str, str]] = []
-    if with_dependency:
-        dependencies_payload.append(
+) -> dict[str, object]:
+    """Build a V1.1 task-level creator payload; AI owns nodes after acceptance."""
+    return {
+        "task_name": task_name,
+        "task_description": f"{task_name} PostgreSQL task-board workflow",
+        "task_goal": "Verify task board filtering and lifecycle behavior",
+        "task_source": "postgresql-integration",
+        "main_assignee_employee_no": refs.assignee,
+        "report_to_employee_no": refs.reviewer,
+        "report_to_level": "manager",
+        "reviewer_employee_no": refs.reviewer,
+        "department_id": str(refs.department_id),
+        "start_time": (deadline - timedelta(days=1)).isoformat(),
+        "deadline": deadline.isoformat(),
+        "task_weight": 3,
+        "deliverable": f"{task_name} deliverable",
+        "acceptance_criteria": "All active AI-generated nodes accepted",
+        "is_urgent": is_urgent,
+        "participants": [
             {
-                "predecessor_node_id": str(node_ids[0]),
-                "successor_node_id": str(node_ids[1]),
+                "employee_no": refs.node_participant,
+                "participant_role": "collaborator",
             }
-        )
-    return (
-        {
-            "task_name": task_name,
-            "main_assignee_employee_no": refs.assignee,
-            "reviewer_employee_no": refs.reviewer,
-            "department_id": str(refs.department_id),
-            "deadline": deadline.isoformat(),
-            "acceptance_criteria": "All nodes accepted",
-            "is_urgent": is_urgent,
-            "nodes": nodes,
-            "dependencies": dependencies_payload,
-            "node_participants": [
-                {
-                    "node_id": str(first),
-                    "employee_no": refs.node_participant,
-                    "participant_role": "collaborator",
-                }
-            ],
-        },
-        node_ids,
-    )
-
+        ],
+    }
 
 def _post_action(
     client: TestClient,
@@ -288,6 +274,12 @@ def _cleanup_and_count(
                 )
             )
             connection.execute(
+                delete(Notification).where(Notification.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(ReminderRule).where(ReminderRule.task_id.in_(task_ids))
+            )
+            connection.execute(
                 delete(TaskStatusLog).where(TaskStatusLog.task_id.in_(task_ids))
             )
             connection.execute(
@@ -314,6 +306,16 @@ def _cleanup_and_count(
                 )
             )
             connection.execute(delete(TaskNode).where(TaskNode.task_id.in_(task_ids)))
+            connection.execute(
+                update(Task)
+                .where(Task.task_id.in_(task_ids))
+                .values(latest_decomposition_id=None)
+            )
+            connection.execute(
+                delete(TaskDecompositionRecord).where(
+                    TaskDecompositionRecord.task_id.in_(task_ids)
+                )
+            )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         connection.execute(
             delete(User).where(User.employee_no.in_(refs.employee_nos))
@@ -342,6 +344,15 @@ def _cleanup_and_count(
             AIExtractionRecord.task_id.in_(task_ids)
         ),
         select(func.count()).select_from(TaskNode).where(TaskNode.task_id.in_(task_ids)),
+        select(func.count()).select_from(TaskDecompositionRecord).where(
+            TaskDecompositionRecord.task_id.in_(task_ids)
+        ),
+        select(func.count()).select_from(ReminderRule).where(
+            ReminderRule.task_id.in_(task_ids)
+        ),
+        select(func.count()).select_from(Notification).where(
+            Notification.task_id.in_(task_ids)
+        ),
         select(func.count()).select_from(Task).where(Task.task_id.in_(task_ids)),
         select(func.count()).select_from(User).where(
             User.employee_no.in_(refs.employee_nos)
@@ -455,17 +466,26 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
 
             me = client.get("/api/v1/me", headers=_bearer(creator_token))
             assert me.status_code == 200
-            assert me.json() == {
-                "employee_no": refs.creator,
-                "name": "Batch 1 Creator",
-                "department": {
-                    "department_id": str(refs.department_id),
-                    "department_name": "Batch 1 PostgreSQL API Integration",
-                },
-                "role_type": "employee",
-                "auth_mode": "prototype",
+            me_payload = me.json()
+            assert me_payload["employee_no"] == refs.creator
+            assert me_payload["name"] == "Batch 1 Creator"
+            assert me_payload["department"] == {
+                "department_id": str(refs.department_id),
+                "department_name": "Batch 1 PostgreSQL API Integration",
             }
-            _assert_safe_response(me.json())
+            assert me_payload["role_type"] == "employee"
+            assert me_payload["roles"] == ["employee"]
+            assert me_payload["auth_mode"] == "prototype"
+            assert set(me_payload["permissions"]) == {
+                "can_access_executive",
+                "can_manage_permissions",
+                "can_view_all_tasks",
+                "can_view_all_demo_data",
+                "allowed_routes",
+                "capabilities",
+            }
+            assert isinstance(me_payload["scopes"], list)
+            _assert_safe_response(me_payload)
 
             missing_bearer = client.get("/api/v1/me")
             header_fallback = client.get(
@@ -481,14 +501,14 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 _assert_safe_error(response)
 
             now = datetime.now(UTC)
-            alpha_payload, alpha_nodes = _task_payload(
+            alpha_payload = _task_payload(
                 refs,
                 task_name="Batch 1 API Workflow Alpha",
                 is_urgent=False,
                 deadline=now + timedelta(days=5),
                 with_dependency=True,
             )
-            beta_payload, _ = _task_payload(
+            beta_payload = _task_payload(
                 refs,
                 task_name="Batch 1 Urgent Draft Beta",
                 is_urgent=True,
@@ -683,10 +703,15 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 "accept",
                 3,
             )
-            assert (accepted.status_code, accepted.json()["status"]) == (
-                200,
-                "in_progress",
+            assert (
+                accepted.status_code,
+                accepted.json()["status"],
+                accepted.json()["task_version"],
+            ) == (200, "decomposing", 4)
+            alpha_nodes, active_version = complete_v11_decomposition(
+                factory, alpha_id, refs.assignee, keep_active_nodes=2
             )
+            assert active_version == 5
             in_progress_actions = client.get(
                 f"/api/v1/tasks/{alpha_id}/available-actions",
                 headers=_bearer(assignee_token),
@@ -700,48 +725,47 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 UUID(item["node_id"]): item["allowed_actions"]
                 for item in in_progress_actions.json()["nodes"]
             }
-            assert action_nodes == {
-                alpha_nodes[0]: [
-                    "start_node",
-                    "submit_progress_report",
-                    "report_task_issue",
-                ],
-                alpha_nodes[1]: ["submit_progress_report", "report_task_issue"],
-            }
+            assert action_nodes[alpha_nodes[0]] == [
+                "start_node",
+                "submit_progress_report",
+                "report_task_issue",
+            ]
+            assert action_nodes[alpha_nodes[1]] == [
+                "submit_progress_report",
+                "report_task_issue",
+            ]
+            assert all(not action_nodes[node_id] for node_id in alpha_nodes[2:])
             assert collaborator_actions.json()["allowed_actions"] == []
             collaborator_node_actions = {
                 UUID(item["node_id"]): item["allowed_actions"]
                 for item in collaborator_actions.json()["nodes"]
             }
-            assert collaborator_node_actions == {
-                alpha_nodes[0]: ["submit_progress_report", "report_task_issue"],
-                alpha_nodes[1]: [],
-            }
+            assert all(not actions for actions in collaborator_node_actions.values())
 
             node1_started = client.post(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[0]}/actions/start",
                 headers=_bearer(assignee_token),
-                json={"expected_task_version": 4},
+                json={"expected_task_version": active_version},
             )
             node1_progress = client.patch(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[0]}/progress",
                 headers=_bearer(assignee_token),
-                json={"expected_task_version": 5, "progress_percent": 60},
+                json={"expected_task_version": 6, "progress_percent": 60},
             )
             node1_completed = client.post(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[0]}/actions/complete",
                 headers=_bearer(assignee_token),
-                json={"expected_task_version": 6},
+                json={"expected_task_version": 7},
             )
             node2_started = client.post(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[1]}/actions/start",
                 headers=_bearer(assignee_token),
-                json={"expected_task_version": 7},
+                json={"expected_task_version": 8},
             )
             node2_completed = client.post(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[1]}/actions/complete",
                 headers=_bearer(assignee_token),
-                json={"expected_task_version": 8},
+                json={"expected_task_version": 9},
             )
             node_responses = (
                 node1_started,
@@ -752,11 +776,11 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
             )
             assert [response.status_code for response in node_responses] == [200] * 5
             assert [response.json()["task_version"] for response in node_responses] == [
-                5,
                 6,
                 7,
                 8,
                 9,
+                10,
             ]
 
             completion_inbox = client.get(
@@ -773,7 +797,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 assignee_token,
                 alpha_id,
                 "submit-completion",
-                9,
+                10,
                 completion_note="All workflow steps completed",
                 deliverable_summary="The final API deliverable is ready",
             )
@@ -798,7 +822,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 "review_result": None,
                 "reject_reason": None,
                 "rework_node_id": None,
-                "submitted_task_version": 10,
+                "submitted_task_version": 11,
                 "reviewed_task_version": None,
                 "submitted_at": None,
                 "reviewed_at": None,
@@ -832,7 +856,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 reviewer_token,
                 alpha_id,
                 "approve-completion",
-                10,
+                11,
                 completion_review_id=completion_review_id,
             )
             assert (approved.status_code, approved.json()["status"]) == (
@@ -884,7 +908,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
             assert final_detail.status_code == 200
             assert (final_detail.json()["status"], final_detail.json()["task_version"]) == (
                 "completed",
-                11,
+                12,
             )
             _assert_safe_response(final_detail.json())
             with factory() as session:
@@ -892,7 +916,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                     select(func.count()).select_from(TaskStatusLog).where(
                         TaskStatusLog.task_id == alpha_id
                     )
-                ) == 11
+                ) == 12
                 beta = session.get(Task, beta_id)
                 assert beta is not None
                 assert (beta.status, beta.task_version) == ("draft", 1)
