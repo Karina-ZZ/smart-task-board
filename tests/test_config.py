@@ -125,6 +125,7 @@ def test_wecom_auth_mode_requires_enterprise_credentials_and_keeps_secrets_priva
         allow_test_employee_header=False,
         jwt_secret_key="app-session-secret-with-at-least-32-characters",
         wecom_corp_id="ww-corp-001",
+        wecom_agent_id="1000002",
         wecom_app_secret="wecom-secret-value",
         chat_service_jwt_secret_key="chat-secret-with-at-least-32-characters",
         _env_file=None,
@@ -144,6 +145,29 @@ def test_wecom_auth_mode_rejects_test_employee_header() -> None:
             allow_test_employee_header=True,
             jwt_secret_key="app-session-secret-with-at-least-32-characters",
             wecom_corp_id="ww-corp-001",
+            wecom_agent_id="1000002",
             wecom_app_secret="wecom-secret-value",
             _env_file=None,
         )
+
+
+def test_get_settings_reads_selected_secret_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    env_file = tmp_path / "backend.env"
+    env_file.write_text(
+        "DATABASE_URL=sqlite+pysqlite:///:memory:\n"
+        "APP_NAME=Secret File API\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("APP_NAME", raising=False)
+    monkeypatch.setenv("WANGXU_BACKEND_ENV_FILE", str(env_file))
+    get_settings.cache_clear()
+    try:
+        settings = get_settings()
+        assert settings.database_url == "sqlite+pysqlite:///:memory:"
+        assert settings.app_name == "Secret File API"
+    finally:
+        get_settings.cache_clear()

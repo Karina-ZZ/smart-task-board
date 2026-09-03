@@ -1,8 +1,22 @@
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_BACKEND_ENV_FILE = REPOSITORY_ROOT / "secrets" / "backend.env"
+BACKEND_ENV_FILE_VARIABLE = "WANGXU_BACKEND_ENV_FILE"
+
+
+def resolve_backend_env_file() -> Path:
+    """Return the explicit server override or the repository-local secret file path."""
+
+    configured = os.getenv(BACKEND_ENV_FILE_VARIABLE, "").strip()
+    return Path(configured).expanduser() if configured else DEFAULT_BACKEND_ENV_FILE
 
 
 class Settings(BaseSettings):
@@ -23,6 +37,7 @@ class Settings(BaseSettings):
     jwt_audience: str = "smart-task-board-web"
     jwt_expire_minutes: int = Field(default=30, ge=1, le=1440)
     wecom_corp_id: str = ""
+    wecom_agent_id: str = ""
     wecom_app_secret: SecretStr | None = Field(default=None, repr=False)
     wecom_api_base_url: str = "https://qyapi.weixin.qq.com"
     wecom_request_timeout_seconds: int = Field(default=8, ge=1, le=30)
@@ -39,7 +54,7 @@ class Settings(BaseSettings):
     ai_request_timeout_seconds: int = Field(default=30, ge=1, le=120)
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=None,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -89,6 +104,8 @@ class Settings(BaseSettings):
         if self.auth_mode == "wecom":
             if not self.wecom_corp_id.strip():
                 raise ValueError("WECOM_CORP_ID is required in wecom auth mode")
+            if not self.wecom_agent_id.strip():
+                raise ValueError("WECOM_AGENT_ID is required in wecom auth mode")
             if (
                 self.wecom_app_secret is None
                 or not self.wecom_app_secret.get_secret_value().strip()
@@ -115,4 +132,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    # Environment variables override values loaded from the selected env file.
+    return Settings(_env_file=resolve_backend_env_file())

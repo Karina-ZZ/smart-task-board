@@ -19,3 +19,8 @@ web/test-results/
 web/.env
 web/.env.*
 !web/.env.example
+
+# Local/server secret files. Never commit real credentials.
+secrets/*
+!secrets/.gitkeep
+config-examples/*.local

@@ -2,6 +2,13 @@
 
 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
 
+
+## Secret configuration
+
+Real WeCom credentials, Qwen/DashScope keys, database passwords and JWT secrets are not stored in source code. New setups should copy `config-examples/backend.env.example` and `config-examples/chatservice.env.example` into the ignored local `secrets/` directory. Production servers should keep the same files under `/etc/wangxu/`.
+
+Detailed replacement and rotation instructions: `docs/SECRETS_CONFIGURATION_GUIDE.md`.
+
 ## 当前进度
 
 Phase 0～5 后端基础已经完成：

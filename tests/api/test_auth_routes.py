@@ -24,6 +24,7 @@ def _settings(**overrides: object) -> Settings:
         "jwt_audience": "test-audience",
         "allow_test_employee_header": False,
         "cors_allowed_origins": "http://localhost:5173",
+        "wecom_agent_id": "1000002",
     }
     values.update(overrides)
     return Settings(**values)

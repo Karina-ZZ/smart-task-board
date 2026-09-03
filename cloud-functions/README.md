@@ -45,15 +45,15 @@ API:
 - `POST /task-intake/transcribe`
 - `GET /health`
 
-Production environment variables:
+Production configuration is loaded from the dedicated ChatService secret file. Local default: `secrets/chatservice.env`; server override: set `WANGXU_CHAT_ENV_FILE=/etc/wangxu/chatservice.env`. Use `config-examples/chatservice.env.example` as the template. The recommended keys are:
 
 ```text
 APP_ENV=production
 CHAT_REQUIRE_AUTH=true
-WANGXU_AI_JWT_SECRET=<same value as FastAPI CHAT_SERVICE_JWT_SECRET_KEY>
-WANGXU_AI_JWT_ISSUER=smart-task-board
-WANGXU_AI_JWT_AUDIENCE=wangxu-chat
-QWEN_API_KEY=<DashScope key>
+CHAT_SERVICE_JWT_SECRET_KEY=<same value as FastAPI CHAT_SERVICE_JWT_SECRET_KEY>
+CHAT_SERVICE_JWT_ISSUER=smart-task-board
+CHAT_SERVICE_JWT_AUDIENCE=wangxu-chat
+DASHSCOPE_API_KEY=<DashScope key>
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-plus
 QWEN_ASR_MODEL=<optional audio-capable model>
@@ -64,6 +64,8 @@ MYSQL_DATABASE=...
 MYSQL_USER=...
 MYSQL_PASSWORD=...
 ```
+
+See `docs/SECRETS_CONFIGURATION_GUIDE.md` for exact local/server replacement steps.
 
 Production startup refuses `CHAT_REQUIRE_AUTH=false` or the development JWT secret.
 

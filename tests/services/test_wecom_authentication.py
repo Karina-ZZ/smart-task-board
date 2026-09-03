@@ -20,6 +20,7 @@ def _settings(**overrides: object) -> Settings:
         "allow_test_employee_header": False,
         "jwt_secret_key": "app-session-secret-with-at-least-32-characters",
         "wecom_corp_id": "ww-corp-001",
+        "wecom_agent_id": "1000002",
         "wecom_app_secret": "wecom-secret",
     }
     values.update(overrides)
