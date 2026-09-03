@@ -37,18 +37,44 @@
 
 ### 测试进度
 
-| 质量门 | 结果 | 说明 |
-|---|---|---|
-| 后端全量（非 PostgreSQL） | `436 passed, 21 skipped` | 21 项 skipped 为 PostgreSQL opt-in 集成测试，当前环境未启用 |
-| PostgreSQL 集成测试 | 未执行 | 本环境未启用 `RUN_POSTGRESQL_INTEGRATION=1`，不宣称通过 |
-| 迁移合同测试 | `32 passed` | Alembic 单一 head `b1c2d3e4f5a6` |
-| Python `compileall` | PASS | 正式 ZIP 反向验收通过 |
-| 微信小程序功能 01～13 | `16` 组测试文件 PASS | `wechat-miniprogram-standalone/` 累计 `npm test` |
-| 微信全部 JS 语法检查 | PASS | `node --check` |
-| React 前端 lint/test/build | 未执行 | 当前环境未安装 `web/node_modules`，不宣称通过 |
-| 功能 14 / 15 / 16 测试 | 未开始 | 功能尚未立项开发，无对应测试任务 |
+> **以下为本机独立复核的实测结果**（复核日期 2026-09-03）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。注意项目声明 `requires-python = ">=3.12,<3.13"`，本次复核以 3.13.12 加装 `--ignore-requires-python` 执行，与官方 3.12 口径存在版本差异。
 
-> 历史 Wave 1 门禁参考：后端 `306 passed`（含真实 PostgreSQL 集成 `20 passed`）、前端 `10 test files / 28 tests passed`，Ruff、pip check、pip-audit、ESLint、Vite build 均通过。当前环境门禁以 `docs/FEATURE_13_ACCEPTANCE.md` 记录为准。
+| 质量门 | 实测结果 | 说明 |
+|---|---|---|
+| 后端全量 pytest | ✅ `436 passed, 28 skipped` | 2.09s；28 项 skipped 均为 PostgreSQL opt-in 集成测试（文档记录为 21 skipped，实测为 28） |
+| PostgreSQL 集成测试 | ⚠️ 未执行 | 需 `RUN_POSTGRESQL_INTEGRATION=1` + 隔离 PG 测试库，本次未提供，**不宣称通过** |
+| Python `compileall` | ✅ PASS | `app` 包全量编译通过 |
+| `ruff check` | ❌ **201 个错误** | 详见下方「静态检查发现的问题」 |
+| 微信小程序功能 01～13 | ✅ `16 / 16` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
+| 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
+| React 前端 ESLint | ✅ PASS | 无错误输出 |
+| React 前端测试 | ✅ `18 test files / 109 tests passed` | vitest `--run`，3.46s |
+| React 前端构建 | ✅ PASS | `tsc --noEmit && vite build`，546ms |
+| 功能 14 / 15 / 16 测试 | ⬜ 未开始 | 功能尚未立项开发，无对应测试任务 |
+
+> 交付包文档 `docs/FEATURE_13_ACCEPTANCE.md` 记录的原始口径为：后端 `436 passed`（文档中 skipped 记为 21）、迁移合同 `32 passed`、微信 `16` 组 PASS；并声明 React 未执行、Ruff 未执行。本次复核补齐了 React 与 Ruff 两项，并修正了 skipped 计数。
+
+### 静态检查发现的问题
+
+`ruff check .` 共 201 个错误，按类型分布：
+
+| 类型 | 数量 | 性质 |
+|---|---|---|
+| E501 行超长 | 137 | 代码风格 |
+| I001 import 未排序 | 31 | 代码风格 |
+| **F821 未定义名称** | **11** | **⚠️ 真实缺陷** |
+| F401 未使用 import | 10 | 代码风格 |
+| E701 / E702 单行多语句 | 6 | 代码风格 |
+| F841 未使用变量 | 3 | 代码风格 |
+| B033 重复值 / UP035 弃用 import | 3 | 代码风格 |
+
+**F821 全部集中在同一处真实缺陷**：`app/services/task_board_query.py` 第 670 ～ 674 行的 `available_actions()` 方法引用了未定义的变量 `priority`。已通过 AST 静态分析和运行时复现双重确认——调用该方法会直接抛出 `NameError: name 'priority' is not defined`。
+
+- **影响面**：该方法是 `GET /api/v1/tasks/{task_id}/available-actions` 接口的后端实现，真实调用将返回 HTTP 500。
+- **未被引爆的原因**：唯一覆盖真实实现的测试 `tests/integration/test_progress_issues_postgresql.py` 属于 PostgreSQL opt-in 测试（默认 skipped）；而 `tests/api/test_task_board_routes.py` 用 mock 替换了 service 返回值，绕过了真实代码路径。因此 436 个通过的测试全部未触及该缺陷。
+- **修复方向**：同文件 `_summary()` 方法中已有正确写法 `priority = self._latest_priority(task.task_id)`，`available_actions()` 中缺少这一行赋值。
+
+> 该缺陷属功能 12（智能计算）遗留，尚未修复——修复需按 `docs/ACCEPTANCE_STANDARDS.md` 执行全量回归后提交。
 
 ## 微信小程序累计交付状态
 
