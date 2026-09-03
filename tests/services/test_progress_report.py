@@ -112,7 +112,7 @@ def test_node_owner_and_collaborator_cannot_submit_task_level_or_node_reports() 
         status="in_progress",
         progress_percent=20,
     )
-    service, uow, task = _context(node=node)
+    service, _uow, task = _context(node=node)
 
     with pytest.raises(BusinessValidationError, match="cannot target a node"):
         service.submit(_command(task, node_id=node.node_id, reporter_employee_no="OWNER"))

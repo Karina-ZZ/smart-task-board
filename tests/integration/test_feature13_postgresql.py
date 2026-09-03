@@ -15,16 +15,16 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
-from uuid import UUID, uuid4
 import os
 import threading
 import time
+from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import create_engine, delete, Engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import Notification, OperationLog, ReminderRule, Task, TaskNode, TaskStatusLog, User
@@ -107,10 +107,25 @@ def seed(session_factory) -> Iterator[Seed]:
     with session_factory() as session:
         session.add_all(
             [
-                User(employee_no=refs.creator, name="PG creator", role_type="employee", status="active"),
+                User(
+                    employee_no=refs.creator,
+                    name="PG creator",
+                    role_type="employee",
+                    status="active",
+                ),
                 User(employee_no=refs.main, name="PG main", role_type="employee", status="active"),
-                User(employee_no=refs.collaborator, name="PG collaborator", role_type="employee", status="active"),
-                User(employee_no=refs.admin, name="PG scheduler", role_type="admin", status="active"),
+                User(
+                    employee_no=refs.collaborator,
+                    name="PG collaborator",
+                    role_type="employee",
+                    status="active",
+                ),
+                User(
+                    employee_no=refs.admin,
+                    name="PG scheduler",
+                    role_type="admin",
+                    status="active",
+                ),
             ]
         )
         session.add(
@@ -164,7 +179,10 @@ def _service(session_factory, *, clock=lambda: NOW) -> TaskNodeWorkflowService:
     return TaskNodeWorkflowService(lambda: UnitOfWork(session_factory), clock=clock)
 
 
-def test_assignment_status_check_constraint_is_real(feature13_pg_engine: Engine, seed: Seed) -> None:
+def test_assignment_status_check_constraint_is_real(
+    feature13_pg_engine: Engine,
+    seed: Seed,
+) -> None:
     with Session(feature13_pg_engine) as session:
         node = session.get(TaskNode, seed.node_id)
         assert node is not None
@@ -256,7 +274,10 @@ def test_concurrent_accept_has_one_effect_real_postgresql(session_factory, seed:
         assert {row.reminder_type for row in rules} <= {"node_start", "due_soon", "node_due"}
 
 
-def test_concurrent_accept_reject_finishes_in_one_coherent_state(session_factory, seed: Seed) -> None:
+def test_concurrent_accept_reject_finishes_in_one_coherent_state(
+    session_factory,
+    seed: Seed,
+) -> None:
     barrier = threading.Barrier(2)
 
     def accept_once():
@@ -385,7 +406,11 @@ def test_concurrent_outbox_workers_must_not_double_send(session_factory, seed: S
     def send_once():
         with session_factory() as session:
             start.wait(timeout=3)
-            service = ReminderNotificationService(session, provider=provider, clock=lambda: NOW)
+            service = ReminderNotificationService(
+                session,
+                provider=provider,
+                clock=lambda: NOW,
+            )
             return service.send_pending(seed.admin, limit=1)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -400,7 +425,22 @@ def test_concurrent_outbox_workers_must_not_double_send(session_factory, seed: S
     # Selecting without row locking would allow two workers to enter the provider.
     assert provider.send_count == 1
     with session_factory() as session:
-        row = session.scalar(select(Notification).where(
-            Notification.dedupe_key == f"pg13:{seed.node_id}:outbox"
-        ))
+        row = session.scalar(
+            select(Notification).where(
+                Notification.dedupe_key == f"pg13:{seed.node_id}:outbox"
+            )
+        )
+        assert row is not None
         assert row.send_status == "sent"
+        assert row.retry_count == 0
+        assert row.fail_reason is None
+
+    # A later dispatcher pass must not resend a notification already marked sent.
+    with session_factory() as session:
+        service = ReminderNotificationService(
+            session,
+            provider=provider,
+            clock=lambda: NOW,
+        )
+        assert service.send_pending(seed.admin, limit=1) == []
+    assert provider.send_count == 1

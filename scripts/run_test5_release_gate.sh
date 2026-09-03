@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+fail() { echo "[TEST5 BLOCKED] $*" >&2; exit 2; }
+python_bin="${PYTHON_BIN:-python3.12}"
+command -v "$python_bin" >/dev/null 2>&1 || fail "Python 3.12 is required"
+"$python_bin" - <<'PY'
+import sys
+if sys.version_info[:2] != (3, 12):
+    raise SystemExit(f"Python 3.12 required, got {sys.version}")
+PY
+
+# A formal gate must run inside an isolated project environment, not against a
+# developer's global site-packages where unrelated package conflicts can pollute pip check.
+if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+  fail "activate the project Python 3.12 virtual environment before running Test5"
+fi
+
+# Install/validate the project itself using the declared dependency contract.
+"$python_bin" -m pip install -e ".[dev]"
+"$python_bin" -m pip check
+"$python_bin" -m ruff check .
+"$python_bin" -m compileall -q app cloud-functions tests alembic
+
+started_container=""
+cleanup() {
+  if [[ -n "$started_container" ]] && command -v docker >/dev/null 2>&1; then
+    docker rm -f "$started_container" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+if [[ -z "${POSTGRES_TEST_DATABASE_URL:-}" ]]; then
+  command -v docker >/dev/null 2>&1 || fail "Docker or POSTGRES_TEST_DATABASE_URL is required"
+  docker info >/dev/null 2>&1 || fail "Docker daemon is not running"
+  started_container="smart-task-board-pg-gate-test5"
+  docker rm -f "$started_container" >/dev/null 2>&1 || true
+  gate_password="test5-$(date +%s)-$RANDOM"
+  docker run -d --name "$started_container" \
+    -e POSTGRES_DB=smarttaskboard_core_test \
+    -e POSTGRES_USER=smarttaskboard_test \
+    -e POSTGRES_PASSWORD="$gate_password" \
+    -p 127.0.0.1:46479:5432 postgres:16-alpine >/dev/null
+  for _ in $(seq 1 30); do
+    if docker exec "$started_container" pg_isready \
+      -U smarttaskboard_test -d smarttaskboard_core_test >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  docker exec "$started_container" pg_isready \
+    -U smarttaskboard_test -d smarttaskboard_core_test >/dev/null 2>&1 \
+    || fail "PostgreSQL 16 gate container did not become ready"
+  export POSTGRES_TEST_DATABASE_URL="postgresql+psycopg://smarttaskboard_test:${gate_password}@127.0.0.1:46479/smarttaskboard_core_test"
+fi
+
+PYTHON_BIN="$python_bin" POSTGRES_TEST_DATABASE_URL="$POSTGRES_TEST_DATABASE_URL" \
+  ./scripts/run_postgresql_gate.sh
+
+# Real WeCom release evidence requires real server secrets and a real mini-program AppID.
+: "${WANGXU_BACKEND_ENV_FILE:?WANGXU_BACKEND_ENV_FILE is required for real WeCom gate}"
+[[ -f "$WANGXU_BACKEND_ENV_FILE" ]] \
+  || fail "backend env file does not exist: $WANGXU_BACKEND_ENV_FILE"
+set -a
+# shellcheck disable=SC1090
+source "$WANGXU_BACKEND_ENV_FILE"
+set +a
+[[ "${AUTH_MODE:-}" == "wecom" ]] || fail "AUTH_MODE=wecom is required"
+: "${WECOM_CORP_ID:?WECOM_CORP_ID is required}"
+: "${WECOM_AGENT_ID:?WECOM_AGENT_ID is required}"
+: "${WECOM_APP_SECRET:?WECOM_APP_SECRET is required}"
+if grep -q '"appid"[[:space:]]*:[[:space:]]*"touristappid"' \
+  wechat-miniprogram/project.config.json; then
+  fail "real WeCom gate requires a real mini-program AppID, not touristappid"
+fi
+grep -q 'mode:[[:space:]]*"api"' wechat-miniprogram/config.js \
+  || fail 'real WeCom gate requires wechat-miniprogram/config.js mode="api"'
+if grep -q 'apiBaseUrl:[[:space:]]*""' wechat-miniprogram/config.js; then
+  fail "real WeCom gate requires a non-empty mini-program apiBaseUrl"
+fi
+
+: "${WANGXU_CHAT_ENV_FILE:?WANGXU_CHAT_ENV_FILE is required for real Qwen gate}"
+[[ -f "$WANGXU_CHAT_ENV_FILE" ]] \
+  || fail "ChatService env file does not exist: $WANGXU_CHAT_ENV_FILE"
+set -a
+# shellcheck disable=SC1090
+source "$WANGXU_CHAT_ENV_FILE"
+set +a
+[[ "${CHAT_REQUIRE_AUTH:-}" == "true" ]] || fail "CHAT_REQUIRE_AUTH=true is required"
+: "${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required for real Qwen gate}"
+: "${CHAT_SERVICE_JWT_SECRET_KEY:?CHAT_SERVICE_JWT_SECRET_KEY is required}"
+
+(
+  cd wechat-miniprogram
+  npm test
+  find . -type f -name '*.js' -not -path './node_modules/*' -print0 \
+    | xargs -0 -n1 node --check
+)
+
+(
+  cd web
+  npm ci
+  npm run lint
+  npm test -- --run
+  npm run build
+)
+
+echo "[TEST5 AUTOMATED GATE PASS] Python 3.12, Ruff, PostgreSQL, mini-program and web gates passed."
+echo "Next: obtain a fresh wx.qy.login code and run scripts/run_wecom_real_e2e.py before device E2E."

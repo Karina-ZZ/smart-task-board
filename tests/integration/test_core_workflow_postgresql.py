@@ -3,14 +3,14 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, UTC
-from uuid import UUID, uuid4
 import os
+from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import create_engine, delete, Engine, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
@@ -43,7 +43,10 @@ from app.services import (
     TaskWorkflowService,
 )
 from app.services.features.task_decomposition import TaskDecompositionService
-from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
+from tests.integration.v11_postgresql_helpers import (
+    complete_v11_decomposition,
+    send_accept_and_decompose_v11,
+)
 
 pytestmark = pytest.mark.postgresql
 
@@ -360,14 +363,13 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
     tasks, nodes, clock = _services(phase4_session_factory)
 
     task = tasks.create_task_draft(command)
-    tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
-    tasks.confirm_and_send(task.task_id, refs.creator, 2, "phase4-integration")
-    accepted = tasks.accept_task(task.task_id, refs.assignee, 3, "phase4-integration")
-    assert (accepted.status, accepted.task_version) == ("decomposing", 4)
-    node_ids, active_version = complete_v11_decomposition(
+    node_ids, active_version = send_accept_and_decompose_v11(
+        tasks,
         phase4_session_factory,
-        task.task_id,
+        task,
+        refs.creator,
         refs.assignee,
+        "phase4-integration",
         keep_active_nodes=2,
         clock=clock,
     )
@@ -558,13 +560,16 @@ def test_self_assigned_confirmation_flow(
     command = _command(refs, phase4_records, self_assigned=True)
     tasks, _, clock = _services(phase4_session_factory)
     task = tasks.create_task_draft(command)
-    tasks.submit_for_confirmation(task.task_id, refs.creator, 1, "phase4-integration")
-    sent = tasks.confirm_self_assigned(task.task_id, refs.creator, 2, "phase4-integration")
-    assert (sent.status, sent.task_version) == ("pending_acceptance", 3)
-    accepted = tasks.accept_task(task.task_id, refs.creator, 3, "phase4-integration")
-    assert (accepted.status, accepted.task_version) == ("decomposing", 4)
-    _, active_version = complete_v11_decomposition(
-        phase4_session_factory, task.task_id, refs.creator, keep_active_nodes=0, clock=clock
+    _, active_version = send_accept_and_decompose_v11(
+        tasks,
+        phase4_session_factory,
+        task,
+        refs.creator,
+        refs.creator,
+        "phase4-integration",
+        self_assigned=True,
+        keep_active_nodes=0,
+        clock=clock,
     )
 
     with phase4_session_factory() as session:

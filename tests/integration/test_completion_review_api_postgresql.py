@@ -3,15 +3,15 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal
-from uuid import UUID, uuid4
 import os
 import secrets
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.api import dependencies
 from app.core.config import get_settings, Settings
@@ -398,7 +398,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 employee_no: _login(client, employee_no)
                 for employee_no in refs.employee_nos
             }
-            overall_task_id, overall_node_id, overall_version = (
+            overall_task_id, _overall_node_id, overall_version = (
                 _create_ready_task(
                     client,
                     factory,

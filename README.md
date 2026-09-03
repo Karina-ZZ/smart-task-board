@@ -53,7 +53,7 @@ Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交�
 
 **后端覆盖矩阵**：功能 01～16 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE。Alembic 单一 head 为 `b1c2d3e4f5a6`。
 
-> 功能 16 交付包含：企业微信认证 `app/services/wecom_authentication.py` + `app/integrations/wecom`；后端 `auth_mode` 增加 `wecom`；新增 `POST /api/v1/auth/wecom/login` 换票接口；删除 `LoginService` 云函数；密钥移入 `secrets/backend.env` 与 `secrets/chatservice.env`（`.gitignore` 屏蔽）；新增发布门禁测试 `tests/test_start_dev_secret_contract.py`、`tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`。
+> 功能 16 交付包含：企业微信认证 `app/services/wecom_authentication.py` + `app/integrations/wecom`；后端 `auth_mode` 增加 `wecom`；新增 `POST /api/v1/auth/wecom/login` 换票接口；删除 `LoginService` 云函数；密钥移入 `secrets/backend.env` 与 `secrets/chatservice.env`（`.gitignore` 屏蔽）；新增发布门禁测试 `tests/test_start_dev_secret_contract.py`、`tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`。Test5 再收敛 PostgreSQL V1.1 集成夹具并加固 Outbox 并发防回流断言，新增 `scripts/run_test5_release_gate.sh`、`scripts/run_wecom_real_e2e.py`、`tests/test_test5_release_gate_contract.py`、`tests/integration/v11_postgresql_helpers.py` 与 `docs/FEATURE_16_REAL_WECOM_E2E.md`（真实企业微信身份 E2E 执行清单）。
 
 ### 测试进度
 
@@ -61,7 +61,7 @@ Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交�
 
 | 质量门 | 实测结果 | 说明 |
 |---|---|---|
-| 后端全量 pytest | ✅ `460 passed, 28 skipped` | 28 项 skipped 均为 PostgreSQL opt-in 集成测试 |
+| 后端全量 pytest（非 PostgreSQL） | ✅ `485 passed, 28 deselected` | 28 项 deselected 均为 PostgreSQL opt-in 集成测试 |
 | 微信小程序功能 01～16 | ✅ `19 / 19` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
 | 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
 | React 前端 ESLint | ✅ PASS | 无错误输出 |
@@ -71,6 +71,7 @@ Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交�
 | `ruff check` | ⚠️ `220` 个告警 | 全部为风格类，F821 真实缺陷已清零 |
 | 功能 16 发布门禁 Test3（`scripts/run_test3_release_gate.sh`） | 🚧 BLOCKED（预期） | 硬门禁：缺 Python 3.12 / PostgreSQL 16 / 真实企微配置即阻断；本次非PG `477 passed, 2 failed`（2 失败为旧 PG fixture 债务被门禁正确拦截）、微信 `20/20 PASS`；详见 `docs/FEATURE_16_TEST3_EXECUTION_REPORT.md` |
 | 功能 16 修复 Test4（`scripts/run_test4_release_gate.sh`） | 🔧 修复已提交，待真实环境复验 | 修 Test3 门禁拦出的旧 PG V1.1 fixture 债务（F1-F7）、Outbox 并发测试（F8）、`/me` 旧断言（F9）；`httpx2`→`httpx` 依赖修正；ruff F401/F841/B033/E701/E702。本环境非PG `482 passed, 28 deselected`、微信 `20/20 PASS`；真实 PG / Py3.12 / Ruff / 企微仍待复验（不伪造 PASS）；详见 `docs/FEATURE_16_TEST4_EXECUTION_REPORT.md` |
+| 功能 16 并行完善 Test5（`scripts/run_test5_release_gate.sh`） | 🔧 已提交，待真实环境复验 | 收敛 PostgreSQL V1.1 集成测试夹具（`tests/integration/v11_postgresql_helpers.py` + `tests/test_postgresql_v11_fixture_contract.py` 防回流）、加固 Outbox 并发防回流断言（`send_status==sent`、`retry_count==0`、第二轮 `send_pending()` 返回空）；新增真实企业微信身份 smoke/E2E 脚本 `scripts/run_wecom_real_e2e.py` 与 `docs/FEATURE_16_REAL_WECOM_E2E.md`（不打印 Secret/Token）。`app/` 业务源码无修改。本环境：compileall PASS、非PG `485 passed, 28 deselected`、Test5+V1.1 发布合同 `8 passed`、微信 `20/20 PASS`、JS `node --check` `48 文件 PASS`、Test5 shell gate 语法 PASS；真实 PG 28/28 / 5×20 并发 / Ruff 0 error / 真实企微 E2E 仍待复验（不伪造 PASS）；详见 `docs/FEATURE_16_TEST5_PARALLEL_IMPROVEMENT_REPORT.md` |
 
 ## 微信小程序累计交付状态
 

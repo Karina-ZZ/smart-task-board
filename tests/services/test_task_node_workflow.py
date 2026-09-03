@@ -1,17 +1,11 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
-from unittest.mock import MagicMock, Mock, call
+from unittest.mock import call, MagicMock, Mock
 from uuid import uuid4
 
 import pytest
 
-from app.models import (
-    Task,
-    TaskCompletionReview,
-    TaskNode,
-    TaskNodeDependency,
-    TaskNodeParticipant,
-)
+from app.models import Task, TaskCompletionReview, TaskNode, TaskNodeDependency, TaskNodeParticipant
 from app.services import (
     BusinessValidationError,
     DependencyNotSatisfiedError,
@@ -549,8 +543,11 @@ def test_reopen_node_requires_in_progress_task_and_propagates_failure() -> None:
     uow.commit.assert_not_called()
 
 
-def test_blocked_task_allows_owner_node_execution_but_assignee_cannot_take_other_owner_node() -> None:
-    service, uow, task, node = _context(task_status="blocked", node_status="pending", owner="OWNER")
+def test_blocked_task_allows_owner_node_execution_but_assignee_cannot_take_other_owner_node(
+) -> None:
+    service, _uow, task, node = _context(
+        task_status="blocked", node_status="pending", owner="OWNER"
+    )
     service.start_node(task.task_id, node.node_id, "OWNER", 3, "unit-test")
     assert node.status == "in_progress"
 

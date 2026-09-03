@@ -4,13 +4,13 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, UTC
 from decimal import Decimal
-from uuid import UUID, uuid4
 import os
+from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import create_engine, delete, Engine, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
@@ -50,7 +50,7 @@ from app.services.business_capabilities import (
     TaskIntakeService,
 )
 from app.services.task_workflow import TaskWorkflowService
-from tests.integration.v11_postgresql_helpers import complete_v11_decomposition
+from tests.integration.v11_postgresql_helpers import send_accept_and_decompose_v11
 
 pytestmark = pytest.mark.postgresql
 
@@ -386,21 +386,16 @@ def test_full_business_capability_flow_with_real_postgresql(
         records.task_ids.add(task.task_id)
 
     workflow = TaskWorkflowService(uow_factory, clock=clock)
-    task = workflow.submit_for_confirmation(
-        task.task_id, refs.creator, task.task_version, "postgresql-test"
-    )
-    task = workflow.confirm_and_send(
-        task.task_id, refs.creator, task.task_version, "postgresql-test"
-    )
-    task = workflow.accept_task(task.task_id, refs.assignee, task.task_version, "postgresql-test")
-    node_ids, decomposed_version = complete_v11_decomposition(
+    _, decomposed_version = send_accept_and_decompose_v11(
+        workflow,
         business_session_factory,
-        task.task_id,
+        task,
+        refs.creator,
         refs.assignee,
+        "postgresql-test",
         keep_active_nodes=2,
         clock=clock,
     )
-    first_node_id, second_node_id = node_ids[:2]
     with business_session_factory() as session:
         task = session.get(Task, task.task_id)
         assert task is not None

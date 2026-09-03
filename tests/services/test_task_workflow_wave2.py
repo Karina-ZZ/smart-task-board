@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
@@ -282,7 +282,7 @@ def test_change_request_adds_node_with_server_generated_explicit_id() -> None:
 
 def test_lifecycle_guards_version_role_and_restore_status() -> None:
     task = _task(status="in_progress", version=2)
-    service, uow = _context(task)
+    service, _uow = _context(task)
 
     with pytest.raises(PermissionDeniedError):
         service.withdraw_task(task.task_id, "OUTSIDER", 2, "unit-test", "No longer assigned")
