@@ -2,6 +2,31 @@
 
 本仓库所有显著变更都记录在此文件中。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [功能 16] - 2026-09-03 — 企业微信登录 + 安全配置 + 发布门禁
+
+### 新增
+
+#### 后端
+
+- **企业微信自建应用登录**：后端 `auth_mode` 增加 `wecom`；新增 `POST /api/v1/auth/wecom/login` 换票接口（`app/services/wecom_authentication.py` + `app/integrations/wecom`），用企业微信 code 换 `userid`，经 `User.wecom_user_id` 映射 `employee_no` 后签发 JWT。
+- **删除 LoginService 云函数**：仅服务内部员工，企业微信接管身份，短信登录不再部署。
+- **密钥安全配置**：后端配置改从 `secrets/backend.env` 读取（可经 `WANGXU_BACKEND_ENV_FILE` 覆盖）；ChatService 改从 `secrets/chatservice.env` 读取（可经 `WANGXU_CHAT_ENV_FILE` 覆盖）。`.gitignore` 屏蔽 `secrets/*`，仅提交 `secrets/.gitkeep`。变量名规范化：`WECOM_APP_SECRET`、`DASHSCOPE_API_KEY`、`CHAT_SERVICE_JWT_SECRET_KEY`。新增空模板 `config-examples/backend.env.example`、`config-examples/chatservice.env.example`。
+
+#### 测试
+
+- 新增 `tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`、`tests/test_start_dev_secret_contract.py`（发布门禁：密钥契约校验）。
+- 后端测试保持 **460 passed**；`ruff` 仅风格类告警，F821 已清零。
+
+#### 文档
+
+- 新增 `docs/FEATURE_16_WECOM_AUTH_ACCEPTANCE.md`、`docs/WECOM_IDENTITY_ORG_MAPPING.md`、`docs/SECRETS_CONFIGURATION_GUIDE.md`、`docs/FEATURE_16_SECRET_CONFIG_ACCEPTANCE.md`、`docs/FEATURE_16_TEST2_RELEASE_GATE_REPORT.md`。
+
+### 移除
+
+- 删除 `cloud-functions/LoginService`（短信验证码登录云函数）。
+
+---
+
 ## [功能 15] - 2026-09-03 — 高管员工任务筛选
 
 > 本次交付实际包含功能 14（高管任务看板）与功能 15（员工任务筛选）两个功能。

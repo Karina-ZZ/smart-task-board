@@ -1,105 +1,105 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SmartTaskBoard 一键开发启动脚本
+# SmartTaskBoard local development launcher.
 #
-# 用法:
-#   cd ~/Projects/SmartTaskBoard
-#   ./scripts/start-dev.sh
+# Secrets are read from secrets/backend.env by default. Override with:
+#   WANGXU_BACKEND_ENV_FILE=/absolute/path/backend.env ./scripts/start-dev.sh
 #
-# 它会自动完成:
-#   1. 检查 Docker 是否运行
-#   2. 启动 PostgreSQL (docker compose)
-#   3. 激活项目 Python 3.12 虚拟环境 (.venv)
-#   4. 从 .env 安全读取配置 (数据库密码 / AI_API_KEY 等, 绝不打印)
-#   5. 应用 Alembic 数据库迁移
-#   6. 启动 FastAPI 后端 + Vite 前端 (后台运行)
-#
-# 注意:
-#   - 所有密钥 (POSTGRES_PASSWORD / AI_API_KEY / JWT_SECRET_KEY) 都来自 .env
-#     (.env 已被 Git 忽略), 脚本内不硬编码任何密钥。
-#   - 若 .env 缺失 JWT_SECRET_KEY, 会本机生成并写回 .env。
-#   - 停止服务: pkill -f 'uvicorn app.main' ; pkill -f vite
+# The script never creates or mutates secret files and never prints secret values.
 # =============================================================================
 set -euo pipefail
 
-# 让 brew / uv 管理的命令在 PATH 中可见
 export PATH="$HOME/.local/bin:$HOME/.homebrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-# 定位到项目根目录 (脚本位于 <项目根>/scripts/ 下)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "==> [1/6] 检查 Docker 是否运行"
-if ! docker info >/dev/null 2>&1; then
-  echo "ERROR: Docker 未运行。请先打开 Docker Desktop 应用并等待左下角状态变为绿色/ready。"
+BACKEND_ENV_FILE="${WANGXU_BACKEND_ENV_FILE:-$PROJECT_ROOT/secrets/backend.env}"
+export WANGXU_BACKEND_ENV_FILE="$BACKEND_ENV_FILE"
+
+if [ ! -f "$BACKEND_ENV_FILE" ]; then
+  echo "ERROR: backend secret file not found: $BACKEND_ENV_FILE"
+  echo "Create it from config-examples/backend.env.example and fill the required values."
   exit 1
 fi
 
-echo "==> [2/6] 启动 PostgreSQL (docker compose)"
-docker compose up -d
-for i in $(seq 1 30); do
-  if docker exec smart-task-board-postgres pg_isready -U smarttaskboard_test -d smarttaskboard_core_test >/dev/null 2>&1; then
-    echo "    PostgreSQL 就绪"
+for key in DATABASE_URL POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD JWT_SECRET_KEY; do
+  if ! grep -Eq "^${key}=.+" "$BACKEND_ENV_FILE"; then
+    echo "ERROR: required setting $key is missing or empty in $BACKEND_ENV_FILE"
+    exit 1
+  fi
+done
+
+echo "==> [1/6] Check Docker"
+if ! docker info >/dev/null 2>&1; then
+  echo "ERROR: Docker is not running. Start Docker Desktop first."
+  exit 1
+fi
+
+echo "==> [2/6] Start PostgreSQL"
+docker compose --env-file "$BACKEND_ENV_FILE" up -d postgres
+for _ in $(seq 1 30); do
+  if docker compose --env-file "$BACKEND_ENV_FILE" exec -T postgres \
+    sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+    echo "    PostgreSQL ready"
     break
   fi
   sleep 2
 done
+if ! docker compose --env-file "$BACKEND_ENV_FILE" exec -T postgres \
+  sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+  echo "ERROR: PostgreSQL did not become ready."
+  exit 1
+fi
 
-echo "==> [3/6] 激活 Python 虚拟环境 (.venv, Python 3.12)"
+echo "==> [3/6] Activate Python 3.12 virtual environment"
+if ! command -v python3.12 >/dev/null 2>&1; then
+  echo "ERROR: python3.12 is required."
+  exit 1
+fi
 if [ ! -d .venv ]; then
-  echo "    .venv 不存在，正在创建..."
   python3.12 -m venv .venv
   .venv/bin/python -m pip install --upgrade pip
   .venv/bin/python -m pip install -e ".[dev]"
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
+python - <<'PY'
+import sys
+if sys.version_info[:2] != (3, 12):
+    raise SystemExit(f"ERROR: Python 3.12 is required, got {sys.version}")
+PY
 
-echo "==> [4/6] 校验 .env 配置 (不打印任何密钥; 应用自身会读取 .env)"
-if [ ! -f .env ]; then
-  echo "ERROR: .env 不存在。请参考 .env.example 创建 .env 并填入 DATABASE_URL / AI_API_KEY 等。"
-  exit 1
-fi
+echo "==> [4/6] Validate backend configuration"
+python - <<'PY'
+from app.core.config import get_settings
+settings = get_settings()
+print(f"    configuration valid (AUTH_MODE={settings.auth_mode}; secrets hidden)")
+PY
 
-# 若缺少 JWT 密钥则本机生成 (不打印值)
-if ! grep -q '^JWT_SECRET_KEY=' .env; then
-  printf 'JWT_SECRET_KEY=%s\n' "$(openssl rand -base64 48)" >> .env
-  echo "    JWT_SECRET_KEY 未设置，已本机生成并写回 .env"
-fi
-
-# 校验关键敏感变量存在 (不打印值, 仅检查字段是否存在)
-grep -q '^DATABASE_URL=' .env || { echo "ERROR: DATABASE_URL 未设置，请在 .env 中配置"; exit 1; }
-grep -q '^AI_API_KEY=' .env  || { echo "ERROR: AI_API_KEY 未设置，请在 .env 中配置"; exit 1; }
-echo "    DATABASE_URL / AI_API_KEY / JWT_SECRET_KEY 均已就绪 (不显示值)"
-
-echo "==> [5/6] 应用 Alembic 数据库迁移 (upgrade head)"
+echo "==> [5/6] Apply Alembic migrations"
 python -m alembic upgrade head
 
-echo "==> [6/6] 启动后端 (FastAPI) 与前端 (Vite)"
-# 后端
+echo "==> [6/6] Start FastAPI and Vite"
 nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
   > /tmp/stb-backend.log 2>&1 < /dev/null &
-disown
-# 前端
+
 cd web
 nohup npm run dev -- --host 127.0.0.1 --port 5173 \
   > /tmp/stb-frontend.log 2>&1 < /dev/null &
-disown
 cd ..
 
-# 等待服务起来
 sleep 6
 
 echo
 echo "============================================================"
-echo " SmartTaskBoard 开发环境已启动"
+echo " SmartTaskBoard development environment started"
 echo "============================================================"
-echo " 后端 API : http://127.0.0.1:8000"
-echo " Swagger  : http://127.0.0.1:8000/docs"
-echo " 前端页面 : http://127.0.0.1:5173"
-echo " 健康检查 : curl http://127.0.0.1:8000/health/live"
-echo "------------------------------------------------------------"
-echo " 日志: 后端 /tmp/stb-backend.log   前端 /tmp/stb-frontend.log"
-echo " 停止: pkill -f 'uvicorn app.main' ; pkill -f vite"
+echo " Backend API : http://127.0.0.1:8000"
+echo " Swagger     : http://127.0.0.1:8000/docs"
+echo " Frontend    : http://127.0.0.1:5173"
+echo " Backend log : /tmp/stb-backend.log"
+echo " Frontend log: /tmp/stb-frontend.log"
+echo " Secret file : $BACKEND_ENV_FILE"
 echo "============================================================"

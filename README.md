@@ -24,11 +24,57 @@ Batch 1 已经实现基础原型身份、任务列表、统一 Inbox、Dashboard
 
 Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交形成不可变验收轮次；验收人按任务指定 reviewer 快照，未指定时回退创建人；支持通过、强制原因驳回、仅返工整体交付物、指定节点显式重开、多轮历史、API、Inbox、任务详情和响应式 UI。旧有 `pending_review` / `completed` 数据由迁移安全回填。本文档随 Wave 1 checkpoint 候选提交，checkpoint commit hash 尚未创建。
 
+## 功能开发进度（按 16 项规划）
+
+> **进度计划来源**：项目当前 16 项功能计划源自 `docs/reference/` 中第二版核心逻辑与数据表结构文档的对应交付清单（功能 05、12、14 为高亮的当前重点）。
+
+**总体状态：功能 01 ～ 16 已全部完成并通过验收。**
+
+### 功能清单（依据用户规划第二版交付线）
+
+| # | 功能 | 范围要点 | 当前状态 |
+|---|---|---|---|
+| 01 | 员工任务工作台 | 小程序工程基础、第二版应用壳、底部导航、任务指标、四象限、需要支持、AI 创建入口、最近任务 | ✅ 完成 |
+| 02 | 任务概览 | 任务/节点模式、状态筛选、四象限筛选、临期筛选、自定义日期、空态、任务跳转 | ✅ 完成 |
+| 03 | 任务详情 | 基础信息、责任关系、任务目标、验收标准、节点、汇报、卡点、绩效、状态轨迹、操作记录 | ✅ 完成 |
+| 04 | 登录与权限 | 当前用户、任务关系、员工/高管权限、数据范围、无权访问、Token 与刷新 | ✅ 完成 |
+| 05 | AI 任务输入 ⚠️ | 文字输入、录音、语音转文字、AI 字段识别、缺失字段追问、失败重试；任务创建人关联绩效指标 | ✅ 完成 |
+| 06 | 创建人三步创建 | 描述任务 → 信息确认 → 确认发送；发送后进入待接受、不生成节点 | ✅ 完成 |
+| 07 | 接受后 AI 拆解 | 接受/退回、拆解中、拆解失败、重新拆解、成功生效、迟到结果失效 | ✅ 完成 |
+| 08 | 节点执行 | 节点展开、依赖校验、开始、更新、完成、节点负责人和协同人权限 | ✅ 完成 |
+| 09 | 进度与卡点 | 当前进度、阶段成果、卡点开关、卡点说明、备注、问题处理和关闭 | ✅ 完成 |
+| 10 | 任务生命周期 | 变更申请、更换承办人、撤回、取消、合并、关闭、原因弹窗和通知 | ✅ 完成 |
+| 11 | 完成申请与验收 | 全部节点完成校验、多轮验收、退回修改、指定节点重开、通过后自动归档 | ✅ 完成 |
+| 12 | 智能计算 ⚠️ | 绩效关联、四象限、剩余工时、负荷、冲突和服务端计算口径 | ✅ 完成 |
+| 13 | 通知与我的 | 任务通知、提醒、系统消息、个人资料、任务关系统计和待办数量 | ✅ 完成 |
+| 14 | 高管任务看板 ⚠️ | 团队指标、状态分布、风险、负荷热力图、卡点和绩效态势 | ✅ 完成 |
+| 15 | 员工负荷任务下钻 | 负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改 | ✅ 完成 |
+| 16 | 全链路发布验收 | 企业微信自建应用登录（wecom 模式 + 删 LoginService）、密钥 secrets/ 安全配置、发布门禁 release-gate 测试 | ✅ 完成 |
+
+**后端覆盖矩阵**：功能 01～16 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE。Alembic 单一 head 为 `b1c2d3e4f5a6`。
+
+> 功能 16 交付包含：企业微信认证 `app/services/wecom_authentication.py` + `app/integrations/wecom`；后端 `auth_mode` 增加 `wecom`；新增 `POST /api/v1/auth/wecom/login` 换票接口；删除 `LoginService` 云函数；密钥移入 `secrets/backend.env` 与 `secrets/chatservice.env`（`.gitignore` 屏蔽）；新增发布门禁测试 `tests/test_start_dev_secret_contract.py`、`tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`。
+
+### 测试进度
+
+> **以下为本机独立复核的实测结果**（复核日期 2026-09-03，基于功能 16 代码）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。
+
+| 质量门 | 实测结果 | 说明 |
+|---|---|---|
+| 后端全量 pytest | ✅ `460 passed, 28 skipped` | 28 项 skipped 均为 PostgreSQL opt-in 集成测试 |
+| 微信小程序功能 01～16 | ✅ `19 / 19` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
+| 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
+| React 前端 ESLint | ✅ PASS | 无错误输出 |
+| React 前端测试 | ✅ `18 test files / 109 tests passed` | vitest `--run` |
+| React 前端构建 | ✅ PASS | `tsc --noEmit && vite build` |
+| 功能 16 企业微信/安全配置测试 | ✅ 已实现并提交 | wecom_client、wecom_authentication、secret_contract 等随包交付 |
+| `ruff check` | ⚠️ `220` 个告警 | 全部为风格类，F821 真实缺陷已清零 |
+
 ## 微信小程序累计交付状态
 
 当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～04 已按第二版前端页面结构和 PRD V1.1 逐项实现：工作台、任务概览、任务详情、登录与权限。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
 
-登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。真实企业微信凭证换票仍需要部署环境提供企业应用配置后接入现有 Auth/Identity Service。
+登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。企业微信自建应用登录已在功能 16 实现（后端 `auth_mode=wecom` + `POST /api/v1/auth/wecom/login` 换票接口，前端已切换企业微信登录），企业微信 CorpId/AgentId/Secret 由本地 `secrets/backend.env` 提供，绝不进入源码或 GitHub。
 
 ## 当前已实现能力
 
@@ -147,8 +193,12 @@ Docker Compose 启动 PostgreSQL 时还需要在本地环境提供 `POSTGRES_DB`
 py -3.12 -m venv .venv
 & ".\.venv\Scripts\python.exe" -m pip install -e ".[dev]"
 
-# 先在当前进程或未提交的本地 .env 中安全提供所需环境变量
-docker compose up -d postgres
+# 首次复制安全配置模板，并仅在本机填写真实值
+Copy-Item config-examples/backend.env.example secrets/backend.env
+
+# Docker Compose 显式读取 backend.env；FastAPI/Alembic 默认读取同一文件
+docker compose --env-file secrets/backend.env up -d postgres
+$env:WANGXU_BACKEND_ENV_FILE = (Resolve-Path secrets/backend.env)
 & ".\.venv\Scripts\python.exe" -m alembic upgrade head
 & ".\.venv\Scripts\python.exe" -m uvicorn app.main:app --reload
 ```
