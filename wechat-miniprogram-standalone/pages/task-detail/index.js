@@ -1,8 +1,8 @@
 /**
- * Feature: Task Detail change and lifecycle controls (Feature 10).
- * Responsibilities: prior task actions plus change requests, reassignment, withdraw, and cancel.
- * Does not own: completion review approval or automatic archival.
- * Plan task: DEV-12 / FEATURE-10.
+ * Feature: Task Detail execution and collaborator node assignment controls.
+ * Responsibilities: render task actions, node execution, and feature-13 collaborator acceptance/rejection.
+ * Does not own: backend authorization, reminder calculation, or notification recipient selection.
+ * Plan task: DEV-15 / FEATURE-13.
  */
 
 const api = require("../../utils/api");
@@ -115,7 +115,8 @@ Page({
     return Promise.all([
       api.taskDetail(this.data.taskId),
       api.currentUser().catch(() => ({})),
-    ]).then(([view, user]) => {
+      api.notifications("all").catch(() => []),
+    ]).then(([view, user, notices]) => {
       const allowed = view.allowedActions || [];
       let actionMode = "readonly";
       if (allowed.includes("accept") || allowed.includes("return")) actionMode = "accept";
@@ -126,9 +127,11 @@ Page({
       this.initialOperationLogs = view.operationLogs || [];
       const currentEmployeeNo = user.employeeNo || "";
       const pendingChangeRequest = (view.task.changeRequests || []).find((item) => item.status === "pending") || null;
+      const executionState = ["in_progress", "blocked", "pending_report"].includes(view.task.status);
       const nodes = (view.nodes || []).map((node) => ({
         ...node,
-        canExecute: node.ownerEmployeeNo === currentEmployeeNo && ["in_progress", "blocked", "pending_report"].includes(view.task.status),
+        canRespondAssignment: node.ownerEmployeeNo === currentEmployeeNo && node.assignmentStatus === "pending" && executionState,
+        canExecute: node.ownerEmployeeNo === currentEmployeeNo && node.assignmentStatus === "accepted" && executionState,
       }));
       this.setData({
         task: view.task,
@@ -149,6 +152,7 @@ Page({
         canReassign: allowed.includes("reassign_task"),
         canWithdraw: allowed.includes("withdraw_task"),
         canCancelTask: allowed.includes("cancel_task"),
+        unread: notices.filter((item) => item.actionRequired).length,
       }, () => {
         wx.nextTick(() => {
           this.cacheSectionOffsets();
@@ -308,6 +312,40 @@ Page({
       content: node.issue.description || "无补充说明",
       showCancel: false,
       confirmText: "知道了",
+    });
+  },
+
+  acceptNodeAssignment(event) {
+    const nodeId = event.currentTarget.dataset.nodeId;
+    const task = this.data.task;
+    if (!nodeId || !task || this.data.nodeSubmittingId) return;
+    wx.showModal({
+      title: "确认承接节点",
+      content: "确认后该节点将进入你的正常执行流程，并按计划时间生成开始、临期和到期提醒。",
+      confirmText: "确认承接",
+      success: (result) => {
+        if (!result.confirm) return;
+        this.setData({ nodeSubmittingId: nodeId });
+        api.acceptNodeAssignment(this.data.taskId, nodeId, task.taskVersion)
+          .then(() => { wx.showToast({ title: "已承接节点", icon: "success" }); return this.load(); })
+          .catch((error) => wx.showToast({ title: error.message || "承接失败", icon: "none" }))
+          .finally(() => this.setData({ nodeSubmittingId: "" }));
+      },
+    });
+  },
+
+  rejectNodeAssignment(event) {
+    const nodeId = event.currentTarget.dataset.nodeId;
+    const task = this.data.task;
+    if (!nodeId || !task || this.data.nodeSubmittingId) return;
+    editableModal("无法承接节点", "请填写无法承接原因", "确认退回").then((reason) => {
+      if (reason === null) return;
+      if (!reason) { wx.showToast({ title: "请填写无法承接原因", icon: "none" }); return; }
+      this.setData({ nodeSubmittingId: nodeId });
+      api.rejectNodeAssignment(this.data.taskId, nodeId, task.taskVersion, reason)
+        .then(() => { wx.showToast({ title: "已反馈主承办人", icon: "success" }); return this.load(); })
+        .catch((error) => wx.showToast({ title: error.message || "提交失败", icon: "none" }))
+        .finally(() => this.setData({ nodeSubmittingId: "" }));
     });
   },
 

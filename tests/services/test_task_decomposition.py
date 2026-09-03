@@ -220,3 +220,54 @@ def test_callback_rechecks_task_version_before_commit():
     with pytest.raises(TaskVersionConflictError):
         service.complete_result(task.task_id, record.decomposition_id, "E1001", _valid_result())
     uow.task_nodes.add_node.assert_not_called()
+
+
+def test_success_main_assignee_nodes_are_accepted_without_success_fyi_notifications() -> None:
+    task = _task()
+    uow, _ = _uow_context(task)
+    uow.session.scalar.return_value = None
+    service = TaskDecompositionService(
+        Mock(return_value=uow), provider=Provider(_valid_result("E1001")), clock=lambda: NOW
+    )
+    service.accept_task(task.task_id, "E1001", 3)
+    record = uow.task_decompositions.add.call_args.args[0]
+    uow.session.add.reset_mock()
+
+    service.execute(task.task_id, record.decomposition_id, "E1001")
+
+    nodes = [call.args[0] for call in uow.task_nodes.add_node.call_args_list]
+    assert all(node.assignment_status == "accepted" for node in nodes)
+    notifications = [
+        call.args[0] for call in uow.session.add.call_args_list
+        if call.args and call.args[0].__class__.__name__ == "Notification"
+    ]
+    assert notifications == []
+
+
+def test_success_collaborator_nodes_are_pending_and_only_collaborator_gets_assignment_notice() -> None:
+    task = _task()
+    uow, assignee = _uow_context(task)
+    collaborator = TaskParticipant(
+        task_id=task.task_id, employee_no="E2002", participant_role="collaborator",
+        is_primary=False, confirm_status="accepted",
+    )
+    uow.tasks.list_participants.return_value = [assignee, collaborator]
+    uow.session.scalar.return_value = None
+    service = TaskDecompositionService(
+        Mock(return_value=uow), provider=Provider(_valid_result("E2002")), clock=lambda: NOW
+    )
+    service.accept_task(task.task_id, "E1001", 3)
+    record = uow.task_decompositions.add.call_args.args[0]
+    uow.session.add.reset_mock()
+
+    service.execute(task.task_id, record.decomposition_id, "E1001")
+
+    nodes = [call.args[0] for call in uow.task_nodes.add_node.call_args_list]
+    assert all(node.assignment_status == "pending" for node in nodes)
+    notifications = [
+        call.args[0] for call in uow.session.add.call_args_list
+        if call.args and call.args[0].__class__.__name__ == "Notification"
+    ]
+    assert len(notifications) == 5
+    assert {row.recipient_employee_no for row in notifications} == {"E2002"}
+    assert {row.title for row in notifications} == {"节点待承接"}

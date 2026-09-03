@@ -29,6 +29,7 @@ const REFRESH_TOKEN_KEY = "wangxu.refreshToken";
 const TOKEN_EXPIRES_AT_KEY = "wangxu.tokenExpiresAt";
 let loginPromise = null;
 let refreshPromise = null;
+let productionCreationDraft = {};
 
 function rawRequest(method, path, data, options) {
   return new Promise((resolve, reject) => {
@@ -147,8 +148,9 @@ function dashboard() {
     request("GET", "/api/v1/dashboard/summary"),
     request("GET", "/api/v1/tasks?pageSize=100"),
     request("GET", "/api/v1/tasks/inbox?action_code=handle_issue&limit=20"),
+    request("GET", "/api/v1/notifications"),
     ...quadrants.map((quadrant) => request("GET", `/api/v1/tasks?quadrant=${quadrant}&pageSize=100`)),
-  ])).then(([user, summary, allResponse, supportResponse, ...quadrantResponses]) => {
+  ])).then(([user, summary, allResponse, supportResponse, notificationRows, ...quadrantResponses]) => {
     const quadrantCounts = {};
     const quadrantByTask = {};
     quadrantResponses.forEach((response, index) => {
@@ -182,7 +184,7 @@ function dashboard() {
       quadrantCounts,
       supportCount: supportResponse.total || 0,
       supportItems,
-      unread: summary.unreadNotificationCount,
+      unread: (notificationRows || []).filter((item) => item.actionRequired).length,
     };
   });
 }
@@ -254,8 +256,8 @@ function logout() {
   if (useMock()) return Promise.resolve();
   return rawRequest("POST", "/api/v1/auth/logout", {}).catch(() => null).then(() => { clearSession(); });
 }
-function creationDraft() { return useMock() ? mock("getCreationDraft") : Promise.resolve(wx.getStorageSync("wangxu.creationDraft") || {}); }
-function saveCreationDraft(value) { if (useMock()) return mock("saveCreationDraft", value); const next = { ...(wx.getStorageSync("wangxu.creationDraft") || {}), ...value }; wx.setStorageSync("wangxu.creationDraft", next); return Promise.resolve(next); }
+function creationDraft() { return useMock() ? mock("getCreationDraft") : Promise.resolve({ ...productionCreationDraft }); }
+function saveCreationDraft(value) { if (useMock()) return mock("saveCreationDraft", value); productionCreationDraft = { ...productionCreationDraft, ...value }; return Promise.resolve({ ...productionCreationDraft }); }
 function questionText(question) {
   if (typeof question === "string") return question;
   if (question && typeof question === "object") return question.question || question.label || "请补充任务信息";
@@ -425,7 +427,7 @@ function sendTask(payload) {
   return saveTaskDraft(payload).then((draft) => {
     const submit = draft.backendStatus === "pending_confirmation" ? Promise.resolve({ taskId: draft.taskId, taskVersion: draft.taskVersion }) : request("POST", `/api/v1/tasks/${draft.taskId}/actions/submit-for-confirmation`, { expectedTaskVersion: draft.taskVersion });
     return submit.then((confirmed) => request("POST", `/api/v1/tasks/${confirmed.taskId}/actions/confirm-and-send`, { expectedTaskVersion: confirmed.taskVersion }, { idempotencyKey: `confirm-${confirmed.taskId}-${confirmed.taskVersion}` }));
-  }).then((sent) => { wx.removeStorageSync?.("wangxu.creationDraft"); if (!wx.removeStorageSync) wx.setStorageSync("wangxu.creationDraft", ""); return sent; });
+  }).then((sent) => { productionCreationDraft = {}; return sent; });
 }
 function acceptTask(taskId, version) { return useMock() ? mock("acceptTask", taskId) : request("POST", `/api/v1/tasks/${taskId}/actions/accept`, { expected_task_version: version }, { idempotencyKey: `accept-${taskId}-${version}` }); }
 function decomposition(taskId) {
@@ -441,6 +443,8 @@ function decomposition(taskId) {
 function executeDecomposition(taskId, decompositionId) { return useMock() ? Promise.resolve(mock("completeDecomposition", taskId)).then(() => decomposition(taskId)) : request("POST", `/api/v1/tasks/${taskId}/decomposition/execute`, { decomposition_id: decompositionId }); }
 function retryDecomposition(taskId, version) { return useMock() ? mock("retryDecomposition", taskId) : request("POST", `/api/v1/tasks/${taskId}/decomposition/retry`, { expected_task_version: version }, { idempotencyKey: `decomposition-retry-${taskId}-${version}` }); }
 function returnTask(taskId, version, reason) { return useMock() ? mock("returnTask", taskId, reason) : request("POST", `/api/v1/tasks/${taskId}/actions/return`, { expected_task_version: version, reason }, { idempotencyKey: `return-${taskId}-${version}` }); }
+function acceptNodeAssignment(taskId, nodeId, version) { return useMock() ? mock("acceptNodeAssignment", taskId, nodeId) : request("POST", `/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/accept-assignment`, { expected_task_version: version }, { idempotencyKey: `node-assignment-accept-${nodeId}-${version}` }); }
+function rejectNodeAssignment(taskId, nodeId, version, reason) { return useMock() ? mock("rejectNodeAssignment", taskId, nodeId, reason) : request("POST", `/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/reject-assignment`, { expected_task_version: version, reason }, { idempotencyKey: `node-assignment-reject-${nodeId}-${version}` }); }
 function startNode(taskId, nodeId, version) { return useMock() ? mock("startNode", taskId, nodeId) : request("POST", `/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/start`, { expected_task_version: version }, { idempotencyKey: `node-start-${nodeId}-${version}` }); }
 function completeNode(taskId, nodeId, version) { return useMock() ? mock("completeNode", taskId, nodeId) : request("POST", `/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/complete`, { expected_task_version: version }, { idempotencyKey: `node-${nodeId}-${version}` }); }
 function submitReport(taskId, version, payload) { return useMock() ? mock("submitReport", taskId, payload) : request("POST", `/api/v1/tasks/${taskId}/progress-reports`, { expected_task_version: version, progress_percent: payload.progressPercent, stage_result: payload.stageResult || null, has_issue: payload.hasIssue, issue_note: payload.issueNote || null, remark: payload.remark || null }, { idempotencyKey: `report-${taskId}-${version}` }); }
@@ -458,12 +462,22 @@ function lifecycle(taskId, action, version, reason, employeeNo) {
   if (!map[action]) return Promise.reject(new Error("当前服务端未开放该任务动作"));
   return request("POST", `/api/v1/tasks/${taskId}/actions/${map[action]}`, { expected_task_version: version, reason }, { idempotencyKey: `${action}-${taskId}-${version}` });
 }
-function notifications(type) { return useMock() ? mock("listNotifications", type) : request("GET", `/api/v1/notifications${type && type !== "all" ? `?notification_type=${type}` : ""}`); }
-function readNotification(id) { return useMock() ? mock("readNotification", id) : request("POST", `/api/v1/notifications/${id}/read`, {}); }
-function markAllRead() { return useMock() ? mock("markAllRead") : Promise.reject(new Error("正式版需先增加跨设备已读存储")); }
-function switchUser(employeeNo) { return useMock() ? mock("switchUser", employeeNo) : Promise.reject(new Error("生产模式不允许切换身份")); }
+function normalizeNotification(item) {
+  return {
+    ...item,
+    type: item.notificationType || item.type || "task",
+    actionRequired: Boolean(item.actionRequired),
+    canOpen: item.canOpen !== false,
+    targetType: item.targetType || null,
+    nodeId: item.nodeId || null,
+    sentAt: item.sentAt || item.createdAt || "",
+  };
+}
+function notifications(type) {
+  if (useMock()) return mock("listNotifications", type).then((items) => (items || []).map(normalizeNotification));
+  return request("GET", `/api/v1/notifications${type && type !== "all" ? `?notification_type=${type}` : ""}`).then((items) => (items || []).map(normalizeNotification));
+}
 function executiveOverview() { return useMock() ? mock("executiveOverview") : request("GET", "/api/v1/executive/overview"); }
 function users() { return useMock() ? Promise.resolve(store.read().users) : request("GET", "/api/v1/users"); }
-function reset() { return useMock() ? mock("reset") : Promise.reject(new Error("生产模式禁止重置数据")); }
 
-module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, readNotification, markAllRead, switchUser, executiveOverview, users, reset };
+module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, executiveOverview, users };

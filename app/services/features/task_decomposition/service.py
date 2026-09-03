@@ -29,6 +29,10 @@ from app.models import (
 )
 from app.services.clock import utc_now
 from app.services.dependency_graph import validate_dependency_graph
+from app.services.features.notifications import (
+    emit_node_assignment_notification,
+    schedule_node_execution_reminders,
+)
 from app.services.errors import (
     BusinessValidationError,
     EntityNotFoundError,
@@ -409,7 +413,13 @@ class TaskDecompositionService:
                 node_name=self._nonblank(raw.get("node_name") or raw.get("nodeName"), "node_name"),
                 action_detail=self._nonblank(raw.get("action_detail") or raw.get("actionDetail"), "action_detail"),
                 tools_or_materials=raw.get("tools_or_materials") or raw.get("toolsOrMaterials"),
-                owner_employee_no=owner, planned_start_time=start, planned_deadline=deadline,
+                owner_employee_no=owner,
+                assignment_status=(
+                    "accepted" if owner == task.main_assignee_employee_no else "pending"
+                ),
+                assignment_responded_at=None,
+                assignment_reject_reason=None,
+                planned_start_time=start, planned_deadline=deadline,
                 estimated_hours=None, actual_hours=None,
                 deliverable=raw.get("deliverable"),
                 acceptance_criteria=raw.get("acceptance_criteria") or raw.get("acceptanceCriteria"),
@@ -464,14 +474,13 @@ class TaskDecompositionService:
             now = self._now(self._clock)
             for node in nodes:
                 uow.task_nodes.add_node(node)
-                if node.owner_employee_no and node.planned_deadline:
-                    uow.session.add(
-                        ReminderRule(
-                            task_id=task.task_id, node_id=node.node_id,
-                            reminder_type="due_soon", recipient_employee_no=node.owner_employee_no,
-                            trigger_time=node.planned_deadline, next_trigger_at=node.planned_deadline,
-                            dedupe_key=f"node-due:{node.node_id}", is_active=True, created_at=now,
-                        )
+                if node.assignment_status == "accepted":
+                    schedule_node_execution_reminders(
+                        uow.session, task, node, now=now
+                    )
+                else:
+                    emit_node_assignment_notification(
+                        uow.session, task, node, now=now
                     )
             for dependency in dependencies:
                 uow.task_nodes.add_dependency(dependency)
@@ -492,17 +501,6 @@ class TaskDecompositionService:
                 action="task_decomposition_succeeded", actor=actor, now=now,
                 business_ref_id=record.decomposition_id,
             )
-            self._notify(
-                uow, task, task.main_assignee_employee_no,
-                title="任务已完成智能拆解", content="AI拆解已完成，任务现已正式生效。",
-                dedupe_key=f"decomposition-succeeded:{record.decomposition_id}:assignee", now=now,
-            )
-            if task.creator_employee_no != task.main_assignee_employee_no:
-                self._notify(
-                    uow, task, task.creator_employee_no,
-                    title="任务已生效", content="承办人已接受，AI拆解成功，任务已进入执行。",
-                    dedupe_key=f"decomposition-succeeded:{record.decomposition_id}:creator", now=now,
-                )
             uow.commit()
             return record
 

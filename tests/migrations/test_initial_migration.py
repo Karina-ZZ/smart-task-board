@@ -74,14 +74,15 @@ class OperationRecorder:
         return None
 
     def alter_column(self, table_name: str, column_name: str, **kwargs: object) -> None:
-        # The cumulative contract keeps metadata at the post-upgrade head while
-        # still recording downgrade order. Historical downgrade mutations are
-        # intentionally ignored, just like drop_column above.
+        # Keep recorder metadata at the post-upgrade head while downgrade
+        # operations are recorded only for ordering checks.
         if self.in_downgrade:
             return
         column = self.metadata.tables[table_name].c[column_name]
         if "nullable" in kwargs:
             column.nullable = bool(kwargs["nullable"])
+        if "server_default" in kwargs:
+            column.server_default = kwargs["server_default"]
 
     def create_foreign_key(
         self, name: str, source_table: str, referent_table: str,
@@ -128,11 +129,22 @@ class OperationRecorder:
         return None
 
     def create_check_constraint(self, name: str, table_name: str, condition: str) -> None:
+        if self.in_downgrade:
+            return
         table = self.metadata.tables[table_name]
+        for constraint in list(table.constraints):
+            if constraint.name == name:
+                table.constraints.discard(constraint)
         table.append_constraint(sa.CheckConstraint(condition, name=name))
 
     def drop_constraint(self, name: str, table_name: str, **kwargs: object) -> None:
-        return None
+        if self.in_downgrade:
+            return
+        table = self.metadata.tables[table_name]
+        for constraint in list(table.constraints):
+            if constraint.name == name:
+                table.constraints.remove(constraint)
+                break
 
     def bulk_insert(self, table: sa.Table, rows: list[dict[str, object]]) -> None:
         return None
@@ -234,7 +246,7 @@ def _migration_index_signatures(
 def test_initial_migration_is_the_only_importable_root_revision() -> None:
     files = _migration_files()
 
-    assert len(files) == 8
+    assert len(files) == 9
     modules = [_load_migration(path) for path in files]
     roots = [module for module in modules if module.down_revision is None]
     assert len(roots) == 1

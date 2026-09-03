@@ -150,3 +150,4 @@
 }
 .node-exec-action{width:100%;margin-top:12px}
 .change-summary{padding:12rpx 4rpx;border-bottom:1rpx solid var(--line);display:flex;flex-direction:column;gap:4rpx}.danger-text .more-title{color:var(--red)}
+.node-assignment-state{display:flex;align-items:flex-start;gap:12rpx;flex-wrap:wrap;margin-top:14rpx;padding:14rpx 16rpx;border-radius:18rpx;background:#f7f9fc}.node-assignment-state .subtle{flex:1;min-width:0;line-height:1.5}.node-assignment-actions{display:grid;grid-template-columns:1fr 1fr;gap:12rpx;margin-top:14rpx}.node-assignment-actions .btn{min-width:0;width:100%;min-height:72rpx;padding:0 12rpx}

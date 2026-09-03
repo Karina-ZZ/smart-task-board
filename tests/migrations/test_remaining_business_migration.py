@@ -204,7 +204,14 @@ def test_remaining_business_upgrade_matches_model_metadata_and_seeded_parameters
             assert migration_column.server_default is None
             if isinstance(model_column.type, sa.DateTime):
                 assert migration_column.type.timezone is model_column.type.timezone
-        assert _constraint_signatures(migration_table) == _constraint_signatures(model_table)
+        migration_constraints = _constraint_signatures(migration_table)
+        model_constraints = _constraint_signatures(model_table)
+        if model is ReminderRule:
+            # e6f1 keeps the historical reminder enum. Feature 13 extends it
+            # incrementally with node_start/node_due in b1c2d3e4f5a6.
+            migration_constraints = {item for item in migration_constraints if item[:2] != ("ck", "ck_reminder_rules_type")}
+            model_constraints = {item for item in model_constraints if item[:2] != ("ck", "ck_reminder_rules_type")}
+        assert migration_constraints == model_constraints
 
     model_indexes = set().union(*(_index_signatures(model.__table__) for model in NEW_MODELS))
     assert _migration_index_signatures(recorder) == model_indexes

@@ -343,6 +343,12 @@ class NotificationResponse(StrictSchema):
     read_at: datetime | None
     dedupe_key: str
     created_at: datetime
+    notification_type: str = "task"
+    node_id: UUID | None = None
+    target_type: str | None = None
+    action_required: bool = False
+    can_open: bool = True
+    unavailable_reason: str | None = None
 
 
 class ArchiveCreateRequest(StrictSchema):

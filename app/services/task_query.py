@@ -418,6 +418,9 @@ class TaskQueryService:
             "action_detail",
             "tools_or_materials",
             "owner_employee_no",
+            "assignment_status",
+            "assignment_responded_at",
+            "assignment_reject_reason",
             "planned_start_time",
             "planned_deadline",
             "estimated_hours",
@@ -431,7 +434,9 @@ class TaskQueryService:
             "source_type",
             "blocked_reason",
         )
-        return {field: getattr(item, field) for field in fields}
+        result = {field: getattr(item, field) for field in fields}
+        result["assignment_status"] = result.get("assignment_status") or "accepted"
+        return result
 
     @staticmethod
     def _dependency_dict(item: TaskNodeDependency) -> dict[str, Any]:

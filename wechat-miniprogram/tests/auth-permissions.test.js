@@ -157,9 +157,9 @@ const access = require("../utils/access");
   const profileWxml = fs.readFileSync(path.join(root, "pages/profile/index.wxml"), "utf8");
   const executiveJs = fs.readFileSync(path.join(root, "pages/executive/index.js"), "utf8");
   const profileJs = fs.readFileSync(path.join(root, "pages/profile/index.js"), "utf8");
-  assert.match(profileWxml, /wx:if="\{\{mockMode\}\}"/, "identity switch/reset controls must remain mock-only");
+  assert.doesNotMatch(profileWxml, /切换演示身份|恢复示例数据|重置本地演示数据/, "production profile must not contain identity-switch/reset controls");
   assert.match(executiveJs, /access\.canAccessExecutive/, "executive page must consume server-projected permission");
-  assert.match(profileJs, /mockMode \? api\.users\(\) : Promise\.resolve\(\[\]\)/, "production profile must not load the demo identity picker dataset");
+  assert.doesNotMatch(profileJs, /switchUser|api\.reset|api\.users/, "production profile must not load or mutate demo identity state");
 
   console.log("auth-permissions.test.js: PASS");
 })().catch((error) => {

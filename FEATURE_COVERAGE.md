@@ -97,3 +97,9 @@ Current Alembic head: `f7b8c9d0e1f2`.
 - Fresh PostgreSQL `.\.venv\Scripts\python.exe -m alembic upgrade head`: passed from empty database to `f7b8c9d0e1f2`.
 - Startup probe with PostgreSQL configured: `/health/live=200`, `/health/ready=200`, OpenAPI `78` paths / `84` operations.
 - Database probe: `28` public tables including `alembic_version`, `72` foreign keys, `15` unique constraints, notification duplicate keys `0`, archive orphans `0`, timezone `UTC`.
+
+## Feature 13 notification/node-assignment acceptance
+
+The P0 rules frozen in `docs/FEATURE_13_NOTIFICATION_RULES.md` are now implemented. Acceptance evidence is recorded in `docs/FEATURE_13_ACCEPTANCE.md`. Key deltas from the legacy Wave-6 baseline are: server-persisted collaborator node acceptance; no creator/main-assignee pure decomposition-success notice; no execution reminders before collaborator acceptance; dynamic 2h/4h/1-workday due-soon timing; server-side stale-rule revalidation; recipient-only notification listing; action-required target projection; and finite 5/10/20-minute retry on the same notification outbox row.
+
+Current cumulative non-PostgreSQL gate: `436 passed, 21 skipped`; migration contract `32 passed`; Alembic head `b1c2d3e4f5a6`; WeChat feature01-13 cumulative `16` test groups PASS. PostgreSQL opt-in tests were not executed in the current environment and are not claimed as passed.

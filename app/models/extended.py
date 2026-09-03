@@ -324,7 +324,7 @@ class ReminderRule(Base):
             "'pending_acceptance', 'due_soon', 'due_today', 'overdue', "
             "'periodic_progress_report', 'pending_report', 'no_response', "
             "'issue_blocker', 'collaboration', 'returned', 'completion_review', "
-            "'change_request')",
+            "'change_request', 'node_start', 'node_due')",
             name="ck_reminder_rules_type",
         ),
         Index("ix_reminder_rules_due", "is_active", "next_trigger_at"),

@@ -124,7 +124,8 @@ const api = require("../utils/api");
   assert.deepEqual(first.confirmQuestions, ["向谁汇报？", "由谁验收？"]);
   assert.equal(first.cloudChatSessionId, "CHAT-1");
   assert.equal(first.aiProvider, "qwen");
-  assert.equal(storage["wangxu.creationDraft"].inputId, "11111111-1111-4111-8111-111111111111");
+  assert.equal((await api.creationDraft()).inputId, "11111111-1111-4111-8111-111111111111");
+  assert.equal(storage["wangxu.creationDraft"], undefined, "production task draft must not be persisted as business state in local storage");
 
   const clarified = await api.clarifyTaskDraft("向林雨欣汇报，也由林雨欣验收");
   assert.equal(clarified.reportToEmployeeNo, "E1001");

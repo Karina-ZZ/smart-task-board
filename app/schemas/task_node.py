@@ -121,6 +121,9 @@ class TaskNodeResponse(StrictSchema):
     action_detail: str | None
     tools_or_materials: str | None
     owner_employee_no: str | None
+    assignment_status: str = "accepted"
+    assignment_responded_at: datetime | None = None
+    assignment_reject_reason: str | None = None
     planned_start_time: datetime | None
     planned_deadline: datetime | None
     estimated_hours: DecimalString | None
@@ -149,6 +152,20 @@ class TaskNodeParticipantResponse(StrictSchema):
     node_id: UUID
     employee_no: str
     participant_role: str
+
+
+class NodeAssignmentRejectRequest(StrictSchema):
+    expected_task_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class NodeAssignmentActionResponse(StrictSchema):
+    task_id: UUID
+    node_id: UUID
+    assignment_status: str = "accepted"
+    assignment_responded_at: datetime | None
+    assignment_reject_reason: str | None
+    task_version: int
 
 
 class NodeActionResponse(StrictSchema):

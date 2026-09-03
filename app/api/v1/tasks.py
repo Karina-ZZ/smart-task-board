@@ -24,6 +24,8 @@ from app.schemas import (
     TaskDecompositionResponse,
     MergeTaskRequest,
     NodeActionResponse,
+    NodeAssignmentActionResponse,
+    NodeAssignmentRejectRequest,
     PaginatedCompletionReviewResponse,
     PaginatedTaskChangeRequestResponse,
     PaginatedTaskOperationLogResponse,
@@ -918,6 +920,70 @@ def _node_response(
     return NodeActionResponse.model_validate(
         query_service.get_node_action_snapshot(task_id, node_id, actor)
     )
+
+
+def _node_assignment_response(
+    task_id: UUID,
+    node_id: UUID,
+    actor: str,
+    query_service: TaskQueryService,
+) -> NodeAssignmentActionResponse:
+    detail = query_service.get_node(task_id, node_id, actor)
+    task = query_service.get_task_snapshot(task_id, actor)
+    return NodeAssignmentActionResponse.model_validate(
+        {
+            "task_id": task_id,
+            "node_id": node_id,
+            "assignment_status": detail["assignment_status"],
+            "assignment_responded_at": detail["assignment_responded_at"],
+            "assignment_reject_reason": detail["assignment_reject_reason"],
+            "task_version": task["task_version"],
+        }
+    )
+
+
+@router.post(
+    "/{task_id}/nodes/{node_id}/actions/accept-assignment",
+    response_model=NodeAssignmentActionResponse,
+    summary="Accept a collaborator node assignment",
+    responses=ERROR_RESPONSES,
+)
+def accept_node_assignment(
+    task_id: UUID,
+    node_id: UUID,
+    request: TaskActionRequest,
+    actor: Actor,
+    service: NodeService,
+    query_service: QueryService,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=160)] = None,
+) -> NodeAssignmentActionResponse:
+    service.accept_node_assignment(
+        task_id, node_id, actor, request.expected_task_version,
+        OPERATION_SOURCE, idempotency_key
+    )
+    return _node_assignment_response(task_id, node_id, actor, query_service)
+
+
+@router.post(
+    "/{task_id}/nodes/{node_id}/actions/reject-assignment",
+    response_model=NodeAssignmentActionResponse,
+    summary="Reject a collaborator node assignment with a reason",
+    responses=ERROR_RESPONSES,
+)
+def reject_node_assignment(
+    task_id: UUID,
+    node_id: UUID,
+    request: NodeAssignmentRejectRequest,
+    actor: Actor,
+    service: NodeService,
+    query_service: QueryService,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=160)] = None,
+) -> NodeAssignmentActionResponse:
+    service.reject_node_assignment(
+        task_id, node_id, actor, request.expected_task_version,
+        OPERATION_SOURCE, request.reason, idempotency_key
+    )
+    return _node_assignment_response(task_id, node_id, actor, query_service)
 
 
 @router.post(

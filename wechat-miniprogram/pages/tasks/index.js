@@ -99,7 +99,7 @@ Page({
         statusCards,
         filterSummary: filterSummary(filters),
         executive: access.canAccessExecutive(user),
-        unread: (notices || []).filter((item) => item.unread).length,
+        unread: (notices || []).filter((item) => item.actionRequired).length,
         loading: false,
       }, () => {
         if (restoreScroll) wx.pageScrollTo({ scrollTop: Number(wx.getStorageSync(SCROLL_KEY) || 0), duration: 0 });

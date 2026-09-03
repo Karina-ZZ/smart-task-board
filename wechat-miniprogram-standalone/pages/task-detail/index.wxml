@@ -105,7 +105,15 @@
           </view>
           <view class="node-detail"><text>工具/资料</text><text>{{item.toolsOrMaterials || '无'}}</text></view>
           <view class="node-detail"><text>最小文字成果</text><text>{{item.deliverable || '无'}}</text></view>
+          <view class="node-assignment-state" wx:if="{{item.assignmentStatus !== 'accepted'}}">
+            <text class="badge {{item.assignmentStatus === 'rejected' ? 'red' : 'orange'}}">{{item.assignmentStatusLabel}}</text>
+            <text wx:if="{{item.assignmentStatus === 'rejected' && item.assignmentRejectReason}}" class="subtle">{{item.assignmentRejectReason}}</text>
+          </view>
           <button wx:if="{{item.hasIssue}}" class="node-issue" data-node-id="{{item.nodeId}}" bindtap="showIssue"><text>卡点</text><text>{{item.issue ? item.issue.title : (item.blockedReason || '节点存在卡点')}}</text><text>›</text></button>
+          <view wx:if="{{item.canRespondAssignment}}" class="node-assignment-actions">
+            <button class="btn secondary" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="rejectNodeAssignment">无法承接</button>
+            <button class="btn primary" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="acceptNodeAssignment">接受承接</button>
+          </view>
           <button wx:if="{{item.canExecute && item.status === 'pending'}}" class="btn secondary node-exec-action" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="startNode">开始节点</button>
           <button wx:elif="{{item.canExecute && item.status === 'in_progress'}}" class="btn primary node-exec-action" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="completeNode">完成节点</button>
         </view>

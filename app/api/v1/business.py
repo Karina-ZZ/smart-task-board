@@ -542,8 +542,13 @@ def list_notifications(
     actor: Actor,
     service: NotificationService,
     unread_only: bool = False,
+    notification_type: str | None = Query(default=None),
 ) -> list[Any]:
-    return service.list_notifications(actor, unread_only=unread_only)
+    if notification_type is None:
+        return service.list_notifications(actor, unread_only=unread_only)
+    return service.list_notifications(
+        actor, unread_only=unread_only, notification_type=notification_type
+    )
 
 
 @router.post(

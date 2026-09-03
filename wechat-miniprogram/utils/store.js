@@ -41,6 +41,7 @@ function seed() {
     { nodeId: "N3002", taskId: "T20260829003", nodeOrder: 2, nodeName: "检查详情与验收", ownerEmployeeNo: "E1004", status: "completed", progressPercent: 100, actionDetail: "核对状态动作与原因弹窗", plannedDeadline: "2026-09-01T18:00:00+08:00", dependencyNodeIds: ["N3001"] },
     { nodeId: "N4001", taskId: "T20260828004", nodeOrder: 1, nodeName: "梳理字段权限", ownerEmployeeNo: "E1001", status: "in_progress", progressPercent: 60, actionDetail: "整理角色到字段的可见范围", plannedDeadline: "2026-09-01T12:00:00+08:00", dependencyNodeIds: [] },
   ];
+  nodes.forEach((node) => { if (!node.assignmentStatus) node.assignmentStatus = "accepted"; });
   const logs = tasks.flatMap((task) => [
     { logId: id("L"), taskId: task.taskId, actionLabel: "创建任务", toStatus: "draft", operatorEmployeeNo: task.creatorEmployeeNo, reason: "", createdAt: task.createdAt },
     { logId: id("L"), taskId: task.taskId, actionLabel: task.status === "pending_accept" ? "确认发送" : "任务生效", toStatus: task.status === "pending_accept" ? "pending_accept" : "in_progress", operatorEmployeeNo: task.creatorEmployeeNo, reason: "", createdAt: task.updatedAt },
@@ -70,9 +71,9 @@ function seed() {
       { metricId: "PM3", metricType: "项目", metricName: "产品按期交付率", period: "2026Q3", businessUnit: "信息中心", weight: 20, matchReason: "任务属于产品交付" },
     ],
     notifications: [
-      { notificationId: "NO1", taskId: "T20260902001", recipientEmployeeNo: "E1001", type: "task", title: "新任务待接受", content: "“确认Q2组织绩效指标口径”等待你接受。", unread: true, sentAt: "2026-09-02T09:01:00+08:00" },
-      { notificationId: "NO2", taskId: "T20260829003", recipientEmployeeNo: "E1001", type: "reminder", title: "任务待验收", content: "“智能任务看板交互验收”已提交完成申请。", unread: true, sentAt: "2026-09-02T10:21:00+08:00" },
-      { notificationId: "NO3", taskId: "T20260828004", recipientEmployeeNo: "E1003", type: "system", title: "卡点持续未关闭", content: "跨部门数据授权卡点仍在处理中。", unread: false, sentAt: "2026-09-02T09:46:00+08:00" },
+      { notificationId: "NO1", taskId: "T20260902001", recipientEmployeeNo: "E1001", type: "task", title: "新任务待接受", content: "“确认Q2组织绩效指标口径”等待你接受。", actionRequired: true, targetType: "task_acceptance", canOpen: true, sentAt: "2026-09-02T09:01:00+08:00" },
+      { notificationId: "NO2", taskId: "T20260829003", recipientEmployeeNo: "E1001", type: "task", title: "任务待验收", content: "“智能任务看板交互验收”已提交完成申请。", actionRequired: true, targetType: "review", canOpen: true, sentAt: "2026-09-02T10:21:00+08:00" },
+      { notificationId: "NO3", taskId: "T20260828004", recipientEmployeeNo: "E1003", type: "reminder", title: "卡点持续未关闭", content: "跨部门数据授权卡点仍在处理中。", actionRequired: true, targetType: "task_detail", canOpen: true, sentAt: "2026-09-02T09:46:00+08:00" },
     ],
     logs,
     creationDraft: null,
@@ -196,9 +197,13 @@ function actionsFor(state, task, taskNodes, review) {
 function log(state, task, actionLabel, fromStatus, reason, operatorEmployeeNo) {
   state.logs.unshift({ logId: id("L"), taskId: task.taskId, actionLabel, fromStatus, toStatus: task.status, operatorEmployeeNo: operatorEmployeeNo || state.currentEmployeeNo, reason: reason || "", createdAt: now() });
 }
-function notify(state, task, recipients, title, content, type) {
+function notify(state, task, recipients, title, content, type, extra) {
   [...new Set((Array.isArray(recipients) ? recipients : [recipients]).filter(Boolean))].forEach((recipientEmployeeNo) => {
-    state.notifications.unshift({ notificationId: id("NO"), taskId: task.taskId, recipientEmployeeNo, type: type || "task", title, content, unread: true, sentAt: now() });
+    state.notifications.unshift({
+      notificationId: id("NO"), taskId: task.taskId, recipientEmployeeNo, type: type || "task",
+      title, content, sentAt: now(), actionRequired: false, canOpen: true, targetType: null, nodeId: null,
+      ...(extra || {}),
+    });
   });
 }
 function mutateTask(taskId, mutator) {
@@ -375,7 +380,7 @@ function getDashboard() {
     quadrantCounts,
     supportCount: supportItems.length,
     supportItems,
-    unread: state.notifications.filter((item) => item.recipientEmployeeNo === state.currentEmployeeNo && item.unread).length,
+    unread: listNotifications("all").filter((item) => item.actionRequired).length,
   };
 }
 
@@ -467,13 +472,16 @@ function completeDecomposition(taskId) {
       ["整理交付并提交验收", "按验收口径整理文字交付说明并提交", [4]],
     ].forEach((item, index) => {
       const nodeId = id(`N${index + 1}`);
-      state.nodes.push({ nodeId, taskId, nodeOrder: index + 1, nodeName: item[0], ownerEmployeeNo: task.mainAssigneeEmployeeNo, status: "pending", progressPercent: 0, actionDetail: item[1], plannedDeadline: deadline, dependencyNodeIds: item[2].map((order) => state.nodes.filter((node) => node.taskId === taskId && node.nodeOrder === order)[0]?.nodeId).filter(Boolean), sourceType: "ai", decompositionId: task.latestDecompositionId });
+      const collaborator = (task.collaboratorEmployeeNos || [])[0];
+      const ownerEmployeeNo = collaborator && index === 2 ? collaborator : task.mainAssigneeEmployeeNo;
+      const assignmentStatus = ownerEmployeeNo === task.mainAssigneeEmployeeNo ? "accepted" : "pending";
+      state.nodes.push({ nodeId, taskId, nodeOrder: index + 1, nodeName: item[0], ownerEmployeeNo, assignmentStatus, assignmentRespondedAt: null, assignmentRejectReason: "", status: "pending", progressPercent: 0, actionDetail: item[1], plannedDeadline: deadline, dependencyNodeIds: item[2].map((order) => state.nodes.filter((node) => node.taskId === taskId && node.nodeOrder === order)[0]?.nodeId).filter(Boolean), sourceType: "ai", decompositionId: task.latestDecompositionId });
+      if (assignmentStatus === "pending") notify(state, task, ownerEmployeeNo, "节点待承接", `“${item[0]}”需要你确认是否承接。`, "task", { nodeId, targetType: "node_assignment", actionRequired: true });
     });
     task.status = "in_progress";
     task.decompositionStatus = "succeeded";
     task.effectiveAt = now();
     log(state, task, "AI拆解成功，任务生效", before);
-    notify(state, task, [task.creatorEmployeeNo, task.mainAssigneeEmployeeNo, ...(task.collaboratorEmployeeNos || [])], "任务已生效", `“${task.taskName}”已完成AI拆解，可开始执行。`);
   });
 }
 
@@ -500,11 +508,37 @@ function returnTask(taskId, reason) {
   });
 }
 
+function acceptNodeAssignment(taskId, nodeId) {
+  return mutateTask(taskId, (state, task) => {
+    const node = state.nodes.find((item) => item.nodeId === nodeId && item.taskId === taskId);
+    if (!node || node.ownerEmployeeNo !== state.currentEmployeeNo) throw new Error("SCOPE_DENIED");
+    if (state.currentEmployeeNo === task.mainAssigneeEmployeeNo || node.assignmentStatus !== "pending") throw new Error("STATUS_NOT_ALLOWED");
+    node.assignmentStatus = "accepted"; node.assignmentRespondedAt = now(); node.assignmentRejectReason = "";
+    log(state, task, `接受协办节点：${node.nodeName}`, task.status);
+    state.notifications.forEach((item) => { if (item.nodeId === nodeId && item.recipientEmployeeNo === state.currentEmployeeNo) item.actionRequired = false; });
+  });
+}
+
+function rejectNodeAssignment(taskId, nodeId, reason) {
+  const cleanReason = String(reason || "").trim();
+  if (!cleanReason) throw new Error("REASON_REQUIRED");
+  return mutateTask(taskId, (state, task) => {
+    const node = state.nodes.find((item) => item.nodeId === nodeId && item.taskId === taskId);
+    if (!node || node.ownerEmployeeNo !== state.currentEmployeeNo) throw new Error("SCOPE_DENIED");
+    if (state.currentEmployeeNo === task.mainAssigneeEmployeeNo || node.assignmentStatus !== "pending") throw new Error("STATUS_NOT_ALLOWED");
+    node.assignmentStatus = "rejected"; node.assignmentRespondedAt = now(); node.assignmentRejectReason = cleanReason;
+    log(state, task, `拒绝协办节点：${node.nodeName}`, task.status, cleanReason);
+    state.notifications.forEach((item) => { if (item.nodeId === nodeId && item.recipientEmployeeNo === state.currentEmployeeNo) item.actionRequired = false; });
+    notify(state, task, task.mainAssigneeEmployeeNo, "协办节点无法承接", `“${node.nodeName}”的负责人无法承接：${cleanReason}`, "task", { nodeId, targetType: "task_detail", actionRequired: true });
+  });
+}
+
 function startNode(taskId, nodeId) {
   return mutateTask(taskId, (state, task) => {
     if (!["in_progress", "blocked", "pending_report"].includes(task.status)) throw new Error("STATUS_NOT_ALLOWED");
     const node = state.nodes.find((item) => item.nodeId === nodeId && item.taskId === taskId);
     if (!node || node.ownerEmployeeNo !== state.currentEmployeeNo) throw new Error("SCOPE_DENIED");
+    if (state.currentEmployeeNo !== task.mainAssigneeEmployeeNo && (node.assignmentStatus || "accepted") !== "accepted") throw new Error("ASSIGNMENT_NOT_ACCEPTED");
     if (node.status !== "pending") throw new Error("STATUS_NOT_ALLOWED");
     const unmet = (node.dependencyNodeIds || []).some((dependencyId) => state.nodes.find((item) => item.nodeId === dependencyId)?.status !== "completed");
     if (unmet) throw new Error("DEPENDENCY_INCOMPLETE");
@@ -518,6 +552,7 @@ function completeNode(taskId, nodeId) {
     if (!["in_progress", "blocked", "pending_report"].includes(task.status)) throw new Error("STATUS_NOT_ALLOWED");
     const node = state.nodes.find((item) => item.nodeId === nodeId && item.taskId === taskId);
     if (!node || node.ownerEmployeeNo !== state.currentEmployeeNo) throw new Error("SCOPE_DENIED");
+    if (state.currentEmployeeNo !== task.mainAssigneeEmployeeNo && (node.assignmentStatus || "accepted") !== "accepted") throw new Error("ASSIGNMENT_NOT_ACCEPTED");
     if (node.status !== "in_progress") throw new Error("STATUS_NOT_ALLOWED");
     const unmet = (node.dependencyNodeIds || []).some((dependencyId) => state.nodes.find((item) => item.nodeId === dependencyId)?.status !== "completed");
     if (unmet) throw new Error("DEPENDENCY_INCOMPLETE");
@@ -659,9 +694,30 @@ function cancelChangeRequest(taskId, changeRequestId, reason) {
   return { taskId, status: task.status, taskVersion: task.taskVersion, changeRequest: clone(change) };
 }
 
+function notificationProjection(state, item) {
+  const task = item.taskId ? state.tasks.find((row) => row.taskId === item.taskId) : null;
+  const node = item.nodeId ? state.nodes.find((row) => row.nodeId === item.nodeId && row.taskId === item.taskId) : null;
+  const actor = currentUser(state);
+  const canOpen = !task || Boolean(actor && canViewTask(state, actor, task));
+  let targetType = item.targetType || null;
+  let actionRequired = Boolean(item.actionRequired);
+  if (task && canOpen) {
+    if (node && node.ownerEmployeeNo === state.currentEmployeeNo && node.assignmentStatus === "pending") { targetType = "node_assignment"; actionRequired = true; }
+    else if (task.status === "pending_accept" && task.mainAssigneeEmployeeNo === state.currentEmployeeNo) { targetType = "task_acceptance"; actionRequired = true; }
+    else if (task.status === "decomposition_failed" && task.mainAssigneeEmployeeNo === state.currentEmployeeNo) { targetType = "decomposition"; actionRequired = true; }
+    else if (task.status === "pending_review" && [task.creatorEmployeeNo, task.reviewerEmployeeNo].includes(state.currentEmployeeNo)) { targetType = "review"; actionRequired = true; }
+    else if (task.status === "pending_report" && task.mainAssigneeEmployeeNo === state.currentEmployeeNo) { targetType = "report"; actionRequired = true; }
+    else if (targetType === "node_assignment" || targetType === "task_acceptance" || targetType === "review" || targetType === "report") { targetType = "task_detail"; actionRequired = false; }
+  }
+  return { ...item, targetType, actionRequired, canOpen, unavailableReason: canOpen ? "" : "当前已无权查看该任务" };
+}
 function listNotifications(type) {
   const state = read();
-  return state.notifications.filter((item) => item.recipientEmployeeNo === state.currentEmployeeNo).filter((item) => !type || type === "all" || item.type === type).sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+  return state.notifications
+    .filter((item) => item.recipientEmployeeNo === state.currentEmployeeNo)
+    .map((item) => notificationProjection(state, item))
+    .filter((item) => !type || type === "all" || item.type === type)
+    .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
 }
 function readNotification(notificationId) {
   const state = read();
@@ -686,4 +742,4 @@ function executiveOverview() {
   return { members, activeCount: activeTasks.length, blockedCount: activeTasks.filter((task) => task.status === "blocked").length, pendingReviewCount: activeTasks.filter((task) => task.status === "pending_review").length, onTrackRate: Math.round((activeTasks.filter((task) => !task.hasIssue).length / Math.max(activeTasks.length, 1)) * 100), snapshotId: "WS20260902" };
 }
 
-module.exports = { ensureInitialized, read, reset, currentUser, listTasks, listOverview, getTask, getDashboard, getCreationDraft, saveCreationDraft, saveTaskDraft, listPerformanceMetrics, suggestPerformanceMatches, confirmPerformanceMatch, clearPerformanceMatch, sendTask, acceptTask, completeDecomposition, retryDecomposition, returnTask, startNode, completeNode, submitReport, submitCompletion, reviewTask, lifecycle, submitChangeRequest, decideChangeRequest, cancelChangeRequest, listNotifications, readNotification, markAllRead, switchUser, executiveOverview };
+module.exports = { ensureInitialized, read, reset, currentUser, listTasks, listOverview, getTask, getDashboard, getCreationDraft, saveCreationDraft, saveTaskDraft, listPerformanceMetrics, suggestPerformanceMatches, confirmPerformanceMatch, clearPerformanceMatch, sendTask, acceptTask, completeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, reviewTask, lifecycle, submitChangeRequest, decideChangeRequest, cancelChangeRequest, listNotifications, readNotification, markAllRead, switchUser, executiveOverview };

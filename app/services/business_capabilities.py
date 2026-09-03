@@ -2768,57 +2768,66 @@ class FakeWeComProvider:
         return f"fake-wecom:{recipient_employee_no}:{abs(hash((title, content))) % 1000000}"
 
 
+@dataclass(frozen=True)
+class NotificationView:
+    notification_id: UUID
+    reminder_rule_id: UUID | None
+    task_id: UUID | None
+    issue_id: UUID | None
+    recipient_employee_no: str
+    channel: str
+    title: str
+    content: str
+    send_status: str
+    wecom_message_id: str | None
+    fail_reason: str | None
+    retry_count: int
+    retry_next_at: datetime | None
+    sent_at: datetime | None
+    read_at: datetime | None
+    dedupe_key: str
+    created_at: datetime
+    notification_type: str
+    node_id: UUID | None
+    target_type: str | None
+    action_required: bool
+    can_open: bool
+    unavailable_reason: str | None
+
+
 class ReminderNotificationService:
+    """Authoritative DEV-15 reminder scan, notification projection, and delivery outbox."""
+
     def __init__(self, session: Session, provider: WeComProvider | None = None, clock=_now) -> None:
         self.session = session
         self.provider = provider or FakeWeComProvider()
         self.clock = clock
 
     def scan_reminders(self, actor: str) -> list[ReminderRule]:
-        self._require_manager(actor)
+        self._require_scheduler(actor)
         now = self.clock()
         tasks = list(
             self.session.scalars(
                 select(Task)
-                .where(Task.status.in_(ACTIVE_TASK_STATUSES))
+                .where(
+                    Task.status.in_(
+                        {
+                            "pending_accept",
+                            "in_progress",
+                            "blocked",
+                            "pending_report",
+                            "pending_review",
+                        }
+                    )
+                )
                 .order_by(Task.updated_at, Task.task_id)
             ).all()
         )
         rules: list[ReminderRule] = []
         for task in tasks:
             rules.extend(self._task_rules(task, now))
-        for issue in self.session.scalars(
-            select(TaskIssue).where(TaskIssue.status.in_(("open", "processing")))
-        ).all():
-            rules.append(
-                self._rule(
-                    task_id=issue.task_id,
-                    node_id=issue.node_id,
-                    issue_id=issue.issue_id,
-                    reminder_type="issue_blocker",
-                    recipient=issue.owner_employee_no,
-                    next_trigger_at=now,
-                    dedupe_key=f"issue:{issue.issue_id}:active",
-                    repeat_rule="daily",
-                    now=now,
-                )
-            )
-        for issue in self.session.scalars(
-            select(TaskConflict).where(TaskConflict.status == "open")
-        ).all():
-            rules.append(
-                self._rule(
-                    task_id=issue.task_id,
-                    node_id=issue.node_id,
-                    issue_id=None,
-                    reminder_type="issue_blocker",
-                    recipient=issue.employee_no,
-                    next_trigger_at=now,
-                    dedupe_key=f"conflict:{issue.conflict_id}:open",
-                    repeat_rule=None,
-                    now=now,
-                )
-            )
+            rules.extend(self._node_overdue_rules(task, now))
+        rules.extend(self._issue_rules(now))
         persisted = [self._upsert_rule(rule) for rule in rules]
         _add_operation_log(
             self.session,
@@ -2833,7 +2842,7 @@ class ReminderNotificationService:
         return persisted
 
     def create_due_notifications(self, actor: str) -> list[Notification]:
-        self._require_manager(actor)
+        self._require_scheduler(actor)
         now = self.clock()
         rules = list(
             self.session.scalars(
@@ -2846,8 +2855,12 @@ class ReminderNotificationService:
         )
         notifications: list[Notification] = []
         for rule in rules:
-            occurrence_time = rule.next_trigger_at.isoformat() if rule.next_trigger_at else "now"
-            occurrence = f"{rule.dedupe_key}:{occurrence_time}"
+            if not self._rule_actionable(rule):
+                rule.is_active = False
+                rule.next_trigger_at = None
+                continue
+            occurrence_time = rule.trigger_time or rule.next_trigger_at or now
+            occurrence = f"{rule.dedupe_key}:{occurrence_time.isoformat()}"
             existing = self.session.scalar(
                 select(Notification).where(
                     Notification.dedupe_key == occurrence,
@@ -2855,24 +2868,23 @@ class ReminderNotificationService:
                     Notification.recipient_employee_no == rule.recipient_employee_no,
                 )
             )
-            if existing is not None:
-                notifications.append(existing)
-                continue
-            notification = Notification(
-                reminder_rule_id=rule.reminder_rule_id,
-                task_id=rule.task_id,
-                issue_id=rule.issue_id,
-                recipient_employee_no=rule.recipient_employee_no,
-                channel="in_app",
-                title=self._title(rule.reminder_type),
-                content=f"{rule.reminder_type} reminder for task {rule.task_id}",
-                send_status="pending",
-                retry_count=0,
-                dedupe_key=occurrence,
-                created_at=now,
-            )
-            self.session.add(notification)
-            notifications.append(notification)
+            if existing is None:
+                title, content = self._copy(rule)
+                existing = Notification(
+                    reminder_rule_id=rule.reminder_rule_id,
+                    task_id=rule.task_id,
+                    issue_id=rule.issue_id,
+                    recipient_employee_no=rule.recipient_employee_no,
+                    channel="in_app",
+                    title=title,
+                    content=content,
+                    send_status="pending",
+                    retry_count=0,
+                    dedupe_key=occurrence,
+                    created_at=now,
+                )
+                self.session.add(existing)
+            notifications.append(existing)
             rule.last_triggered_at = now
             rule.next_trigger_at = self._next(rule.repeat_rule, now)
             if rule.repeat_rule is None:
@@ -2890,7 +2902,7 @@ class ReminderNotificationService:
         return notifications
 
     def send_pending(self, actor: str, limit: int = 50) -> list[Notification]:
-        self._require_manager(actor)
+        self._require_scheduler(actor)
         now = self.clock()
         rows = list(
             self.session.scalars(
@@ -2898,7 +2910,7 @@ class ReminderNotificationService:
                 .where(
                     Notification.send_status.in_(("pending", "failed")),
                     or_(Notification.retry_next_at.is_(None), Notification.retry_next_at <= now),
-                    Notification.retry_count < 3,
+                    Notification.retry_count < 4,
                 )
                 .order_by(Notification.created_at, Notification.notification_id)
                 .limit(limit)
@@ -2912,11 +2924,12 @@ class ReminderNotificationService:
                 row.send_status = "sent"
                 row.sent_at = now
                 row.fail_reason = None
-            except Exception as exc:  # pragma: no cover - fake provider does not fail
+                row.retry_next_at = None
+            except Exception as exc:  # pragma: no cover - provider behavior injected in tests
                 row.retry_count += 1
                 row.send_status = "failed"
-                row.fail_reason = str(exc)
-                row.retry_next_at = None if row.retry_count >= 3 else now + timedelta(minutes=5)
+                row.fail_reason = str(exc)[:500]
+                row.retry_next_at = self._retry_at(row.retry_count, now)
         _add_operation_log(
             self.session,
             actor=actor,
@@ -2929,14 +2942,30 @@ class ReminderNotificationService:
         self.session.commit()
         return rows
 
-    def list_notifications(self, actor: str, unread_only: bool = False) -> list[Notification]:
-        statement = select(Notification).where(Notification.recipient_employee_no == actor)
+    def list_notifications(
+        self,
+        actor: str,
+        unread_only: bool = False,
+        notification_type: str | None = None,
+    ) -> list[NotificationView]:
+        statement = select(Notification).where(
+            Notification.recipient_employee_no == actor,
+            Notification.channel == "in_app",
+        )
         if unread_only:
             statement = statement.where(Notification.read_at.is_(None))
-        statement = statement.order_by(Notification.created_at.desc(), Notification.notification_id)
-        return list(self.session.scalars(statement).all())
+        statement = statement.order_by(
+            Notification.created_at.desc(), Notification.notification_id
+        )
+        views = [self._view(actor, row) for row in self.session.scalars(statement).all()]
+        if notification_type and notification_type != "all":
+            if notification_type not in {"task", "reminder", "system"}:
+                raise BusinessValidationError("notification_type is invalid")
+            views = [item for item in views if item.notification_type == notification_type]
+        return views
 
     def mark_read(self, actor: str, notification_id: UUID) -> Notification:
+        """Legacy compatibility only; production UX uses action-required, not unread, badges."""
         row = self.session.get(Notification, notification_id)
         if row is None:
             raise EntityNotFoundError("notification was not found")
@@ -2947,46 +2976,27 @@ class ReminderNotificationService:
         return row
 
     def _task_rules(self, task: Task, now: datetime) -> list[ReminderRule]:
-        recipient = task.main_assignee_employee_no or task.creator_employee_no
+        recipient = task.main_assignee_employee_no
+        if not recipient:
+            return []
         rules: list[ReminderRule] = []
-        if task.status == "pending_acceptance" and task.main_assignee_employee_no:
-            rules.append(
-                self._rule(
-                    task_id=task.task_id,
-                    node_id=None,
-                    issue_id=None,
-                    reminder_type="pending_acceptance",
-                    recipient=task.main_assignee_employee_no,
-                    next_trigger_at=now,
-                    dedupe_key=f"task:{task.task_id}:pending_acceptance",
-                    repeat_rule="daily",
-                    now=now,
-                )
-            )
-        if task.status == "pending_review":
-            rules.append(
-                self._rule(
-                    task_id=task.task_id,
-                    node_id=None,
-                    issue_id=None,
-                    reminder_type="completion_review",
-                    recipient=task.reviewer_employee_no or task.creator_employee_no,
-                    next_trigger_at=now,
-                    dedupe_key=f"task:{task.task_id}:completion_review",
-                    repeat_rule="daily",
-                    now=now,
-                )
-            )
-        if task.deadline is not None:
+        if task.deadline is not None and task.status in {
+            "in_progress", "blocked", "pending_report"
+        }:
             deadline = _aware_utc(task.deadline)
-            if deadline.date() == now.date():
-                reminder_type = "due_today"
-            elif deadline < now:
+            local_date = now.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
+            if deadline < now:
                 reminder_type = "overdue"
+                key = f"task:{task.task_id}:overdue:{local_date}"
+            elif deadline.date() == now.date():
+                reminder_type = "due_today"
+                key = f"task:{task.task_id}:due-today:{local_date}"
             elif deadline <= now + timedelta(days=3):
                 reminder_type = "due_soon"
+                key = f"task:{task.task_id}:due-soon"
             else:
                 reminder_type = ""
+                key = ""
             if reminder_type:
                 rules.append(
                     self._rule(
@@ -2996,12 +3006,12 @@ class ReminderNotificationService:
                         reminder_type=reminder_type,
                         recipient=recipient,
                         next_trigger_at=now,
-                        dedupe_key=f"task:{task.task_id}:{reminder_type}",
-                        repeat_rule="daily" if reminder_type == "overdue" else None,
+                        dedupe_key=key,
+                        repeat_rule=None,
                         now=now,
                     )
                 )
-        if task.status == "in_progress" and task.report_cycle and task.accepted_at is not None:
+        if task.status in {"in_progress", "blocked", "pending_report"} and task.report_cycle and task.accepted_at is not None:
             _, period_end = task_report_period(task.report_cycle, task.accepted_at, now)
             if period_end is not None and period_end <= now:
                 latest = self.session.scalar(
@@ -3013,15 +3023,13 @@ class ReminderNotificationService:
                     .order_by(TaskProgressReport.created_at.desc())
                     .limit(1)
                 )
-                report_type = (
-                    "no_response"
-                    if period_end + timedelta(days=1) <= now
-                    and (latest is None or latest.created_at < period_end)
-                    else "pending_report"
-                    if latest is None or latest.created_at < period_end
-                    else ""
-                )
-                if report_type:
+                overdue_report = latest is None or latest.created_at < period_end
+                if overdue_report:
+                    report_type = (
+                        "no_response"
+                        if period_end + timedelta(days=1) <= now
+                        else "pending_report"
+                    )
                     rules.append(
                         self._rule(
                             task_id=task.task_id,
@@ -3030,12 +3038,208 @@ class ReminderNotificationService:
                             reminder_type=report_type,
                             recipient=recipient,
                             next_trigger_at=now,
-                            dedupe_key=f"task:{task.task_id}:{report_type}:{period_end.date()}",
-                            repeat_rule="daily",
+                            dedupe_key=(
+                                f"task:{task.task_id}:{report_type}:{period_end.date()}"
+                            ),
+                            repeat_rule=None,
                             now=now,
                         )
                     )
         return rules
+
+    def _node_overdue_rules(self, task: Task, now: datetime) -> list[ReminderRule]:
+        if task.effective_at is None or task.status not in {
+            "in_progress", "blocked", "pending_report"
+        }:
+            return []
+        local_date = now.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
+        nodes = list(
+            self.session.scalars(
+                select(TaskNode).where(
+                    TaskNode.task_id == task.task_id,
+                    TaskNode.assignment_status == "accepted",
+                    TaskNode.status.notin_(("completed", "cancelled")),
+                    TaskNode.planned_deadline.is_not(None),
+                    TaskNode.planned_deadline < now,
+                )
+            ).all()
+        )
+        return [
+            self._rule(
+                task_id=task.task_id,
+                node_id=node.node_id,
+                issue_id=None,
+                reminder_type="overdue",
+                recipient=node.owner_employee_no,
+                next_trigger_at=now,
+                dedupe_key=f"node:{node.node_id}:overdue:{local_date}",
+                repeat_rule=None,
+                now=now,
+            )
+            for node in nodes
+            if node.owner_employee_no
+        ]
+
+    def _issue_rules(self, now: datetime) -> list[ReminderRule]:
+        rules: list[ReminderRule] = []
+        for issue in self.session.scalars(
+            select(TaskIssue).where(TaskIssue.status.in_(("open", "processing")))
+        ).all():
+            task = self.session.get(Task, issue.task_id)
+            recipients = {issue.owner_employee_no}
+            if task is not None:
+                recipients.add(task.creator_employee_no)
+            for recipient in recipients - {None}:
+                rules.append(
+                    self._rule(
+                        task_id=issue.task_id,
+                        node_id=issue.node_id,
+                        issue_id=issue.issue_id,
+                        reminder_type="issue_blocker",
+                        recipient=recipient,
+                        next_trigger_at=now,
+                        dedupe_key=(
+                            f"issue:{issue.issue_id}:active:{recipient}:"
+                            f"{now.astimezone(ZoneInfo('Asia/Shanghai')).date()}"
+                        ),
+                        repeat_rule=None,
+                        now=now,
+                    )
+                )
+        return rules
+
+    def _rule_actionable(self, rule: ReminderRule) -> bool:
+        task = self.session.get(Task, rule.task_id) if rule.task_id else None
+        if rule.task_id and task is None:
+            return False
+        if task is not None and task.status in TERMINAL_TASK_STATUSES:
+            return False
+        if rule.node_id is not None:
+            node = self.session.get(TaskNode, rule.node_id)
+            if node is None or task is None or node.task_id != task.task_id:
+                return False
+            if task.effective_at is None or task.status not in {
+                "in_progress", "blocked", "pending_report"
+            }:
+                return False
+            if node.status in {"completed", "cancelled"}:
+                return False
+            if node.assignment_status != "accepted":
+                return False
+            if node.owner_employee_no != rule.recipient_employee_no:
+                return False
+        if rule.issue_id is not None:
+            issue = self.session.get(TaskIssue, rule.issue_id)
+            if issue is None or issue.status not in {"open", "processing"}:
+                return False
+        return True
+
+    def _copy(self, rule: ReminderRule) -> tuple[str, str]:
+        task = self.session.get(Task, rule.task_id) if rule.task_id else None
+        node = self.session.get(TaskNode, rule.node_id) if rule.node_id else None
+        name = node.node_name if node is not None else task.task_name if task is not None else "事项"
+        titles = {
+            "node_start": "节点开始提醒",
+            "due_soon": "节点即将到期" if node is not None else "任务即将到期",
+            "node_due": "节点到期提醒",
+            "due_today": "任务今日到期",
+            "overdue": "节点已逾期" if node is not None else "任务已逾期",
+            "periodic_progress_report": "任务进度待汇报",
+            "pending_report": "任务进度待汇报",
+            "no_response": "任务汇报已超时",
+            "issue_blocker": "任务卡点待处理",
+            "completion_review": "任务等待验收",
+            "returned": "任务已退回",
+            "change_request": "任务变更待处理",
+        }
+        title = titles.get(rule.reminder_type, "任务提醒")
+        if rule.reminder_type == "node_start":
+            content = f"“{name}”已进入计划执行时间，请按节点要求推进。"
+        elif rule.reminder_type in {"due_soon", "node_due", "due_today"}:
+            content = f"“{name}”接近或已到计划截止时间，请检查当前进展。"
+        elif rule.reminder_type == "overdue":
+            content = f"“{name}”已超过计划截止时间且尚未完成。"
+        elif rule.reminder_type in {"pending_report", "no_response", "periodic_progress_report"}:
+            content = f"“{name}”需要补充任务级进度汇报。"
+        elif rule.reminder_type == "issue_blocker":
+            content = f"“{name}”仍有未关闭卡点，请按职责处理。"
+        else:
+            content = f"“{name}”有新的待处理事项。"
+        return title, content
+
+    def _view(self, actor: str, row: Notification) -> NotificationView:
+        rule = self.session.get(ReminderRule, row.reminder_rule_id) if row.reminder_rule_id else None
+        node_id = rule.node_id if rule is not None else None
+        target_type, action_required, can_open, reason = self._target(
+            actor, row, rule
+        )
+        notification_type = (
+            "task" if rule is not None and rule.reminder_type == "collaboration"
+            else "reminder" if row.reminder_rule_id is not None
+            else "task" if row.task_id is not None
+            else "system"
+        )
+        return NotificationView(
+            notification_id=row.notification_id,
+            reminder_rule_id=row.reminder_rule_id,
+            task_id=row.task_id,
+            issue_id=row.issue_id,
+            recipient_employee_no=row.recipient_employee_no,
+            channel=row.channel,
+            title=row.title,
+            content=row.content,
+            send_status=row.send_status,
+            wecom_message_id=row.wecom_message_id,
+            fail_reason=row.fail_reason,
+            retry_count=row.retry_count,
+            retry_next_at=row.retry_next_at,
+            sent_at=row.sent_at,
+            read_at=row.read_at,
+            dedupe_key=row.dedupe_key,
+            created_at=row.created_at,
+            notification_type=notification_type,
+            node_id=node_id,
+            target_type=target_type,
+            action_required=action_required,
+            can_open=can_open,
+            unavailable_reason=reason,
+        )
+
+    def _target(
+        self,
+        actor: str,
+        row: Notification,
+        rule: ReminderRule | None,
+    ) -> tuple[str | None, bool, bool, str | None]:
+        if row.task_id is None:
+            return None, False, True, None
+        task = self.session.get(Task, row.task_id)
+        if task is None:
+            return None, False, False, "任务不存在或已被移除"
+        if not PermissionScopeService(self.session).can_access_task(actor, task, "view"):
+            return None, False, False, "当前已无权查看该任务"
+        node = self.session.get(TaskNode, rule.node_id) if rule and rule.node_id else None
+        if (
+            node is not None
+            and node.owner_employee_no == actor
+            and node.assignment_status == "pending"
+        ):
+            return "node_assignment", True, True, None
+        if task.status == "pending_accept" and task.main_assignee_employee_no == actor:
+            return "task_acceptance", True, True, None
+        if task.status == "decomposition_failed" and task.main_assignee_employee_no == actor:
+            return "decomposition", True, True, None
+        if task.status == "pending_review" and actor in {
+            task.creator_employee_no, task.reviewer_employee_no
+        }:
+            return "review", True, True, None
+        if task.status == "pending_report" and task.main_assignee_employee_no == actor:
+            return "report", True, True, None
+        if task.status == "returned" and task.creator_employee_no == actor:
+            return "task_detail", True, True, None
+        if row.dedupe_key.startswith("change-request:") and task.creator_employee_no == actor:
+            return "task_detail", True, True, None
+        return "task_detail", False, True, None
 
     @staticmethod
     def _rule(
@@ -3071,6 +3275,8 @@ class ReminderNotificationService:
         if existing is None:
             self.session.add(rule)
             return rule
+        if existing.last_triggered_at is not None and rule.repeat_rule is None:
+            return existing
         existing.is_active = True
         existing.next_trigger_at = rule.next_trigger_at
         existing.trigger_time = rule.trigger_time
@@ -3084,13 +3290,14 @@ class ReminderNotificationService:
         return None
 
     @staticmethod
-    def _title(reminder_type: str) -> str:
-        return reminder_type.replace("_", " ").title()
+    def _retry_at(retry_count: int, now: datetime) -> datetime | None:
+        minutes = {1: 5, 2: 10, 3: 20}.get(retry_count)
+        return now + timedelta(minutes=minutes) if minutes is not None else None
 
-    def _require_manager(self, actor: str) -> None:
+    def _require_scheduler(self, actor: str) -> None:
         user = self.session.get(User, actor)
-        if user is None or user.status != "active" or user.role_type not in {"admin", "manager"}:
-            raise PermissionDeniedError("actor must be an active manager")
+        if user is None or user.status != "active" or user.role_type != "admin":
+            raise PermissionDeniedError("actor must be an active admin scheduler")
 
 
 class ArchiveReuseService:

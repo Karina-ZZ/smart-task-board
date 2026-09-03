@@ -39,7 +39,7 @@ pytestmark = pytest.mark.postgresql
 EXPECTED_DATABASE = "smarttaskboard_core_test"
 EXPECTED_HOST = "127.0.0.1"
 EXPECTED_PORT = 46479
-EXPECTED_REVISION = "f7b8c9d0e1f2"
+EXPECTED_REVISION = "b1c2d3e4f5a6"
 EXPECTED_TABLES = {
     "ai_extraction_records",
     "auth_refresh_tokens",
@@ -52,6 +52,7 @@ EXPECTED_TABLES = {
     "system_parameters",
     "task_archives",
     "task_conflicts",
+    "task_decomposition_records",
     "task_inputs",
     "task_node_dependencies",
     "task_node_participants",

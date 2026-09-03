@@ -120,6 +120,9 @@ function nodeView(detail, names, issues) {
         dependencyText: predecessors.length ? predecessors.join("、") : "无",
         issue: nodeIssues[0] || null,
         hasIssue: nodeIssues.length > 0 || Boolean(node.blockedReason),
+        assignmentStatus: node.assignmentStatus || "accepted",
+        assignmentStatusLabel: ({ pending: "待承接", accepted: "已承接", rejected: "无法承接" })[node.assignmentStatus || "accepted"] || "已承接",
+        assignmentRejectReason: node.assignmentRejectReason || "",
         sourceLabel: node.sourceType === "ai" ? "AI生成" : "",
       };
     });

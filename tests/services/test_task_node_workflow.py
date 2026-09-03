@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock, call
 from uuid import uuid4
@@ -565,3 +565,65 @@ def test_node_completion_derives_actual_hours_from_planned_start() -> None:
     node.planned_start_time = NOW.replace(hour=7)
     service.complete_node(task.task_id, node.node_id, "OWNER", 3, "unit-test")
     assert node.actual_hours == Decimal("2.0")
+
+
+def test_pending_collaborator_must_accept_before_node_execution() -> None:
+    service, uow, task, node = _context()
+    node.assignment_status = "pending"
+
+    with pytest.raises(InvalidStateTransitionError, match="accept the node assignment"):
+        service.start_node(task.task_id, node.node_id, "OWNER", 3, "unit-test")
+
+    assert node.status == "pending"
+    assert task.task_version == 3
+    uow.commit.assert_not_called()
+
+
+def test_collaborator_accepts_assignment_then_execution_reminders_are_created() -> None:
+    service, uow, task, node = _context()
+    node.assignment_status = "pending"
+    node.planned_start_time = NOW
+    node.planned_deadline = NOW + timedelta(days=2)
+    uow.session.scalar.return_value = None
+
+    accepted = service.accept_node_assignment(
+        task.task_id, node.node_id, "OWNER", 3, "unit-test", "assignment-accept-key"
+    )
+
+    assert accepted.assignment_status == "accepted"
+    assert accepted.assignment_responded_at == NOW
+    assert accepted.assignment_reject_reason is None
+    assert task.task_version == 4
+    added_types = {
+        recorded.args[0].reminder_type
+        for recorded in uow.session.add.call_args_list
+        if recorded.args and recorded.args[0].__class__.__name__ == "ReminderRule"
+    }
+    assert added_types == {"node_start", "due_soon", "node_due"}
+    assert _last_log(uow).action_type == "node_assignment_accepted"
+    uow.commit.assert_called_once_with()
+
+
+def test_collaborator_rejects_assignment_with_reason_and_main_assignee_is_notified() -> None:
+    service, uow, task, node = _context()
+    node.assignment_status = "pending"
+
+    with pytest.raises(BusinessValidationError, match="reason is required"):
+        service.reject_node_assignment(
+            task.task_id, node.node_id, "OWNER", 3, "unit-test", "   "
+        )
+
+    rejected = service.reject_node_assignment(
+        task.task_id, node.node_id, "OWNER", 3, "unit-test", "当前无法承接"
+    )
+
+    assert rejected.assignment_status == "rejected"
+    assert rejected.assignment_reject_reason == "当前无法承接"
+    notifications = [
+        call.args[0] for call in uow.session.add.call_args_list
+        if call.args and call.args[0].__class__.__name__ == "Notification"
+    ]
+    assert len(notifications) == 1
+    assert notifications[0].recipient_employee_no == "ASSIGNEE"
+    assert notifications[0].title == "协办节点无法承接"
+    assert _last_log(uow).action_type == "node_assignment_rejected"

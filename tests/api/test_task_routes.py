@@ -928,6 +928,8 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
         ("POST", "/api/v1/tasks/{task_id}/actions/submit-completion"),
         ("POST", "/api/v1/tasks/{task_id}/actions/approve-completion"),
         ("POST", "/api/v1/tasks/{task_id}/actions/reject-completion"),
+        ("POST", "/api/v1/tasks/{task_id}/nodes/{node_id}/actions/accept-assignment"),
+        ("POST", "/api/v1/tasks/{task_id}/nodes/{node_id}/actions/reject-assignment"),
         ("POST", "/api/v1/tasks/{task_id}/nodes/{node_id}/actions/start"),
         ("PATCH", "/api/v1/tasks/{task_id}/nodes/{node_id}/progress"),
         ("POST", "/api/v1/tasks/{task_id}/nodes/{node_id}/actions/complete"),
@@ -1035,14 +1037,14 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
         ("POST", "/api/v1/archives/{archive_id}/reuse"),
         ("GET", "/api/v1/operation-logs"),
     }
-    assert len(phase5_operations) == 24
+    assert len(phase5_operations) == 26
     assert phase5_operations <= api_operations
     assert batch1_operations <= api_operations
     assert batch2_operations <= api_operations
     assert wave2_operations <= api_operations
     assert business_operations <= api_operations
-    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 91
-    assert len(api_operations) == 97
+    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 93
+    assert len(api_operations) == 99
 
     security_schemes = specification["components"]["securitySchemes"]
     bearer_schemes = {
@@ -1085,3 +1087,37 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
     assert "retry-node" not in serialized
     assert "postgresql" not in serialized.lower()
     assert "password" not in serialized.lower()
+
+
+def test_node_assignment_routes_forward_owner_version_reason_and_idempotency(route_context) -> None:
+    client, _, nodes, query = route_context
+    task_id, node_id = uuid4(), uuid4()
+    query.get_node.return_value = {
+        "task_id": task_id,
+        "node_id": node_id,
+        "assignment_status": "accepted",
+        "assignment_responded_at": NOW,
+        "assignment_reject_reason": None,
+    }
+    query.get_task_snapshot.return_value = {"task_version": 6}
+    headers = {"X-Employee-No": "E-COLLAB", "Idempotency-Key": "node-assignment-key"}
+
+    accepted = client.post(
+        f"/api/v1/tasks/{task_id}/nodes/{node_id}/actions/accept-assignment",
+        headers=headers,
+        json={"expected_task_version": 5},
+    )
+    rejected = client.post(
+        f"/api/v1/tasks/{task_id}/nodes/{node_id}/actions/reject-assignment",
+        headers=headers,
+        json={"expected_task_version": 5, "reason": "  当前无法承接  "},
+    )
+
+    assert accepted.status_code == 200
+    assert rejected.status_code == 200
+    nodes.accept_node_assignment.assert_called_once_with(
+        task_id, node_id, "E-COLLAB", 5, "rest_api", "node-assignment-key"
+    )
+    nodes.reject_node_assignment.assert_called_once_with(
+        task_id, node_id, "E-COLLAB", 5, "rest_api", "  当前无法承接  ", "node-assignment-key"
+    )

@@ -588,7 +588,7 @@ def test_performance_metric_suggestion_and_confirmation_are_explainable(
         updated_at=NOW,
     )
     session = RecordingSession(
-        objects={(User, "MANAGER"): _user("MANAGER", role="manager"), (Task, task.task_id): task, (PerformanceMetric, metric.metric_id): metric},
+        objects={(User, "MANAGER"): _user("MANAGER", role="admin"), (Task, task.task_id): task, (PerformanceMetric, metric.metric_id): metric},
         scalar_results=[None],
         scalars_results=[[metric]],
     )
@@ -924,9 +924,10 @@ def test_conflict_acknowledge_records_actor_and_audit() -> None:
 
 
 def test_reminder_notification_dedupe_retry_and_read_state() -> None:
+    task = _task(status="in_progress")
     rule = ReminderRule(
         reminder_rule_id=uuid4(),
-        task_id=uuid4(),
+        task_id=task.task_id,
         reminder_type="overdue",
         recipient_employee_no="ASSIGNEE",
         next_trigger_at=NOW,
@@ -936,7 +937,10 @@ def test_reminder_notification_dedupe_retry_and_read_state() -> None:
         created_at=NOW,
     )
     session = RecordingSession(
-        objects={(User, "MANAGER"): _user("MANAGER", role="manager")},
+        objects={
+            (User, "MANAGER"): _user("MANAGER", role="admin"),
+            (Task, task.task_id): task,
+        },
         scalars_results=[[rule]],
     )
     service = ReminderNotificationService(session, clock=lambda: NOW)
@@ -1149,3 +1153,44 @@ def test_feature05_registers_input_without_ai_then_validates_cloud_extraction() 
     assert "main_assignee_employee_no" in result.extraction.missing_fields
     assert "main_assignee_employee_no" in result.extraction.low_confidence_fields
     assert result.extraction.confirmed_at is None
+
+
+def test_feature13_notification_retry_backoff_is_5_10_20_then_terminal() -> None:
+    notification = Notification(
+        notification_id=uuid4(),
+        task_id=uuid4(),
+        recipient_employee_no="ASSIGNEE",
+        channel="in_app",
+        title="节点提醒",
+        content="请处理",
+        send_status="pending",
+        retry_count=0,
+        dedupe_key="feature13:retry",
+        created_at=NOW,
+    )
+    session = RecordingSession(objects={(User, "ADMIN"): _user("ADMIN", role="admin")})
+
+    class FailingProvider:
+        def send(self, _recipient: str, _title: str, _content: str) -> str:
+            raise RuntimeError("temporary failure")
+
+    expected = [5, 10, 20, None]
+    current = NOW
+    for index, delay in enumerate(expected, start=1):
+        session.scalars_results.append([notification])
+        service = ReminderNotificationService(session, provider=FailingProvider(), clock=lambda value=current: value)
+        service.send_pending("ADMIN")
+        assert notification.retry_count == index
+        assert notification.retry_next_at == (current + timedelta(minutes=delay) if delay else None)
+        if notification.retry_next_at is not None:
+            current = notification.retry_next_at
+
+
+def test_feature13_reminder_scheduler_is_admin_only() -> None:
+    session = RecordingSession(objects={(User, "EMPLOYEE"): _user("EMPLOYEE")})
+    service = ReminderNotificationService(session, clock=lambda: NOW)
+
+    with pytest.raises(PermissionDeniedError, match="active admin scheduler"):
+        service.scan_reminders("EMPLOYEE")
+    with pytest.raises(PermissionDeniedError, match="active admin scheduler"):
+        service.send_pending("EMPLOYEE")

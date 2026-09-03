@@ -24,6 +24,7 @@ CURRENT_TASK = DEV-00
 6. `docs/reference/04-第一版-前端交接文档.docx`
 7. 当前仓库的 `README.md`、`pyproject.toml`、`web/package.json`、Alembic迁移链、与CURRENT_TASK有关的源代码和测试
 8. `PLANS.md`、`FEATURE_COVERAGE.md`、`AUTONOMOUS_RUN.md`，但这三份只作为历史进度参考
+9. 当 `CURRENT_TASK = DEV-15`（功能13）时，必须额外完整读取 `docs/FEATURE_13_NOTIFICATION_RULES.md`；其中的用户最新确认规则优先于旧通知/提醒实现。
 
 必须按照 `docs/DEVELOPMENT_PLAN_V1.1.md` 第1.3节的方法读取DOCX正文、表格和附录。不能只看文件名、摘要或搜索片段。如果DOCX无法完整读取，立即停止并报告具体文件和缺失部分，不得凭经验猜测。
 

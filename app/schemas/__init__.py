@@ -85,6 +85,8 @@ from app.schemas.task_change_request import (
 from app.schemas.task_node import (
     ConfirmTaskPlanningRequest,
     NodeActionResponse,
+    NodeAssignmentActionResponse,
+    NodeAssignmentRejectRequest,
     TaskNodeDependencyDraftRequest,
     TaskNodeDependencyResponse,
     TaskNodeDraftRequest,
@@ -124,6 +126,8 @@ __all__ = [
     "ExecuteDecompositionRequest",
     "InboxItemResponse",
     "NodeActionResponse",
+    "NodeAssignmentActionResponse",
+    "NodeAssignmentRejectRequest",
     "MergeTaskRequest",
     "NotificationResponse",
     "OperationLogPageResponse",

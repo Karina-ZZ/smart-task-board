@@ -7,6 +7,10 @@ from sqlalchemy import select
 from app.db.unit_of_work import UnitOfWork
 from app.models import OperationLog, Task, TaskNode
 from app.services.clock import Clock, utc_now
+from app.services.features.notifications import (
+    emit_node_assignment_rejected_notification,
+    schedule_node_execution_reminders,
+)
 from app.services.errors import (
     BusinessValidationError,
     DependencyNotSatisfiedError,
@@ -176,6 +180,101 @@ class TaskNodeWorkflowService:
             uow.commit()
             return node
 
+    def accept_node_assignment(
+        self,
+        task_id: UUID,
+        node_id: UUID,
+        actor_employee_no: str,
+        expected_task_version: int,
+        operation_source: str,
+        idempotency_key: str | None = None,
+    ) -> TaskNode:
+        with self._uow_factory() as uow:
+            cached = self._find_idempotent_node(
+                uow, idempotency_key, actor_employee_no,
+                "node_assignment_accepted", node_id
+            )
+            if cached is not None:
+                return cached
+            task = _lock_task(uow, task_id, expected_task_version)
+            self._require_execution_state(task)
+            node = self._task_node(uow, task, node_id)
+            self._require_assignment_actor(task, node, actor_employee_no)
+            if node.assignment_status != "pending":
+                raise InvalidStateTransitionError(
+                    "node assignment acceptance requires pending status"
+                )
+            now = _aware_utc(self._clock(), "clock")
+            node.assignment_status = "accepted"
+            node.assignment_responded_at = now
+            node.assignment_reject_reason = None
+            _increment_task(task, now)
+            schedule_node_execution_reminders(uow.session, task, node, now=now)
+            _append_log(
+                uow, task, from_status=task.status, to_status=task.status,
+                action_type="node_assignment_accepted",
+                operator_employee_no=actor_employee_no,
+                operation_source=operation_source, now=now,
+                business_ref_type="task_node", business_ref_id=node.node_id,
+            )
+            self._record_idempotency(
+                uow, idempotency_key, actor_employee_no,
+                "node_assignment_accepted", node, task, now
+            )
+            uow.commit()
+            return node
+
+    def reject_node_assignment(
+        self,
+        task_id: UUID,
+        node_id: UUID,
+        actor_employee_no: str,
+        expected_task_version: int,
+        operation_source: str,
+        reason: str,
+        idempotency_key: str | None = None,
+    ) -> TaskNode:
+        reason = (reason or "").strip()
+        if not reason:
+            raise BusinessValidationError("node assignment rejection reason is required")
+        with self._uow_factory() as uow:
+            cached = self._find_idempotent_node(
+                uow, idempotency_key, actor_employee_no,
+                "node_assignment_rejected", node_id
+            )
+            if cached is not None:
+                return cached
+            task = _lock_task(uow, task_id, expected_task_version)
+            self._require_execution_state(task)
+            node = self._task_node(uow, task, node_id)
+            self._require_assignment_actor(task, node, actor_employee_no)
+            if node.assignment_status != "pending":
+                raise InvalidStateTransitionError(
+                    "node assignment rejection requires pending status"
+                )
+            now = _aware_utc(self._clock(), "clock")
+            node.assignment_status = "rejected"
+            node.assignment_responded_at = now
+            node.assignment_reject_reason = reason
+            _increment_task(task, now)
+            emit_node_assignment_rejected_notification(
+                uow.session, task, node, reason=reason, now=now
+            )
+            _append_log(
+                uow, task, from_status=task.status, to_status=task.status,
+                action_type="node_assignment_rejected",
+                operator_employee_no=actor_employee_no,
+                operation_source=operation_source, now=now,
+                business_ref_type="task_node", business_ref_id=node.node_id,
+                reason=reason,
+            )
+            self._record_idempotency(
+                uow, idempotency_key, actor_employee_no,
+                "node_assignment_rejected", node, task, now
+            )
+            uow.commit()
+            return node
+
     def reopen_node(
         self,
         task_id: UUID,
@@ -338,23 +437,40 @@ class TaskNodeWorkflowService:
         return node
 
     @staticmethod
+    def _require_assignment_actor(
+        task: Task, node: TaskNode, actor_employee_no: str
+    ) -> None:
+        if node.owner_employee_no != actor_employee_no:
+            raise PermissionDeniedError("only the assigned node owner can respond")
+        if actor_employee_no == task.main_assignee_employee_no:
+            raise InvalidStateTransitionError(
+                "main-assignee nodes do not require assignment acceptance"
+            )
+
+    @staticmethod
     def _require_node_actor(
         uow: UnitOfWork,
         task: Task,
         node: TaskNode,
         actor_employee_no: str,
     ) -> None:
-        if actor_employee_no == node.owner_employee_no:
-            return
+        authorized = actor_employee_no == node.owner_employee_no
         if node.owner_employee_no is None and actor_employee_no == task.main_assignee_employee_no:
-            return
-        if any(
-            participant.employee_no == actor_employee_no
-            and participant.participant_role == "owner"
-            for participant in uow.task_nodes.list_participants(
-                task.task_id,
-                node.node_id,
+            authorized = True
+        if not authorized:
+            authorized = any(
+                participant.employee_no == actor_employee_no
+                and participant.participant_role == "owner"
+                for participant in uow.task_nodes.list_participants(
+                    task.task_id, node.node_id
+                )
             )
+        if not authorized:
+            raise PermissionDeniedError("actor cannot execute this task node")
+        if (
+            actor_employee_no != task.main_assignee_employee_no
+            and (node.assignment_status or "accepted") != "accepted"
         ):
-            return
-        raise PermissionDeniedError("actor cannot execute this task node")
+            raise InvalidStateTransitionError(
+                "collaborator must accept the node assignment before execution"
+            )

@@ -29,6 +29,9 @@ TASK_NODE_FIELDS = {
     "action_detail",
     "tools_or_materials",
     "owner_employee_no",
+    "assignment_status",
+    "assignment_responded_at",
+    "assignment_reject_reason",
     "planned_start_time",
     "planned_deadline",
     "estimated_hours",
@@ -49,7 +52,7 @@ def test_task_node_columns_and_primary_key_contract() -> None:
 
     assert table.name == "task_nodes"
     assert set(table.columns.keys()) == TASK_NODE_FIELDS
-    assert len(TASK_NODE_FIELDS) == 20
+    assert len(TASK_NODE_FIELDS) == 23
     assert [column.name for column in table.primary_key.columns] == ["node_id"]
     assert isinstance(table.c.node_id.type, Uuid)
     assert table.c.node_id.default is not None
@@ -85,6 +88,8 @@ def test_task_node_foreign_keys_nullability_and_string_contract() -> None:
         "action_detail",
         "tools_or_materials",
         "owner_employee_no",
+        "assignment_status",
+        "assignment_reject_reason",
         "deliverable",
         "acceptance_criteria",
         "source_type",
@@ -126,6 +131,7 @@ def test_task_node_types_defaults_and_check_constraints() -> None:
         "ck_task_nodes_node_order_positive",
         "ck_task_nodes_planned_time_order",
         "ck_task_nodes_progress_percent_range",
+        "ck_task_nodes_assignment_status",
     }
     assert "node_order >= 1" in checks["ck_task_nodes_node_order_positive"]
     assert "estimated_hours >= 0" in checks[
@@ -143,6 +149,7 @@ def test_task_node_types_defaults_and_check_constraints() -> None:
     assert "planned_deadline >= planned_start_time" in checks[
         "ck_task_nodes_planned_time_order"
     ]
+    assert "assignment_status IN" in checks["ck_task_nodes_assignment_status"]
 
 
 def test_task_node_time_columns_are_timezone_aware() -> None:

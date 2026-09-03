@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     Uuid,
 )
@@ -61,6 +62,10 @@ class TaskNode(Base):
         CheckConstraint(
             "progress_percent >= 0 AND progress_percent <= 100",
             name="ck_task_nodes_progress_percent_range",
+        ),
+        CheckConstraint(
+            "assignment_status IN ('pending', 'accepted', 'rejected')",
+            name="ck_task_nodes_assignment_status",
         ),
         Index(
             "ix_task_nodes_task_order",
@@ -127,6 +132,11 @@ class TaskNode(Base):
     )
     source_type: Mapped[str | None] = mapped_column(String, nullable=True)
     blocked_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    assignment_status: Mapped[str] = mapped_column(String, nullable=False, default="accepted")
+    assignment_responded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    assignment_reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     task: Mapped[Task] = relationship(
         back_populates="nodes",
