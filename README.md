@@ -338,3 +338,7 @@ The cumulative source now includes `cloud-functions/LoginService` and `cloud-fun
 ## Feature 13 notification and node-assignment delivery
 
 Feature 13 is implemented against the user-confirmed rules in `docs/FEATURE_13_NOTIFICATION_RULES.md`. Collaborator-owned AI nodes require server-persisted acceptance before execution/reminder responsibility starts; dynamic node due-soon timing uses working-span bands and never estimated hours. Notification projection is recipient-scoped and action-aware, delivery retry uses the same outbox record, and production Mini Program UI uses action-required rather than read/unread as the business badge. See `docs/FEATURE_13_ACCEPTANCE.md` for the exact migration, API, tests, environment limitations, and scope boundary.
+
+### 协作者快速上手
+
+第一次拿到本仓库、想在自己电脑上跑通并验证功能 13，请看 **[docs/LOCAL_TEST_GUIDE_FEATURE_13.md](docs/LOCAL_TEST_GUIDE_FEATURE_13.md)**（含完整命令、8 个验证项、已知问题，以及一段可直接交给 AI 助手执行的一键提示词）。
