@@ -1,0 +1,40 @@
+"""Feature 05 ChatService task extraction/clarification contract test."""
+
+from services.qwen_service import QwenService
+from services.task_intake import normalize_result, run_intake
+
+raw = {
+    "taskDraft": {
+        "taskName": "渠道月报",
+        "taskDescription": "周五完成渠道月报",
+        "estimatedHours": 8,
+        "nodes": [{"nodeName": "should be removed"}],
+    },
+    "missingFields": ["reviewerEmployeeNo", "estimatedHours"],
+    "lowConfidenceFields": [],
+    "confirmQuestions": [{"field": "reviewerEmployeeNo", "question": "由谁验收？"}],
+    "confidenceScore": 0.7,
+}
+normalized = normalize_result(raw)
+assert "estimatedHours" not in normalized["taskDraft"]
+assert "nodes" not in normalized["taskDraft"]
+assert "estimatedHours" not in normalized["missingFields"]
+assert normalized["confirmQuestions"] == ["由谁验收？"]
+
+calls = []
+def fake_completion(messages):
+    calls.append(messages)
+    return {"choices": [{"message": {"content": '{"taskDraft":{"taskName":"渠道月报","taskDescription":"周五完成渠道月报"},"missingFields":["reviewerEmployeeNo"],"lowConfidenceFields":[],"confirmQuestions":[{"question":"由谁验收？"}],"confidenceScore":0.8}'}}]}
+
+qwen = QwenService(completion_client=fake_completion)
+payload = {
+    "input": {"inputId": "IN001", "rawText": "周五完成渠道月报", "inputType": "text"},
+    "currentUser": {"employeeNo": "E1001"},
+    "candidateUsers": [],
+}
+result = run_intake(payload, clarification=False, qwen=qwen, external_user_key="E1001")
+assert result["taskDraft"]["taskName"] == "渠道月报"
+assert result["confirmQuestions"] == ["由谁验收？"]
+assert result["provider"] == "qwen"
+assert len(calls) == 1
+print("ChatService test_task_intake.py: PASS")

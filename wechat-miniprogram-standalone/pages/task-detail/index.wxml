@@ -1,0 +1,181 @@
+<view class="page detail-full-page">
+  <view class="safe-top"></view>
+  <view class="detail-page-head">
+    <button class="back-btn" bindtap="back" aria-label="返回任务概览">‹</button>
+    <text class="page-title">任务详情</text>
+    <button wx:if="{{task}}" class="icon-btn" bindtap="openMore" aria-label="更多任务操作">•••</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="card loading-card">
+    <view class="loading-line wide"></view><view class="loading-line"></view><view class="loading-line short"></view>
+  </view>
+
+  <view wx:elif="{{error}}" class="card error-card">
+    <text class="error-symbol">{{errorKind === 'forbidden' ? '!' : '◇'}}</text>
+    <text class="error-title">{{error}}</text>
+    <text class="error-desc">{{errorKind === 'forbidden' ? '任务详情与操作记录均受服务端权限控制。' : '请返回任务概览确认任务状态，或重新加载。'}}</text>
+    <button wx:if="{{errorKind === 'request'}}" class="btn btn-secondary retry" bindtap="retry">重新加载</button>
+    <button wx:else class="btn btn-secondary retry" bindtap="back">返回任务概览</button>
+  </view>
+
+  <block wx:elif="{{task}}">
+    <view id="detail-top" class="detail-anchor"></view>
+    <view class="card detail-summary">
+      <view class="detail-summary-main">
+        <view class="summary-copy">
+          <text class="task-name">{{task.taskName}}</text>
+          <text class="subtle">任务编号 {{task.taskNo || '无'}} · 权重 {{task.taskWeightLabel}}</text>
+        </view>
+        <status-badge status="{{task.status}}" />
+      </view>
+      <view class="progress-line">
+        <text class="progress-number">{{task.progressPercent}}%</text>
+        <view class="progress"><view class="progress-fill" style="width: {{task.progressPercent}}%"></view></view>
+      </view>
+    </view>
+
+    <view class="detail-tabs" bindtouchstart="tabTouchStart" bindtouchend="tabTouchEnd">
+      <button wx:for="{{tabs}}" wx:key="key" class="detail-tab {{activeTab === item.key ? 'active' : ''}}" data-tab="{{item.key}}" data-target="{{item.target}}" bindtap="selectTab">{{item.label}}</button>
+    </view>
+    <text class="detail-hint">左右滑动标签或点击，可快速定位详情模块</text>
+
+    <view class="card timeline-card">
+      <view class="section-title accent-title">任务轨迹</view>
+      <view class="timeline-steps">
+        <view wx:for="{{timeline}}" wx:key="key" class="time-step {{item.done ? 'done' : ''}} {{item.current ? 'current' : ''}}">
+          <view class="time-dot"></view><text>{{item.label}}</text><view wx:if="{{index < timeline.length - 1}}" class="time-line"></view>
+        </view>
+      </view>
+      <text wx:if="{{task.status === 'decomposing'}}" class="timeline-note">承办人已接受，AI正在拆解；任务尚未生效。</text>
+      <text wx:elif="{{task.status === 'decomposition_failed'}}" class="timeline-note error">AI拆解失败，任务尚未生效。</text>
+      <text wx:elif="{{task.status === 'archived'}}" class="timeline-note">任务已验收并自动归档。</text>
+      <text wx:elif="{{task.status === 'cancelled' || task.status === 'withdrawn' || task.status === 'merged' || task.status === 'closed'}}" class="timeline-note">任务已进入终止状态：{{task.statusLabel}}</text>
+    </view>
+
+    <view class="card detail-section" id="detail-basic">
+      <view class="section-title accent-title">基本信息</view>
+      <view class="detail-info-grid">
+        <view class="kv"><text>任务名称</text><text class="value">{{task.taskName}}</text></view>
+        <view class="kv"><text>节点任务</text><text class="value">{{task.nodeCount}} 个</text></view>
+        <view class="kv"><text>任务编号</text><text class="value">{{task.taskNo || '无'}}</text></view>
+        <view class="kv"><text>开始时间</text><text class="value">{{task.startLabel}}</text></view>
+        <view class="kv"><text>当前进度</text><text class="value">{{task.progressPercent}}%</text></view>
+        <view class="kv"><text>截止时间</text><text class="value">{{task.deadlineLabel}}</text></view>
+        <view class="kv"><text>任务权重</text><text class="value">{{task.taskWeightLabel}}</text></view>
+        <view class="kv"><text>剩余时间</text><text class="value {{task.isOverdue ? 'danger-text' : ''}}">{{task.remainingLabel}}</text></view>
+        <view class="kv"><text>优先级</text><text class="value">{{task.quadrantLabel}}</text></view>
+        <view class="kv"><text>完成时间</text><text class="value">{{task.completedAtLabel}}</text></view>
+        <view class="kv"><text>突发任务</text><text class="value">{{task.urgentLabel}}</text></view>
+        <view class="kv"><text>实际工时</text><text class="value">{{task.actualHoursLabel}}</text></view>
+      </view>
+      <view class="detail-text-row"><text>任务背景</text><text>{{task.taskDescription || '无'}}</text></view>
+      <view class="detail-text-row"><text>任务目标</text><text>{{task.taskGoal || '无'}}</text></view>
+      <view class="detail-text-row"><text>任务来源</text><text>{{task.taskSource || '无'}}</text></view>
+      <view class="detail-text-row"><text>交付说明</text><text>{{task.deliverable || task.acceptanceCriteria || '无'}}</text></view>
+    </view>
+
+    <view class="card detail-section" id="detail-people">
+      <view class="section-title accent-title">人员信息</view>
+      <view class="detail-person-grid">
+        <view class="detail-person"><view class="avatar">创</view><view><text class="role">创建人</text><text class="person-name">{{task.creatorName}}</text></view></view>
+        <view class="detail-person"><view class="avatar blue">承</view><view><text class="role">主承办人</text><text class="person-name">{{task.assigneeName}}</text></view></view>
+        <view class="detail-person"><view class="avatar green">验</view><view><text class="role">验收人</text><text class="person-name">{{task.reviewerName}}</text></view></view>
+        <view class="detail-person"><view class="avatar orange">报</view><view><text class="role">汇报对象</text><text class="person-name">{{task.reportToName}}</text></view></view>
+      </view>
+      <view class="collaborators"><text>任务级协同人</text><text>{{task.collaboratorText}}</text></view>
+    </view>
+
+    <view class="card detail-section" id="detail-nodes">
+      <view class="section-head compact"><view class="section-title accent-title">节点执行</view><text class="subtle">{{nodes.length}} 个节点</text></view>
+      <view wx:if="{{!nodes.length}}" class="empty small-empty">{{task.status === 'pending_accept' ? '承办人接受并完成AI拆解后生成节点' : '暂无执行节点'}}</view>
+      <view wx:for="{{nodes}}" wx:key="nodeId" id="node-{{item.nodeId}}" class="detail-node-card {{item.status}} {{expandedNodeId === item.nodeId ? 'open' : ''}}">
+        <button class="detail-node-summary" data-node-id="{{item.nodeId}}" bindtap="toggleNode" aria-label="展开节点 {{item.nodeName}}">
+          <text class="detail-node-no">{{item.nodeNo}}</text>
+          <view class="node-copy"><view class="node-title-line"><text class="node-name">{{item.nodeName}}</text><text wx:if="{{item.sourceLabel}}" class="ai-source">{{item.sourceLabel}}</text></view><text class="node-action">{{item.actionDetail || '无动作说明'}}</text><view class="node-progress-row"><view class="progress"><view class="progress-fill" style="width: {{item.progressPercent}}%"></view></view><text>{{item.progressPercent}}%</text></view></view>
+          <view class="node-status"><text>{{item.statusLabel}}</text><text class="chevron">⌄</text></view>
+        </button>
+        <view wx:if="{{expandedNodeId === item.nodeId}}" class="node-body">
+          <view class="detail-node-meta">
+            <view><text>负责人</text><text class="meta-value">{{item.ownerName}}</text></view>
+            <view><text>协同人</text><text class="meta-value">{{item.collaboratorText}}</text></view>
+            <view><text>开始时间</text><text class="meta-value">{{item.plannedStartLabel}}</text></view>
+            <view><text>截止时间</text><text class="meta-value">{{item.plannedDeadlineLabel}}</text></view>
+            <view><text>完成情况</text><text class="meta-value">{{item.completedAtLabel}}</text></view>
+            <view><text>前置依赖</text><text class="meta-value">{{item.dependencyText}}</text></view>
+          </view>
+          <view class="node-detail"><text>工具/资料</text><text>{{item.toolsOrMaterials || '无'}}</text></view>
+          <view class="node-detail"><text>最小文字成果</text><text>{{item.deliverable || '无'}}</text></view>
+          <button wx:if="{{item.hasIssue}}" class="node-issue" data-node-id="{{item.nodeId}}" bindtap="showIssue"><text>卡点</text><text>{{item.issue ? item.issue.title : (item.blockedReason || '节点存在卡点')}}</text><text>›</text></button>
+          <button wx:if="{{item.canExecute && item.status === 'pending'}}" class="btn secondary node-exec-action" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="startNode">开始节点</button>
+          <button wx:elif="{{item.canExecute && item.status === 'in_progress'}}" class="btn primary node-exec-action" loading="{{nodeSubmittingId === item.nodeId}}" disabled="{{nodeSubmittingId !== ''}}" data-node-id="{{item.nodeId}}" bindtap="completeNode">完成节点</button>
+        </view>
+      </view>
+    </view>
+
+    <view class="card detail-section" id="detail-progress">
+      <view class="section-title accent-title">最新进度汇报</view>
+      <view wx:if="{{latestReport}}" class="detail-report-grid">
+        <text>当前进度</text><text class="report-value">{{latestReport.progressPercent}}%</text>
+        <text>阶段成果</text><text class="report-value">{{latestReport.stageResult}}</text>
+        <text>存在卡点</text><text class="report-value">{{latestReport.hasIssueLabel}}</text>
+        <text>卡点说明</text><text class="report-value">{{latestReport.issueText}}</text>
+        <text>备注</text><text class="report-value">{{latestReport.remark}}</text>
+        <text>汇报人</text><text class="report-value">{{latestReport.reporterName}}</text>
+        <text>汇报时间</text><text class="report-value">{{latestReport.reportTimeLabel}}</text>
+      </view>
+      <view wx:else class="empty small-empty">暂无进度汇报</view>
+    </view>
+
+    <view class="card detail-section" id="detail-performance">
+      <view class="section-title accent-title">绩效关联</view>
+      <view wx:if="{{performance}}" class="performance-box">
+        <view class="performance-row"><text>指标</text><text>{{performance.metricName || '无'}}</text><text class="score">{{performance.totalScore || 0}}分</text></view>
+        <view class="performance-row"><text>业务单元</text><text>{{performance.businessUnit || '无'}}</text><text>{{performance.matchLevel || ''}}</text></view>
+        <view class="performance-reason"><text>匹配原因</text><text>{{performance.matchReason || '无'}}</text></view>
+      </view>
+      <view wx:else class="empty small-empty">未关联已确认绩效指标</view>
+    </view>
+
+    <view class="action-bar">
+      <button class="btn secondary flex" bindtap="openLogs">查看操作记录</button>
+      <block wx:if="{{actionMode === 'accept'}}">
+        <button class="btn secondary flex" disabled="{{actionSubmitting}}" bindtap="returnTask">退回任务</button><button class="btn primary flex" loading="{{actionSubmitting}}" disabled="{{actionSubmitting}}" bindtap="acceptTask">接受任务</button>
+      </block>
+      <button wx:elif="{{actionMode === 'complete'}}" class="btn primary flex" bindtap="openCompletion">提交完成</button>
+      <button wx:elif="{{actionMode === 'report'}}" class="btn primary flex" bindtap="openReport">汇报进度</button>
+      <button wx:elif="{{actionMode === 'review'}}" class="btn primary flex" bindtap="openReview">进入任务验收</button>
+      <button wx:else class="btn secondary flex readonly-action" disabled>{{readonlyReason}}</button>
+    </view>
+  </block>
+
+  <bottom-nav active="tasks" executive="{{executive}}" unread="{{unread}}" />
+</view>
+
+<view wx:if="{{logOpen}}" class="overlay" bindtap="closeLogs">
+  <view class="sheet" catchtap="stopBubble">
+    <view class="sheet-handle"></view>
+    <view class="sheet-head"><text class="sheet-title">操作记录</text><button class="close-btn" bindtap="closeLogs">×</button></view>
+    <view wx:if="{{!logItems.length && !logLoading}}" class="empty small-empty">暂无操作记录</view>
+    <view wx:for="{{logItems}}" wx:key="logId" class="log-item">
+      <view class="log-dot"></view>
+      <view class="log-content"><view class="log-head"><text class="log-action">{{item.actionLabel}}</text><text class="subtle">{{item.createdAtLabel}}</text></view><text class="log-meta">{{item.operatorName}} · {{item.fromStatusLabel}} → {{item.toStatusLabel}}</text><text class="log-reason">原因：{{item.reason}}</text></view>
+    </view>
+    <button wx:if="{{logHasMore}}" class="load-more" loading="{{logLoading}}" bindtap="loadMoreLogs">{{logLoading ? '加载中…' : '加载更多'}}</button>
+  </view>
+</view>
+
+<view wx:if="{{moreOpen}}" class="overlay" bindtap="closeMore">
+  <view class="sheet compact-sheet" catchtap="stopBubble">
+    <view class="sheet-handle"></view>
+    <view class="sheet-head"><text class="sheet-title">更多操作</text><button class="close-btn" bindtap="closeMore">×</button></view>
+    <button class="more-action" bindtap="copyTaskNo"><text class="more-icon">#</text><view><text class="more-title">复制任务编号</text><text class="subtle">{{task.taskNo || '无'}}</text></view><text>›</text></button>
+    <button wx:if="{{canSubmitChange}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="requestChange"><text class="more-icon">△</text><view><text class="more-title">发起变更申请</text><text class="subtle">调整范围、时间或任务信息</text></view><text>›</text></button>
+    <button wx:if="{{canCancelChange}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="cancelPendingChange"><text class="more-icon">×</text><view><text class="more-title">取消变更申请</text><text class="subtle">撤销本人尚未审批的申请</text></view><text>›</text></button>
+    <view wx:if="{{pendingChangeRequest && (canApproveChange || canRejectChange)}}" class="change-summary"><text class="more-title">待审批变更</text><text class="subtle">{{pendingChangeRequest.reason}}</text></view>
+    <button wx:if="{{canApproveChange}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="approveChange"><text class="more-icon">✓</text><view><text class="more-title">同意变更申请</text><text class="subtle">应用变更并记录审计</text></view><text>›</text></button>
+    <button wx:if="{{canRejectChange}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="rejectChange"><text class="more-icon">!</text><view><text class="more-title">拒绝变更申请</text><text class="subtle">保留原任务并通知承办人</text></view><text>›</text></button>
+    <button wx:if="{{canReassign}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="reassignTask"><text class="more-icon">人</text><view><text class="more-title">更换承办人</text><text class="subtle">重新发送待接受通知</text></view><text>›</text></button>
+    <button wx:if="{{canWithdraw}}" class="more-action" disabled="{{actionSubmitting}}" bindtap="withdrawTask"><text class="more-icon">↩</text><view><text class="more-title">撤回任务</text><text class="subtle">撤回并保留审计记录</text></view><text>›</text></button>
+    <button wx:if="{{canCancelTask}}" class="more-action danger-text" disabled="{{actionSubmitting}}" bindtap="cancelTask"><text class="more-icon">!</text><view><text class="more-title">取消任务</text><text class="subtle">取消原因必填</text></view><text>›</text></button>
+  </view>
+</view>

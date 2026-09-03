@@ -1,0 +1,56 @@
+<view class="page workbench-page">
+  <view class="safe-top"></view>
+  <view class="workbench-header">
+    <view class="greeting-copy"><text class="greeting">{{greeting}}，{{user.name || '同事'}}</text><text class="date-label">{{dateLabel}}</text></view>
+    <view class="header-actions">
+      <button class="bell" bindtap="openNotifications" aria-label="打开消息"><text class="bell-icon">♢</text><text wx:if="{{unread}}" class="bell-dot"></text></button>
+      <button class="avatar" bindtap="openProfile" aria-label="打开个人中心">{{avatarText}}</button>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card empty"><text>正在整理你的任务…</text></view>
+  <view wx:elif="{{error}}" class="card empty"><text class="error">{{error}}</text><button class="btn btn-secondary retry" bindtap="retry">重新加载</button></view>
+
+  <block wx:else>
+    <view class="ai-hero">
+      <text class="ai-watermark">AI</text>
+      <view class="ai-copy"><text class="ai-title">一句话，创建新任务</text><text class="ai-subtitle">自动识别目标、人员和截止时间</text></view>
+      <view class="ai-input-row">
+        <input class="ai-input" maxlength="1000" value="{{draftText}}" bindinput="inputDraft" confirm-type="send" bindconfirm="submitDraft" placeholder="描述任务，例如：周五前完成招聘月报复核…" />
+        <button class="voice-button {{listening ? 'recording' : ''}}" bindtap="toggleVoice" aria-label="语音描述">{{listening ? '■' : '◉'}}</button>
+        <button class="send-button" disabled="{{submitting}}" bindtap="submitDraft" aria-label="识别任务信息">➜</button>
+      </view>
+    </view>
+
+    <view class="metric-strip">
+      <button class="metric-cell" data-status="in_progress" bindtap="selectStatus"><text class="metric-name">进行中任务</text><view><text class="metric-number blue">{{metrics.inProgress || 0}}</text><text class="metric-unit">项</text></view></button>
+      <view class="metric-cell"><text class="metric-name">临期任务</text><view><text class="metric-number red">{{metrics.dueWithin3Days || 0}}</text><text class="metric-unit">项</text></view></view>
+      <view class="metric-cell"><text class="metric-name">按期完成率</text><view><text class="metric-number teal">{{metrics.onTimeCompletionRate || 0}}</text><text class="metric-unit">%</text></view><text class="metric-period">近{{metrics.completionRatePeriodDays || 90}}天</text></view>
+    </view>
+
+    <view class="panel quadrant-panel">
+      <view class="panel-head"><text class="panel-title">任务风险四象限</text><button wx:if="{{quadrantFilter}}" class="clear-filter" bindtap="clearQuadrant">清除筛选</button><text wx:else class="panel-tip">点击筛选任务</text></view>
+      <view class="quadrant-grid">
+        <button class="quadrant q-red {{quadrantFilter === 'important_urgent' ? 'selected' : ''}}" data-quadrant="important_urgent" bindtap="selectQuadrant"><view class="q-icon">!</view><view class="q-copy"><text>重要且紧急</text><text class="q-hint">立即处理</text></view><text class="q-count">{{quadrantCounts.important_urgent || 0}}</text></button>
+        <button class="quadrant q-orange {{quadrantFilter === 'important_not_urgent' ? 'selected' : ''}}" data-quadrant="important_not_urgent" bindtap="selectQuadrant"><view class="q-icon">◆</view><view class="q-copy"><text>重要不紧急</text><text class="q-hint">计划推进</text></view><text class="q-count">{{quadrantCounts.important_not_urgent || 0}}</text></button>
+        <button class="quadrant q-amber {{quadrantFilter === 'urgent_not_important' ? 'selected' : ''}}" data-quadrant="urgent_not_important" bindtap="selectQuadrant"><view class="q-icon">↗</view><view class="q-copy"><text>紧急不重要</text><text class="q-hint">协同处理</text></view><text class="q-count">{{quadrantCounts.urgent_not_important || 0}}</text></button>
+        <button class="quadrant q-teal {{quadrantFilter === 'routine' ? 'selected' : ''}}" data-quadrant="routine" bindtap="selectQuadrant"><view class="q-icon">✓</view><view class="q-copy"><text>常规任务</text><text class="q-hint">稳步完成</text></view><text class="q-count">{{quadrantCounts.routine || 0}}</text></button>
+      </view>
+    </view>
+
+    <view class="support-panel">
+      <view class="panel-head support-head"><view class="support-title"><view class="support-symbol">↔</view><text class="panel-title">需要我支持</text></view><text class="support-badge">{{supportCount}}项待响应</text></view>
+      <button wx:for="{{supportItems}}" wx:key="taskId" class="support-row" data-task-id="{{item.taskId}}" data-node-id="{{item.supportNodeId}}" bindtap="openTask"><view class="support-copy"><text class="support-task">{{item.taskName}}</text><text class="support-reason">{{item.supportReason || '有协作事项等待你的响应'}}</text></view><text class="support-link">查看 ›</text></button>
+      <view wx:if="{{!supportItems.length}}" class="support-empty">当前没有待响应的协作事项</view>
+    </view>
+
+    <view id="task-section" class="task-section">
+      <view class="panel-head task-heading"><text class="panel-title">任务信息管理</text><button class="all-tasks" bindtap="openTasks">全部任务 ›</button></view>
+      <scroll-view class="status-tabs" scroll-x enable-flex show-scrollbar="{{false}}"><button wx:for="{{statusTabs}}" wx:key="key" class="status-tab {{taskFilter === item.key ? 'active' : ''}}" data-status="{{item.key}}" bindtap="selectStatus">{{item.label}}</button></scroll-view>
+      <view wx:if="{{quadrantFilter}}" class="filter-notice"><text>已叠加四象限筛选</text><button bindtap="clearQuadrant">清除</button></view>
+      <view wx:if="{{!visibleTasks.length}}" class="empty task-empty"><text class="empty-mark">○</text><text>当前筛选下暂无任务</text></view>
+      <task-card wx:for="{{visibleTasks}}" wx:key="taskId" task="{{item}}" bind:open="openTask" />
+    </view>
+  </block>
+  <bottom-nav active="workbench" executive="{{executive}}" unread="{{unread}}" />
+</view>

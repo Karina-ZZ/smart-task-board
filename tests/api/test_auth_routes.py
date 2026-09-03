@@ -1,0 +1,241 @@
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
+from fastapi.testclient import TestClient
+
+import app.api.dependencies as dependencies
+from app.api.dependencies import get_authentication_service, get_identity_service
+from app.core.config import Settings, get_settings
+from app.core.security import create_access_token
+from app.main import app, create_app
+from app.services.errors import EntityNotFoundError, PermissionDeniedError
+
+
+def _settings(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "database_url": "postgresql+psycopg://test:test@localhost/test",
+        "auth_mode": "prototype",
+        "prototype_auth_enabled": True,
+        "prototype_user_employee_nos": "E-CREATOR,E-ASSIGNEE",
+        "jwt_secret_key": "prototype-test-secret-with-at-least-32-characters",
+        "jwt_issuer": "test-issuer",
+        "jwt_audience": "test-audience",
+        "allow_test_employee_header": False,
+        "cors_allowed_origins": "http://localhost:5173",
+    }
+    values.update(overrides)
+    return Settings(**values)
+
+
+@pytest.fixture
+def auth_context():
+    settings = _settings()
+    service = MagicMock()
+    department = SimpleNamespace(
+        department_id=uuid4(), department_name="Demo Department"
+    )
+    creator = SimpleNamespace(
+        employee_no="E-CREATOR",
+        name="Demo Creator",
+        department_id=department.department_id,
+        department=department,
+        role_type="employee",
+        status="active",
+    )
+    assignee = SimpleNamespace(
+        employee_no="E-ASSIGNEE",
+        name="Demo Assignee",
+        department_id=department.department_id,
+        department=department,
+        role_type="employee",
+        status="active",
+    )
+    service.list_prototype_users.return_value = [creator, assignee]
+    token, expires_in = create_access_token("E-CREATOR", settings)
+    service.prototype_login.return_value = (creator, token, expires_in)
+    service.current_user_context.return_value = {
+        "employee_no": "E-CREATOR",
+        "name": "Demo Creator",
+        "department": {
+            "department_id": department.department_id,
+            "department_name": department.department_name,
+        },
+        "role_type": "employee",
+        "roles": ["employee"],
+        "permissions": {
+            "can_access_executive": False,
+            "can_manage_permissions": False,
+            "can_view_all_tasks": False,
+            "can_view_all_demo_data": False,
+            "allowed_routes": ["/workbench", "/tasks"],
+            "capabilities": ["task:read:related"],
+        },
+        "scopes": [],
+    }
+    app.dependency_overrides[get_identity_service] = lambda: service
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        yield TestClient(app), service, settings, token
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_prototype_user_list_returns_only_safe_summary(auth_context) -> None:
+    client, service, _, _ = auth_context
+    response = client.get("/api/v1/auth/prototype-users")
+    assert response.status_code == 200
+    assert [item["employee_no"] for item in response.json()] == [
+        "E-CREATOR",
+        "E-ASSIGNEE",
+    ]
+    assert set(response.json()[0]) == {
+        "employee_no",
+        "name",
+        "department_id",
+        "department_name",
+        "role_type",
+    }
+    service.list_prototype_users.assert_called_once()
+
+
+def test_prototype_login_returns_short_lived_bearer_without_logging_token(
+    auth_context, caplog
+) -> None:
+    client, service, _, token = auth_context
+    response = client.post(
+        "/api/v1/auth/prototype-login", json={"employee_no": "E-CREATOR"}
+    )
+    assert response.status_code == 200
+    assert response.json()["access_token"] == token
+    assert response.json()["token_type"] == "bearer"
+    assert response.json()["expires_in"] == 1800
+    assert token not in caplog.text
+    service.prototype_login.assert_called_once()
+
+
+def test_prototype_login_failure_does_not_reveal_user_state(auth_context) -> None:
+    client, service, _, _ = auth_context
+    service.prototype_login.side_effect = PermissionDeniedError("prototype login failed")
+    response = client.post(
+        "/api/v1/auth/prototype-login", json={"employee_no": "E-UNKNOWN"}
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["message"] == "prototype login failed"
+    assert "unknown" not in response.text.casefold()
+
+
+def test_disabled_prototype_endpoint_returns_not_found(auth_context) -> None:
+    client, service, _, _ = auth_context
+    service.list_prototype_users.side_effect = EntityNotFoundError(
+        "prototype authentication is unavailable"
+    )
+    response = client.get("/api/v1/auth/prototype-users")
+    assert response.status_code == 404
+
+
+def test_login_alias_issues_refresh_token_only_in_controlled_prototype(
+    auth_context,
+) -> None:
+    client, _, _, _ = auth_context
+    auth_service = MagicMock()
+    auth_service.session.get.return_value = SimpleNamespace(status="active")
+    auth_service.issue.return_value = {
+        "access_token": "a",
+        "expires_in": 1800,
+        "refresh_token": "r",
+    }
+    app.dependency_overrides[get_authentication_service] = lambda: auth_service
+    try:
+        response = client.post("/api/v1/auth/login", json={"employee_no": "E-CREATOR"})
+    finally:
+        app.dependency_overrides.pop(get_authentication_service, None)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "a"
+    assert body["token_type"] == "bearer"
+    assert body["expires_in"] == 1800
+    assert body["refresh_token"] == "r"
+    assert body["current_user"]["employee_no"] == "E-CREATOR"
+    assert body["current_user"]["permissions"]["can_access_executive"] is False
+    assert body["current_user"]["auth_mode"] == "prototype"
+    auth_service.issue.assert_called_once_with("E-CREATOR", user_agent="testclient")
+
+
+def test_refresh_route_rotates_session_token(auth_context) -> None:
+    client, _, _, _ = auth_context
+    auth_service = MagicMock()
+    auth_service.rotate.return_value = {
+        "access_token": "next-access",
+        "expires_in": 1800,
+        "refresh_token": "next-refresh",
+    }
+    app.dependency_overrides[get_authentication_service] = lambda: auth_service
+    try:
+        response = client.post(
+            "/api/v1/auth/refresh", json={"refresh_token": "current-refresh"}
+        )
+    finally:
+        app.dependency_overrides.pop(get_authentication_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "access_token": "next-access",
+        "token_type": "bearer",
+        "expires_in": 1800,
+        "refresh_token": "next-refresh",
+    }
+    auth_service.rotate.assert_called_once_with(
+        "current-refresh", user_agent="testclient"
+    )
+
+
+def test_employee_number_token_login_rejects_non_prototype_mode(
+    auth_context,
+) -> None:
+    client, _, _, _ = auth_context
+    settings = _settings(
+        auth_mode="test_header",
+        prototype_auth_enabled=False,
+        allow_test_employee_header=True,
+    )
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        response = client.post("/api/v1/auth/token", json={"employee_no": "E-CREATOR"})
+    finally:
+        app.dependency_overrides[get_settings] = lambda: _settings()
+
+    assert response.status_code == 403
+    assert response.json()["error"]["message"] == "authentication failed"
+
+
+def test_prototype_mode_ignores_employee_header_and_requires_bearer(
+    auth_context, monkeypatch
+) -> None:
+    client, _, settings, _ = auth_context
+    monkeypatch.setattr(dependencies, "get_settings", lambda: settings)
+    response = client.get("/api/v1/me", headers={"X-Employee-No": "E-CREATOR"})
+    assert response.status_code == 401
+
+
+def test_cors_allows_only_configured_origin() -> None:
+    client = TestClient(create_app(_settings()))
+    allowed = client.options(
+        "/api/v1/me",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    denied = client.options(
+        "/api/v1/me",
+        headers={
+            "Origin": "https://untrusted.invalid",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-origin" not in denied.headers

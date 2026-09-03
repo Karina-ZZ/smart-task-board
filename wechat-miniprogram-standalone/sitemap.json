@@ -1,0 +1,4 @@
+{
+  "desc": "旺序AI任务中枢页面索引",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

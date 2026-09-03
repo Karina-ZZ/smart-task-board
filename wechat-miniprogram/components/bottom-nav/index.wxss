@@ -1,0 +1,9 @@
+.nav-wrap { position: fixed; right: 0; bottom: 0; left: 0; z-index: 50; padding: 0 18rpx env(safe-area-inset-bottom); }
+.nav { display: flex; align-items: flex-end; justify-content: space-around; max-width: 750rpx; min-height: 108rpx; margin: 0 auto 14rpx; padding: 10rpx 12rpx; border: 1rpx solid rgba(231,237,246,.92); border-radius: 36rpx; background: rgba(255,255,255,.94); box-shadow: 0 20rpx 52rpx rgba(20,49,96,.18); box-sizing: border-box; }
+.nav-item { position: relative; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; min-width: 86rpx; min-height: 84rpx; gap: 2rpx; color: #72809a; font-size: 20rpx; }
+.nav-icon { font-size: 36rpx; line-height: 1.1; }
+.active { color: #1769ff; font-weight: 800; }
+.home-circle { display: flex; align-items: center; justify-content: center; width: 54rpx; height: 54rpx; border-radius: 50%; }
+.home-active .home-circle { color: #fff; background: linear-gradient(135deg,#1769ff,#4b8cff); box-shadow: 0 8rpx 20rpx rgba(23,105,255,.3); }
+.icon-wrap { position: relative; }
+.dot { position: absolute; top: -10rpx; right: -22rpx; min-width: 30rpx; height: 30rpx; padding: 0 6rpx; border-radius: 99rpx; color: #fff; background: #ff4358; font-size: 17rpx; line-height: 30rpx; text-align: center; box-sizing: border-box; }

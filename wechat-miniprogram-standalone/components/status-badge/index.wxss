@@ -1,0 +1,6 @@
+.badge { display: inline-flex; align-items: center; min-height: 44rpx; padding: 0 16rpx; border-radius: 99rpx; font-size: 22rpx; font-weight: 700; }
+.blue { color: #1459d2; background: #e9f1ff; }
+.green { color: #087d72; background: #e7fbf7; }
+.orange { color: #ad5b00; background: #fff2df; }
+.red { color: #c52c42; background: #ffedf0; }
+.gray { color: #61708a; background: #f0f3f8; }

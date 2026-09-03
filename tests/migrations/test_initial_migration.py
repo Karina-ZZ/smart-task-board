@@ -1,0 +1,320 @@
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+
+import sqlalchemy as sa
+from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
+from sqlalchemy.sql.schema import PrimaryKeyConstraint
+
+import app.models  # noqa: F401
+from app.db.base import Base
+
+MIGRATION_DIRECTORY = Path("alembic/versions")
+EXPECTED_CREATE_ORDER = (
+    "departments",
+    "users",
+    "task_inputs",
+    "tasks",
+    "ai_extraction_records",
+    "task_nodes",
+    "task_participants",
+    "task_status_logs",
+    "task_node_dependencies",
+    "task_node_participants",
+    "task_progress_reports",
+    "task_issues",
+    "task_completion_reviews",
+    "task_change_requests",
+    "employee_profiles",
+    "performance_metrics",
+    "task_performance_matches",
+    "workload_snapshots",
+    "task_priority_scores",
+    "task_conflicts",
+    "reminder_rules",
+    "notifications",
+    "task_archives",
+    "operation_logs",
+    "user_authorized_scopes",
+    "system_parameters",
+    "auth_refresh_tokens",
+    "task_decomposition_records",
+)
+EXPECTED_TABLES = set(EXPECTED_CREATE_ORDER)
+EXPECTED_DROP_ORDER = tuple(reversed(EXPECTED_CREATE_ORDER))
+FORBIDDEN_TABLES = {
+    "boards",
+    "outbox",
+    "performance_records",
+    "workspaces",
+}
+
+
+class OperationRecorder:
+    def __init__(self) -> None:
+        self.metadata = sa.MetaData()
+        self.created_tables: list[str] = []
+        self.created_indexes: list[dict[str, object]] = []
+        self.dropped_indexes: list[tuple[str, str | None]] = []
+        self.dropped_tables: list[str] = []
+        self.in_downgrade = False
+
+    def f(self, name: str) -> str:
+        return name
+
+    def create_table(self, name: str, *elements: object) -> None:
+        sa.Table(name, self.metadata, *elements)
+        self.created_tables.append(name)
+
+
+    def add_column(self, table_name: str, column: sa.Column) -> None:
+        self.metadata.tables[table_name].append_column(column)
+
+    def drop_column(self, table_name: str, column_name: str) -> None:
+        return None
+
+    def alter_column(self, table_name: str, column_name: str, **kwargs: object) -> None:
+        # The cumulative contract keeps metadata at the post-upgrade head while
+        # still recording downgrade order. Historical downgrade mutations are
+        # intentionally ignored, just like drop_column above.
+        if self.in_downgrade:
+            return
+        column = self.metadata.tables[table_name].c[column_name]
+        if "nullable" in kwargs:
+            column.nullable = bool(kwargs["nullable"])
+
+    def create_foreign_key(
+        self, name: str, source_table: str, referent_table: str,
+        local_cols: list[str], remote_cols: list[str], **kwargs: object,
+    ) -> None:
+        table = self.metadata.tables[source_table]
+        targets = [f"{referent_table}.{column}" for column in remote_cols]
+        table.append_constraint(
+            sa.ForeignKeyConstraint(local_cols, targets, name=name, ondelete=kwargs.get("ondelete"))
+        )
+
+    def create_index(
+        self,
+        name: str,
+        table_name: str,
+        columns: list[str],
+        *,
+        unique: bool = False,
+        **kwargs: object,
+    ) -> None:
+        self.created_indexes.append(
+            {
+                "name": name,
+                "table_name": table_name,
+                "columns": tuple(columns),
+                "unique": unique,
+                "postgresql_where": kwargs.get("postgresql_where"),
+            }
+        )
+
+    def drop_index(
+        self,
+        name: str,
+        *,
+        table_name: str | None = None,
+        **kwargs: object,
+    ) -> None:
+        self.dropped_indexes.append((name, table_name))
+
+    def drop_table(self, name: str) -> None:
+        self.dropped_tables.append(name)
+
+    def execute(self, statement: object) -> None:
+        return None
+
+    def create_check_constraint(self, name: str, table_name: str, condition: str) -> None:
+        table = self.metadata.tables[table_name]
+        table.append_constraint(sa.CheckConstraint(condition, name=name))
+
+    def drop_constraint(self, name: str, table_name: str, **kwargs: object) -> None:
+        return None
+
+    def bulk_insert(self, table: sa.Table, rows: list[dict[str, object]]) -> None:
+        return None
+
+
+def _migration_files() -> list[Path]:
+    return sorted(MIGRATION_DIRECTORY.glob("*.py"))
+
+
+def _load_migration(path: Path) -> ModuleType:
+    source = path.read_text(encoding="utf-8")
+    compile(source, str(path), "exec")
+    spec = importlib.util.spec_from_file_location(f"test_migration_{path.stem}", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _record_migration() -> tuple[ModuleType, OperationRecorder]:
+    recorder = OperationRecorder()
+    modules = [_load_migration(path) for path in _migration_files()]
+    for module in modules:
+        module.op = recorder
+        module.upgrade()
+    recorder.in_downgrade = True
+    for module in reversed(modules):
+        module.op = recorder
+        module.downgrade()
+    return modules[0], recorder
+
+
+def _normalize_sql(value: object) -> str:
+    return " ".join(str(value).split())
+
+
+def _constraint_signatures(table: sa.Table) -> set[tuple[object, ...]]:
+    signatures: set[tuple[object, ...]] = set()
+    for constraint in table.constraints:
+        columns = tuple(column.name for column in constraint.columns)
+        if isinstance(constraint, PrimaryKeyConstraint):
+            signatures.add(("pk", str(constraint.name), columns))
+        elif isinstance(constraint, UniqueConstraint):
+            signatures.add(("uq", str(constraint.name), columns))
+        elif isinstance(constraint, CheckConstraint):
+            signatures.add(
+                ("ck", str(constraint.name), _normalize_sql(constraint.sqltext))
+            )
+        elif isinstance(constraint, ForeignKeyConstraint):
+            targets = tuple(element.target_fullname for element in constraint.elements)
+            signatures.add(
+                (
+                    "fk",
+                    str(constraint.name),
+                    columns,
+                    targets,
+                    constraint.ondelete,
+                )
+            )
+    return signatures
+
+
+def _model_index_signatures() -> set[tuple[object, ...]]:
+    signatures: set[tuple[object, ...]] = set()
+    for table_name in EXPECTED_TABLES:
+        table = Base.metadata.tables[table_name]
+        for index in table.indexes:
+            where = index.dialect_options["postgresql"].get("where")
+            signatures.add(
+                (
+                    table.name,
+                    str(index.name),
+                    tuple(column.name for column in index.columns),
+                    bool(index.unique),
+                    _normalize_sql(where) if where is not None else None,
+                )
+            )
+    return signatures
+
+
+def _migration_index_signatures(
+    recorder: OperationRecorder,
+) -> set[tuple[object, ...]]:
+    return {
+        (
+            item["table_name"],
+            item["name"],
+            item["columns"],
+            item["unique"],
+            _normalize_sql(item["postgresql_where"])
+            if item["postgresql_where"] is not None
+            else None,
+        )
+        for item in recorder.created_indexes
+    }
+
+
+def test_initial_migration_is_the_only_importable_root_revision() -> None:
+    files = _migration_files()
+
+    assert len(files) == 8
+    modules = [_load_migration(path) for path in files]
+    roots = [module for module in modules if module.down_revision is None]
+    assert len(roots) == 1
+    root = roots[0]
+    assert root.revision == "17f69ea12754"
+    assert root.branch_labels is None
+    assert root.depends_on is None
+    assert callable(root.upgrade)
+    assert callable(root.downgrade)
+
+
+def test_initial_migration_creates_and_drops_exact_tables_in_safe_order() -> None:
+    _, recorder = _record_migration()
+
+    assert tuple(recorder.created_tables) == EXPECTED_CREATE_ORDER
+    assert set(recorder.metadata.tables) == EXPECTED_TABLES
+    assert FORBIDDEN_TABLES.isdisjoint(recorder.metadata.tables)
+    assert tuple(recorder.dropped_tables) == EXPECTED_DROP_ORDER
+
+
+def test_initial_migration_columns_match_model_metadata_without_server_defaults() -> None:
+    _, recorder = _record_migration()
+
+    for table_name in EXPECTED_TABLES:
+        migration_table = recorder.metadata.tables[table_name]
+        model_table = Base.metadata.tables[table_name]
+        assert tuple(migration_table.columns.keys()) == tuple(model_table.columns.keys())
+        for column_name in model_table.columns.keys():
+            migration_column = migration_table.c[column_name]
+            model_column = model_table.c[column_name]
+            assert type(migration_column.type) is type(model_column.type)
+            assert migration_column.nullable is model_column.nullable
+            assert migration_column.server_default is None
+            if isinstance(model_column.type, sa.DateTime):
+                assert migration_column.type.timezone is model_column.type.timezone
+            if isinstance(model_column.type, sa.Numeric):
+                assert migration_column.type.precision == model_column.type.precision
+                assert migration_column.type.scale == model_column.type.scale
+
+
+def test_initial_migration_constraints_match_model_metadata() -> None:
+    _, recorder = _record_migration()
+
+    for table_name in EXPECTED_TABLES:
+        model_signatures = _constraint_signatures(Base.metadata.tables[table_name])
+        assert _constraint_signatures(
+            recorder.metadata.tables[table_name]
+        ) == model_signatures
+
+    dependencies = recorder.metadata.tables["task_node_dependencies"]
+    dependency_foreign_keys = {
+        (
+            tuple(column.name for column in constraint.columns),
+            tuple(element.target_fullname for element in constraint.elements),
+        )
+        for constraint in dependencies.foreign_key_constraints
+        if len(constraint.elements) == 2
+    }
+    assert dependency_foreign_keys == {
+        (
+            ("task_id", "predecessor_node_id"),
+            ("task_nodes.task_id", "task_nodes.node_id"),
+        ),
+        (
+            ("task_id", "successor_node_id"),
+            ("task_nodes.task_id", "task_nodes.node_id"),
+        ),
+    }
+
+
+def test_initial_migration_indexes_match_models_and_keep_partial_unique_index() -> None:
+    _, recorder = _record_migration()
+
+    assert _migration_index_signatures(recorder) == _model_index_signatures()
+    partial_index = next(
+        item
+        for item in recorder.created_indexes
+        if item["name"] == "uq_task_participants_one_primary_assignee"
+    )
+    assert partial_index["unique"] is True
+    where = _normalize_sql(partial_index["postgresql_where"])
+    assert "participant_role = 'assignee'" in where
+    assert "is_primary IS TRUE" in where

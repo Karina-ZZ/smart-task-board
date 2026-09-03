@@ -1,0 +1,17 @@
+<button class="task-card" bindtap="open" aria-label="打开任务 {{task.taskName}}">
+  <view class="task-head">
+    <status-badge status="{{task.status}}" />
+    <text class="task-no">{{task.taskNo}}</text>
+  </view>
+  <text class="task-name">{{task.taskName}}</text>
+  <view wx:if="{{!compact}}" class="task-meta">
+    <text>{{task.assigneeName || '待分配'}}</text>
+    <text>·</text>
+    <text class="{{task.isOverdue ? 'danger' : ''}}">{{remaining}}</text>
+  </view>
+  <view class="progress"><view class="progress-fill" style="width: {{task.progressPercent || 0}}%"></view></view>
+  <view class="task-foot">
+    <text class="muted">{{deadlineLabel}}</text>
+    <text class="progress-label">{{task.progressPercent || 0}}%</text>
+  </view>
+</button>

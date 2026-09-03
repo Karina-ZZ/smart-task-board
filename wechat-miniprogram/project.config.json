@@ -1,0 +1,18 @@
+{
+  "description": "旺序AI任务中枢微信原生小程序",
+  "packOptions": { "ignore": ["README.md", "tests/**"] },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.7.12",
+  "appid": "touristappid",
+  "projectname": "wangxu-ai-task-hub",
+  "condition": {}
+}

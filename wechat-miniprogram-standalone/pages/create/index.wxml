@@ -1,0 +1,14 @@
+<view class="page no-nav create-page">
+  <view class="safe-top"></view>
+  <view class="topbar topbar-left"><button class="back" bindtap="back">‹</button><view><text class="eyebrow">CREATE · 1/3</text><text class="title">描述任务</text></view></view>
+  <view class="stepper"><view class="step active"><text>1</text><label>描述</label></view><view class="step-line active"></view><view class="step"><text>2</text><label>确认信息</label></view><view class="step-line"></view><view class="step"><text>3</text><label>确认发送</label></view></view>
+  <view class="assistant-intro"><view class="spark">✦</view><view><text class="strong">AI任务助手</text><text class="muted small">说清楚要做什么、谁负责、何时完成即可</text></view></view>
+  <view class="card prompt-card">
+    <textarea class="prompt" maxlength="1000" placeholder="例如：梳理Q2绩效面谈反馈，周五前输出原因分析和行动清单，由林雨欣承办…" value="{{text}}" bindinput="input" />
+    <view class="prompt-foot"><text class="muted small">{{text.length}} / 1000</text><button class="voice {{listening ? 'listening' : ''}}" bindtap="toggleVoice">{{listening ? '■ 停止录音' : '◉ 语音描述'}}</button></view>
+  </view>
+  <view class="section-head"><text class="section-title">试试这样说</text></view>
+  <button wx:for="{{examples}}" wx:key="*this" class="example" data-text="{{item}}" bindtap="useExample"><text>“{{item}}”</text><text>＋</text></button>
+  <view class="notice"><text class="notice-icon">i</text><text>创建人只确认任务级信息。任务发送后，由主承办人接受并触发AI节点拆解。</text></view>
+  <view class="sticky-actions"><button class="btn btn-primary" bindtap="next">识别任务信息 →</button></view>
+</view>

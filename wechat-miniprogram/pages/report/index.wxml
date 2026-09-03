@@ -1,0 +1,11 @@
+<view class="page no-nav"><view class="safe-top"></view><view class="topbar topbar-left"><button class="back" bindtap="back">‹</button><view><text class="eyebrow">PROGRESS REPORT</text><text class="title">提交进度汇报</text></view></view>
+  <view class="task-strip"><text class="badge blue">{{task.taskNo}}</text><text class="strong">{{task.taskName}}</text></view>
+  <view class="card"><view class="progress-title"><text class="label required">当前进度</text><text class="progress-number">{{progressPercent}}%</text></view><slider min="0" max="100" step="5" value="{{progressPercent}}" activeColor="#1769ff" backgroundColor="#e7edf6" block-color="#1769ff" bindchange="progress" /><view class="progress-scale"><text>0</text><text>50</text><text>100</text></view>
+    <view class="field"><text class="label">阶段成果（选填）</text><textarea class="textarea" placeholder="本阶段完成了什么？" value="{{stageResult}}" data-field="stageResult" bindinput="input" /></view>
+    <view class="issue-switch"><view><text class="label required">是否存在卡点</text><text class="hint">开启后卡点说明必填</text></view><switch checked="{{hasIssue}}" color="#ff4358" bindchange="issue" /></view>
+    <view wx:if="{{hasIssue}}" class="issue-field"><text class="label required">卡点说明</text><textarea class="textarea" placeholder="说明困难、影响和需要的支持" value="{{issueNote}}" data-field="issueNote" bindinput="input" /></view>
+    <view class="field"><text class="label">备注（选填）</text><textarea class="textarea short" placeholder="补充说明" value="{{remark}}" data-field="remark" bindinput="input" /></view>
+    <view class="auto-note">实际工时由任务完成时间减开始时间自动计算，无需填写。</view>
+  </view>
+  <view class="sticky-actions"><button class="btn btn-primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交进度汇报</button></view>
+</view>

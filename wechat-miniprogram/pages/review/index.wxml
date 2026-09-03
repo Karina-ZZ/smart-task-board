@@ -1,0 +1,11 @@
+<view class="page no-nav review-page"><view class="safe-top"></view><view class="topbar topbar-left"><button class="back" bindtap="back">‹</button><view><text class="eyebrow">COMPLETION REVIEW</text><text class="title">任务验收</text></view></view>
+  <view wx:if="{{loading}}" class="card empty">正在加载验收信息…</view>
+  <view wx:elif="{{error}}" class="card empty"><text>{{error}}</text><button class="btn secondary" bindtap="load">重新加载</button></view>
+  <block wx:else>
+  <view class="review-hero"><text class="badge green">第 {{review.reviewRound || review.roundNo || 1}} 轮验收</text><text class="review-title">{{task.taskName}}</text><view class="review-track"><view class="done">已接受</view><text>—</text><view class="done">执行完成</view><text>—</text><view class="current">待验收</view><text>—</text><view>自动归档</view></view></view>
+  <view class="card"><text class="section-title">完成申请</text><view class="review-kv"><text>提交人</text><text>{{review.submittedByEmployeeNo || review.submitterEmployeeNo}}</text></view><view class="review-kv"><text>提交时间</text><text>{{review.submittedAt}}</text></view><view class="line"></view><text class="label">完成说明</text><text class="block-text">{{review.completionNote || '-'}}</text><text class="label next">交付摘要</text><text class="block-text">{{review.deliverableSummary || '-'}}</text></view>
+  <view class="card"><text class="section-title">验收依据</text><text class="label next">任务目标</text><text class="block-text">{{task.taskGoal}}</text><text class="label next">验收标准</text><text class="block-text">{{task.acceptanceCriteria}}</text><view class="line"></view><view class="node-summary"><text>有效节点</text><text class="bold">{{task.nodes.length}}</text><text>已完成</text><text class="bold">{{task.nodes.length}}</text></view></view>
+  <view class="archive-note">验收通过后系统自动计算实际工时，并立即归档；不会创建归档快照。</view>
+  <view class="sticky-actions"><view class="btn-row"><button class="btn btn-secondary" disabled="{{deciding}}" bindtap="reject">退回修改</button><button class="btn btn-primary" loading="{{deciding}}" disabled="{{deciding}}" bindtap="approve">通过并归档</button></view></view>
+  </block>
+</view>

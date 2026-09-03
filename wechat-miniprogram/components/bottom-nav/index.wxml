@@ -1,0 +1,11 @@
+<view class="nav-wrap">
+  <view class="nav">
+    <button class="nav-item {{active === 'workbench' ? 'active home-active' : ''}}" data-key="workbench" bindtap="navigate">
+      <view class="home-circle"><text class="nav-icon">⌂</text></view><text>工作台</text>
+    </button>
+    <button class="nav-item {{active === 'tasks' ? 'active' : ''}}" data-key="tasks" bindtap="navigate"><text class="nav-icon">▤</text><text>任务</text></button>
+    <button wx:if="{{executive}}" class="nav-item {{active === 'executive' ? 'active' : ''}}" data-key="executive" bindtap="navigate"><text class="nav-icon">◫</text><text>团队</text></button>
+    <button class="nav-item {{active === 'notifications' ? 'active' : ''}}" data-key="notifications" bindtap="navigate"><view class="icon-wrap"><text class="nav-icon">◉</text><text wx:if="{{unread}}" class="dot">{{unread > 9 ? '9+' : unread}}</text></view><text>消息</text></button>
+    <button class="nav-item {{active === 'profile' ? 'active' : ''}}" data-key="profile" bindtap="navigate"><text class="nav-icon">◎</text><text>我的</text></button>
+  </view>
+</view>

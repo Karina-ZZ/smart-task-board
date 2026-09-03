@@ -1,0 +1,21 @@
+/** Feature 08 acceptance: owner-only start/complete, dependencies, and no task-level future actions. */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+let storage = {};
+global.wx = { getStorageSync(k){return storage[k];}, setStorageSync(k,v){storage[k]=JSON.parse(JSON.stringify(v));} };
+const root = path.resolve(__dirname, "..");
+const apiSource = fs.readFileSync(path.join(root,"utils/api.js"),"utf8");
+const detailSource = fs.readFileSync(path.join(root,"pages/task-detail/index.js"),"utf8");
+assert.match(apiSource,/nodes\/\$\{nodeId\}\/actions\/start/);
+assert.match(apiSource,/nodes\/\$\{nodeId\}\/actions\/complete/);
+assert.doesNotMatch(detailSource,/api\.submitCompletion|api\.reviewTask/);
+const store = require("../utils/store");
+store.reset();
+const sent = store.sendTask({taskName:"节点执行",taskDescription:"节点执行",taskGoal:"完成",taskSource:"test",mainAssigneeEmployeeNo:"E1001",reportToEmployeeNo:"E1003",reviewerEmployeeNo:"E1001",startTime:"2026-09-03T09:00:00+08:00",deadline:"2026-09-10T18:00:00+08:00",taskWeight:4});
+store.acceptTask(sent.taskId); const task=store.completeDecomposition(sent.taskId); const [first,second]=task.nodes;
+assert.throws(()=>store.startNode(sent.taskId,second.nodeId),/DEPENDENCY_INCOMPLETE/);
+store.startNode(sent.taskId,first.nodeId); store.completeNode(sent.taskId,first.nodeId);
+store.startNode(sent.taskId,second.nodeId); assert.equal(store.getTask(sent.taskId).nodes.find(n=>n.nodeId===second.nodeId).status,"in_progress");
+store.switchUser("E1002"); assert.throws(()=>store.completeNode(sent.taskId,second.nodeId),/SCOPE_DENIED/);
+console.log("task-node-execution.test.js: PASS");

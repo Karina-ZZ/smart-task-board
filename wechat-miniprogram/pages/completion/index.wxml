@@ -1,0 +1,15 @@
+<view class="page no-nav completion-page">
+  <view class="safe-top"></view>
+  <view class="topbar topbar-left"><button class="back" bindtap="back">‹</button><view><text class="eyebrow">COMPLETION</text><text class="title">提交完成</text></view></view>
+  <view wx:if="{{loading}}" class="card empty">正在加载任务…</view>
+  <view wx:elif="{{error}}" class="card error-card"><text>{{error}}</text><button class="btn secondary" bindtap="load">重新加载</button></view>
+  <block wx:else>
+    <view class="card summary-card"><text class="badge green">全部节点已完成</text><text class="task-title">{{task.taskName}}</text><text class="subtle">提交后进入待验收；实际工时由系统计算。</text></view>
+    <view class="card form-card">
+      <view class="field"><text class="field-label">完成说明 *</text><textarea class="textarea" maxlength="1000" placeholder="说明本次任务完成情况、验收需要关注的结果" value="{{completionNote}}" bindinput="inputNote" /></view>
+      <view class="field"><text class="field-label">交付摘要 *</text><textarea class="textarea" maxlength="1000" placeholder="概括最终交付成果，便于验收人快速确认" value="{{deliverableSummary}}" bindinput="inputSummary" /></view>
+    </view>
+    <view class="completion-note">验收通过无需填写额外意见；若验收不通过，验收人必须填写退回意见。</view>
+    <view class="sticky-actions"><button class="btn btn-primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">提交验收</button></view>
+  </block>
+</view>

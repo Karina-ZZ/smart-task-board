@@ -1,0 +1,38 @@
+/** Feature 10 acceptance: real change requests and creator lifecycle controls without review actions. */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+let storage = {};
+global.wx = { getStorageSync(k){return storage[k];}, setStorageSync(k,v){storage[k]=JSON.parse(JSON.stringify(v));} };
+const root = path.resolve(__dirname, "..");
+const controller = fs.readFileSync(path.join(root, "pages/task-detail/index.js"), "utf8");
+const wxml = fs.readFileSync(path.join(root, "pages/task-detail/index.wxml"), "utf8");
+const apiSource = fs.readFileSync(path.join(root, "utils/api.js"), "utf8");
+for (const text of ["发起变更申请", "同意变更申请", "拒绝变更申请", "更换承办人", "撤回任务", "取消任务"]) assert.match(wxml, new RegExp(text));
+for (const call of ["submitChangeRequest", "approveChangeRequest", "rejectChangeRequest", "cancelChangeRequest", "lifecycle"]) assert.match(controller, new RegExp(`api\\.${call}`));
+assert.match(apiSource, /\/change-requests/);
+assert.match(apiSource, /method|request\("PUT", `\/api\/v1\/tasks\/\$\{taskId\}\/assignee`/);
+assert.match(apiSource, /reassign-\$\{taskId\}-\$\{version\}/);
+assert.doesNotMatch(controller, /api\.submitCompletion|api\.reviewTask/);
+
+const store = require("../utils/store");
+store.reset();
+store.switchUser("E1001");
+const before = store.getTask("T20260901002");
+const submitted = store.submitChangeRequest(before.taskId, { deadline: "2026-09-12T18:00:00+08:00" }, "等待跨部门数据");
+assert.equal(submitted.changeRequest.status, "pending");
+assert.equal(store.getTask(before.taskId).taskVersion, before.taskVersion, "submitting a change request must not mutate task version");
+store.switchUser("E1003");
+const approved = store.decideChangeRequest(before.taskId, submitted.changeRequest.changeRequestId, true, "同意延期");
+assert.equal(approved.changeRequest.status, "approved");
+assert.equal(store.getTask(before.taskId).deadline, "2026-09-12T18:00:00+08:00");
+const reassigned = store.lifecycle(before.taskId, "reassign", "原承办人负荷过高", "E1002");
+assert.equal(reassigned.status, "pending_accept");
+assert.equal(reassigned.mainAssigneeEmployeeNo, "E1002");
+assert.equal(reassigned.effectiveAt, null);
+const state = store.read();
+assert.ok(state.notifications.some((item) => item.recipientEmployeeNo === "E1001" && item.title === "任务承办人已变更"));
+assert.ok(state.notifications.some((item) => item.recipientEmployeeNo === "E1002" && item.title === "新任务待接受"));
+store.switchUser("E1001");
+assert.throws(() => store.lifecycle(before.taskId, "cancel", "越权", null), /SCOPE_DENIED/);
+console.log("task-change-lifecycle.test.js: PASS");

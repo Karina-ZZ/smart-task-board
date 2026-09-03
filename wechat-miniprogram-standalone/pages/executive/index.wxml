@@ -1,0 +1,12 @@
+<view class="page"><view class="safe-top"></view><view class="topbar"><view class="topbar-main"><text class="eyebrow">EXECUTIVE VIEW</text><text class="title">团队任务态势</text><text class="subtitle">授权范围 · 人力资源部 · 本周</text></view></view>
+  <view wx:if="{{loading}}" class="card empty">正在计算团队态势…</view>
+  <view wx:elif="{{denied}}" class="card denied"><text class="denied-mark">锁</text><text class="section-title">无权限访问高管看板</text><text class="muted">该页面仅向服务端授权范围内的高管开放。</text><button class="btn btn-secondary" bindtap="profile">返回我的</button></view>
+  <block wx:else>
+    <view class="executive-hero"><view><text class="hero-kicker">团队在轨率</text><text class="hero-number">{{overview.onTrackRate}}%</text><text class="hero-sub">排除受阻任务后的当前推进状态</text></view><view class="donut" style="--score: {{overview.onTrackRate}}"><view><text class="bold">{{overview.activeCount}}</text><text>活跃任务</text></view></view></view>
+    <view class="metric-grid exec-metrics"><view class="metric"><text class="muted small">受阻任务</text><text class="metric-value danger">{{overview.blockedCount}}</text></view><view class="metric"><text class="muted small">待验收</text><text class="metric-value teal">{{overview.pendingReviewCount}}</text></view></view>
+    <view class="section-head"><text class="section-title">团队负荷热力图</text><text class="muted small">点击数值下钻</text></view>
+    <view class="heatmap card"><view class="heat-head"><text>成员</text><text>综合负荷</text><text>任务</text><text>卡点</text></view><button wx:for="{{overview.members}}" wx:key="employeeNo" class="heat-row" data-employee-no="{{item.employeeNo}}" bindtap="openMember"><view><text class="mini-avatar">{{item.avatarText}}</text><view><text class="bold">{{item.name}}</text><text>{{item.employeeNo}}</text></view></view><text class="heat-score {{item.workloadScore >= 80 ? 'high' : item.workloadScore < 50 ? 'low' : ''}}">{{item.workloadScore}}</text><text>{{item.taskCount}}</text><text class="{{item.blockedCount ? 'danger' : ''}}">{{item.blockedCount}}</text></button></view>
+    <view class="legend"><text><view class="low"></view>轻载 &lt;50</text><text><view></view>适中 50-79</text><text><view class="high"></view>偏高 ≥80</text></view>
+  </block>
+  <bottom-nav active="executive" executive="{{true}}" unread="{{unread}}" />
+</view>

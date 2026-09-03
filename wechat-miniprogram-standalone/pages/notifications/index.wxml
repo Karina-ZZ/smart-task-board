@@ -1,0 +1,7 @@
+<view class="page"><view class="safe-top"></view><view class="topbar"><view class="topbar-main"><text class="eyebrow">NOTIFICATIONS</text><text class="title">通知中心</text><text class="subtitle">任务、提醒与系统消息</text></view><button wx:if="{{mockMode && unread}}" class="read-all" bindtap="markAll">全部已读</button></view>
+  <scroll-view class="tabs" scroll-x><view class="tabs-row"><button wx:for="{{tabs}}" wx:key="code" class="tab {{type === item.code ? 'selected' : ''}}" data-type="{{item.code}}" bindtap="tab">{{item.label}}</button></view></scroll-view>
+  <view wx:if="{{!visible.length}}" class="card empty"><text class="empty-mark">○</text><text>当前分类暂无消息</text></view>
+  <button wx:for="{{visible}}" wx:key="notificationId" class="notice {{item.unread ? 'unread' : ''}}" data-id="{{item.notificationId}}" bindtap="open"><view class="notice-icon {{item.type}}">{{item.type === 'task' ? '任' : item.type === 'reminder' ? '醒' : '系'}}</view><view class="notice-main"><view><text class="strong">{{item.title}}</text><text wx:if="{{item.unread}}" class="unread-dot"></text></view><text class="notice-content">{{item.content}}</text><text class="muted small">{{item.sentAt}}</text></view><text class="arrow">›</text></button>
+  <view wx:if="{{mockMode}}" class="demo-note">“全部已读”仅用于本地演示；生产模式需增加跨设备已读存储后才能启用。</view>
+  <bottom-nav active="notifications" executive="{{executive}}" unread="{{unread}}" />
+</view>

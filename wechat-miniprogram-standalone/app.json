@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/workbench/index",
+    "pages/tasks/index",
+    "pages/task-detail/index",
+    "pages/create/index",
+    "pages/create-details/index",
+    "pages/create-confirm/index",
+    "pages/decomposition/index",
+    "pages/report/index",
+    "pages/completion/index",
+    "pages/review/index",
+    "pages/notifications/index",
+    "pages/profile/index",
+    "pages/executive/index",
+    "pages/workload-tasks/index"
+  ],
+  "window": {
+    "navigationStyle": "custom",
+    "backgroundColor": "#F4F7FC",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

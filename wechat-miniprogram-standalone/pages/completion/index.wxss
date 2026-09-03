@@ -1,0 +1,12 @@
+@import "../../app.wxss";
+.completion-page { padding-bottom: calc(150rpx + env(safe-area-inset-bottom)); }
+.summary-card { display: flex; flex-direction: column; gap: 14rpx; }
+.task-title { font-size: 31rpx; font-weight: 900; color: #11203a; }
+.form-card { padding-bottom: 8rpx; }
+.field { margin-bottom: 28rpx; }
+.field-label { display: block; margin-bottom: 12rpx; font-weight: 800; color: #253650; }
+.textarea { width: 100%; min-height: 190rpx; padding: 20rpx; border: 1rpx solid #dce5f1; border-radius: 22rpx; background: #fff; box-sizing: border-box; line-height: 1.65; }
+.completion-note { margin: 18rpx 6rpx; padding: 20rpx; border-radius: 20rpx; color: #5d6c84; background: #edf4ff; font-size: 22rpx; line-height: 1.6; }
+.sticky-actions { position: fixed; z-index: 30; right: 0; bottom: env(safe-area-inset-bottom); left: 0; max-width: 750rpx; margin: 0 auto; padding: 20rpx 28rpx; background: rgba(244,247,252,.96); box-sizing: border-box; }
+.sticky-actions .btn { width: 100%; }
+.error-card { display: grid; gap: 20rpx; }

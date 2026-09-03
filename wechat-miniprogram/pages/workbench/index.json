@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "工作台",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "bottom-nav": "/components/bottom-nav/index",
+    "task-card": "/components/task-card/index"
+  }
+}

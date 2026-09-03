@@ -1,0 +1,22 @@
+/** Feature 09 acceptance: task-level report fields, blocker validation, and no manual hours/future review. */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+let storage = {};
+global.wx = {getStorageSync(k){return storage[k];},setStorageSync(k,v){storage[k]=JSON.parse(JSON.stringify(v));}};
+const root=path.resolve(__dirname,"..");
+const js=fs.readFileSync(path.join(root,"pages/report/index.js"),"utf8");
+const wxml=fs.readFileSync(path.join(root,"pages/report/index.wxml"),"utf8");
+const api=fs.readFileSync(path.join(root,"utils/api.js"),"utf8");
+for(const text of ["当前进度","阶段成果（选填）","是否存在卡点","卡点说明","备注（选填）","实际工时由任务完成时间减开始时间自动计算"]) assert.match(wxml,new RegExp(text));
+assert.match(js,/hasIssue && !this\.data\.issueNote\.trim/);
+assert.doesNotMatch(`${js}\n${wxml}`,/actualHours|预计工时/);
+assert.match(api,/has_issue: payload\.hasIssue/);
+assert.match(api,/issue_note: payload\.issueNote/);
+const store=require("../utils/store"); store.reset();
+const sent=store.sendTask({taskName:"汇报",taskDescription:"汇报",taskGoal:"完成",taskSource:"test",mainAssigneeEmployeeNo:"E1001",reportToEmployeeNo:"E1003",reviewerEmployeeNo:"E1001",startTime:"2026-09-03T09:00:00+08:00",deadline:"2026-09-10T18:00:00+08:00",taskWeight:4});
+store.acceptTask(sent.taskId); store.completeDecomposition(sent.taskId);
+const blocked=store.submitReport(sent.taskId,{progressPercent:35,stageResult:"阶段成果",hasIssue:true,issueNote:"等待数据",remark:"已同步"});
+assert.equal(blocked.status,"blocked"); assert.ok(blocked.issues.some(i=>i.status==="open"));
+store.switchUser("E1002"); assert.throws(()=>store.submitReport(sent.taskId,{progressPercent:40,hasIssue:false}),/STATUS_OR_PERMISSION_DENIED/);
+console.log("progress-report.test.js: PASS");
