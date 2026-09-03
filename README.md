@@ -148,12 +148,41 @@ python -m scripts.seed_demo_data --dry-run --confirm-database-name "<db_name>"  
 python -m scripts.seed_demo_data --apply   --confirm-database-name "<db_name>"   # 持久化
 ```
 
-## 有效需求文档
+## 有效需求与文档索引
 
-`docs/` 中的两份文档为当前唯一有效需求，不得修改或删除：
+### 业务基准（docs/，当前唯一有效需求，不得修改或删除）
 
-- `第二版-智能任务看板核心逻辑与用户使用流程节点(1).docx`
-- `第四版-智能任务看板数据表结构文档-显式ID版(1).docx`
+- [`docs/第二版-智能任务看板核心逻辑与用户使用流程节点.docx`](docs/第二版-智能任务看板核心逻辑与用户使用流程节点.docx) — 业务规则、状态、权限与流程节点
+- [`docs/第四版-智能任务看板数据表结构文档-显式ID版.docx`](docs/第四版-智能任务看板数据表结构文档-显式ID版.docx) — 25 张基线业务表，字段语义与显式 ID
+
+### 业务参考资料（docs/reference/，仅供参考，不作为新需求依据）
+
+- [`01-第二版-智能任务看板PRD-V1.1.docx`](docs/reference/01-第二版-智能任务看板PRD-V1.1.docx) — 第二版 PRD V1.1
+- [`02-第二版-智能任务看板前端.html`](docs/reference/02-第二版-智能任务看板前端.html) — 第二版前端 HTML（视觉、组件、跳转、localStorage）
+- [`03-第四版-智能任务看板数据表结构-显式ID版.docx`](docs/reference/03-第四版-智能任务看板数据表结构-显式ID版.docx) — 数据表结构正式版
+- [`04-第一版-前端交接文档.docx`](docs/reference/04-第一版-前端交接文档.docx) — 与基准不冲突的 API / DTO / 联调规则
+
+### 过程与架构（仓库根与 docs/）
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — 架构设计（执行 AI 必读）
+- [`CODEX_EXECUTION_PROMPT.md`](CODEX_EXECUTION_PROMPT.md) — Codex 执行指令与材料阅读顺序
+- [`docs/DEVELOPMENT_PLAN_V1.1.md`](docs/DEVELOPMENT_PLAN_V1.1.md) — V1.1 开发任务书（DEV 任务卡制度）
+- [`docs/ACCEPTANCE_STANDARDS.md`](docs/ACCEPTANCE_STANDARDS.md) — **功能验收通过标准**（单功能 10 + 1 条硬性条件 + 全量回归义务）
+- [`docs/DEV_00_BASELINE_REPORT.md`](docs/DEV_00_BASELINE_REPORT.md) — DEV-00 基线报告
+- [`docs/READING_NOTES_V1.1.md`](docs/READING_NOTES_V1.1.md) — 第二版 / 第四版读档笔记
+- [`docs/FEATURE_12_ACCEPTANCE.md`](docs/FEATURE_12_ACCEPTANCE.md) — 功能 12（绩效/优先级/负荷/冲突）验收记录
+- [`FEATURE_COVERAGE.md`](FEATURE_COVERAGE.md) — 后端历史功能覆盖情况（功能 01~10）
+- [`PLANS.md`](PLANS.md) — 阶段计划
+- [`AUTONOMOUS_RUN.md`](AUTONOMOUS_RUN.md) — 自主运行约定
+
+### 云函数与微信小程序说明
+
+- [`cloud-functions/README.md`](cloud-functions/README.md) — 云函数（LoginService / ChatService）部署
+- [`wechat-miniprogram-standalone/README.md`](wechat-miniprogram-standalone/README.md) — 小程序独立版说明（功能 01~12）
+
+## 功能验收标准
+
+每个 DEV 任务在声称「开发成功」之前，必须通过 [`docs/ACCEPTANCE_STANDARDS.md`](docs/ACCEPTANCE_STANDARDS.md) 的全部 10 条硬性条件：**页面与第二版 HTML 一致、按钮全部真实动作、跳转/返回正确、后端接口 + 数据库落表正确、权限/状态/版本/幂等校验正确、手机端无横向溢出、四态完整（加载/空态/错误/无权限）、自动化测试全绿、可被微信开发者工具识别、未混入下一功能**；并在提交前完成 **功能 01 ~ 当前功能的全量串联回归**。
 
 ## Roadmap
 
@@ -175,7 +204,4 @@ python -m scripts.seed_demo_data --apply   --confirm-database-name "<db_name>"  
 
 ## 相关文档
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — 架构设计
-- [FEATURE_COVERAGE.md](FEATURE_COVERAGE.md) — 功能覆盖情况
-- [PLANS.md](PLANS.md) — 阶段计划
-- [cloud-functions/README.md](cloud-functions/README.md) — 云函数部署说明
+完整索引见上文「有效需求与文档索引」与「功能验收标准」章节。
