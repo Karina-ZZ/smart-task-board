@@ -178,6 +178,11 @@ def test_available_actions_are_always_projected_by_backend(board_context) -> Non
     service.available_actions.return_value = {
         "task_id": task_id,
         "task_version": 8,
+        "priority_quadrant": "important_urgent",
+        "importance_score": "72",
+        "urgency_score": "88",
+        "remaining_hours": "4",
+        "sort_rank": 2,
         "current_user_relations": ["assigned"],
         "allowed_actions": ["submit_completion"],
         "nodes": [{"node_id": node_id, "allowed_actions": []}],
@@ -189,6 +194,8 @@ def test_available_actions_are_always_projected_by_backend(board_context) -> Non
     assert response.status_code == 200
     assert response.json()["allowed_actions"] == ["submit_completion"]
     assert response.json()["current_user_relations"] == ["assigned"]
+    assert response.json()["priority_quadrant"] == "important_urgent"
+    assert response.json()["sort_rank"] == 2
 
 
 def test_dashboard_summary_is_current_user_only_and_has_fixed_window(board_context) -> None:

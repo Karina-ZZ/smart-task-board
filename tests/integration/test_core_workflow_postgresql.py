@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, UTC
 import os
 from uuid import UUID, uuid4
@@ -713,7 +713,7 @@ def test_database_constraint_error_rolls_back_second_draft(
     phase4_records: Phase4Records,
 ) -> None:
     refs = _create_references(phase4_session_factory, phase4_records)
-    first_command, _, _ = _command(refs, phase4_records)
+    first_command = _command(refs, phase4_records)
     tasks, _, _ = _services(phase4_session_factory)
     tasks.create_task_draft(first_command)
 

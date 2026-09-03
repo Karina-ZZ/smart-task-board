@@ -125,6 +125,20 @@ def test_accept_rejects_non_main_assignee():
     uow.commit.assert_not_called()
 
 
+
+def test_get_latest_detaches_record_before_read_only_uow_closes():
+    task = _task(status="decomposing", version=4)
+    uow, _ = _uow_context(task)
+    record = MagicMock()
+    uow.task_decompositions.get_latest_for_task.return_value = record
+    service = TaskDecompositionService(Mock(return_value=uow), clock=lambda: NOW)
+
+    result = service.get_latest(task.task_id, "E1001")
+
+    assert result is record
+    uow.session.expunge.assert_called_once_with(record)
+
+
 def test_execute_valid_result_persists_nodes_dependencies_and_effective_at():
     task = _task()
     uow, _ = _uow_context(task)

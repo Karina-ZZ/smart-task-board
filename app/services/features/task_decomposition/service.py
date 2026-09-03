@@ -318,6 +318,11 @@ class TaskDecompositionService:
             record = uow.task_decompositions.get_latest_for_task(task_id)
             if record is None:
                 raise EntityNotFoundError("task decomposition was not found")
+            # This is a read-only UnitOfWork. Its __exit__ rolls the session back,
+            # which expires attached ORM instances. Detach the fully-loaded row
+            # before leaving the context so API response serialization cannot
+            # trigger DetachedInstanceError after the session is closed.
+            uow.session.expunge(record)
             return record
 
     def execute(self, task_id: UUID, decomposition_id: UUID, actor: str) -> TaskDecompositionRecord:

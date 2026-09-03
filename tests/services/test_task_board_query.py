@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from app.models import Task, TaskCompletionReview, TaskNode, TaskNodeDependency
+from app.schemas.task_board import AvailableActionsResponse
 from app.services.errors import BusinessValidationError
 from app.services.task_board_query import (
     TaskBoardQueryService,
@@ -602,6 +603,7 @@ def test_available_actions_handles_task_without_priority_record(monkeypatch) -> 
     assert result["urgency_score"] is None
     assert result["remaining_hours"] is None
     assert result["sort_rank"] is None
+    AvailableActionsResponse.model_validate(result)
     service._latest_priority.assert_called_once_with(task.task_id)
 
 

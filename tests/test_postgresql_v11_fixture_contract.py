@@ -96,3 +96,20 @@ def test_self_assigned_pg_flow_still_uses_acceptance_helper() -> None:
     )
     assert "send_accept_and_decompose_v11(" in block
     assert "self_assigned=True" in block
+
+
+def test_core_pg_command_helper_is_used_as_single_command_and_replace_is_imported() -> None:
+    path = ROOT / "tests/integration/test_core_workflow_postgresql.py"
+    text = path.read_text(encoding="utf-8")
+    assert "first_command, _, _ = _command(" not in text
+    assert "from dataclasses import dataclass, field, replace" in text
+
+
+
+def test_business_capability_pg_fixture_does_not_restore_client_hours() -> None:
+    path = ROOT / "tests/integration/test_business_capabilities_postgresql.py"
+    text = path.read_text(encoding="utf-8")
+    assert '"hours":' not in text
+    assert '"estimated_hours":' not in text
+    assert '"actual_hours":' not in text
+

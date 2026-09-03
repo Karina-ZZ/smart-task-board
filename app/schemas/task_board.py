@@ -176,6 +176,11 @@ class NodeAllowedActionsResponse(StrictSchema):
 class AvailableActionsResponse(StrictSchema):
     task_id: UUID
     task_version: int
+    priority_quadrant: str | None = None
+    importance_score: str | None = None
+    urgency_score: str | None = None
+    remaining_hours: str | None = None
+    sort_rank: int | None = None
     current_user_relations: list[str]
     allowed_actions: list[AllowedAction]
     nodes: list[NodeAllowedActionsResponse]
