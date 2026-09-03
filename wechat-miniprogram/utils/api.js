@@ -94,6 +94,45 @@ function loginControlled(employeeNo) {
   return loginPromise;
 }
 
+function getWeComLoginCode() {
+  return new Promise((resolve, reject) => {
+    if (!wx.qy || typeof wx.qy.login !== "function") {
+      reject(Object.assign(new Error("当前环境不支持企业微信登录"), { code: "WECOM_LOGIN_UNAVAILABLE" }));
+      return;
+    }
+    wx.qy.login({
+      timeout: config.requestTimeoutMs,
+      success(result) {
+        const code = String(result?.code || "").trim();
+        if (!code) {
+          reject(Object.assign(new Error("企业微信未返回登录凭证"), { code: "WECOM_LOGIN_CODE_MISSING" }));
+          return;
+        }
+        resolve(code);
+      },
+      fail(error) {
+        reject(Object.assign(new Error(error?.errMsg || "企业微信登录失败"), { code: "WECOM_LOGIN_FAILED" }));
+      },
+    });
+  });
+}
+
+function loginWeCom() {
+  if (useMock()) return mock("currentUser");
+  if (config.authMode !== "wecom") {
+    return Promise.reject(Object.assign(new Error("当前环境未启用企业微信登录"), { code: "WECOM_AUTH_DISABLED" }));
+  }
+  if (loginPromise) return loginPromise;
+  loginPromise = getWeComLoginCode()
+    .then((code) => rawRequest("POST", "/api/v1/auth/wecom", { code }))
+    .then((session) => {
+      saveSession(session);
+      return session.currentUser || rawRequest("GET", "/api/v1/me");
+    })
+    .finally(() => { loginPromise = null; });
+  return loginPromise;
+}
+
 function refreshSession() {
   if (refreshPromise) return refreshPromise;
   const refreshToken = wx.getStorageSync(REFRESH_TOKEN_KEY);
@@ -107,6 +146,7 @@ function refreshSession() {
 
 function recoverSession() {
   if (wx.getStorageSync(REFRESH_TOKEN_KEY)) return refreshSession();
+  if (config.authMode === "wecom") return loginWeCom();
   if (config.authMode === "prototype" && config.prototypeEmployeeNo) return loginControlled(config.prototypeEmployeeNo);
   return Promise.reject(Object.assign(new Error("请先完成身份认证"), { code: "AUTH_REQUIRED", statusCode: 401 }));
 }
@@ -511,4 +551,4 @@ function executiveMembers(filters) {
 }
 function users() { return useMock() ? Promise.resolve(store.read().users) : request("GET", "/api/v1/users"); }
 
-module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, executiveOverview, executiveTasks, executiveMembers, users };
+module.exports = { useMock, refreshPriorities, saveSession, clearSession, loginControlled, loginWeCom, refreshSession, bootstrapSession, logout, dashboard, tasks, taskOverview, task, taskDetail, taskStatusLogs, taskOperationLogs, currentUser, creationDraft, saveCreationDraft, saveTaskDraft, performanceMatches, confirmPerformanceMatch, clearPerformanceMatch, extractTaskDraft, clarifyTaskDraft, transcribeVoice, sendTask, acceptTask, decomposition, executeDecomposition, retryDecomposition, returnTask, acceptNodeAssignment, rejectNodeAssignment, startNode, completeNode, submitReport, submitCompletion, completionReviews, reviewTask, submitChangeRequest, approveChangeRequest, rejectChangeRequest, cancelChangeRequest, lifecycle, notifications, executiveOverview, executiveTasks, executiveMembers, users };

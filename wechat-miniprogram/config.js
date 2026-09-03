@@ -8,16 +8,15 @@
 module.exports = {
   mode: "mock",
   apiBaseUrl: "",
-  authMode: "prototype",
+  authMode: "wecom",
   prototypeEmployeeNo: "",
   requestBodyCase: "snake_case",
   requestTimeoutMs: 12000,
   aiRequestTimeoutMs: 30000,
   timezone: "Asia/Shanghai",
 
-  // Feature 05: only these URLs need to change when cloud functions are redeployed.
+  // ChatService remains independently deployable; identity comes from FastAPI/WeCom.
   cloudServices: {
-    loginServiceBaseUrl: "https://aichattst-login-zgtmdzmukf.cn-hangzhou.fcapp.run",
     chatServiceBaseUrl: "https://aichattest-chat-otqjepryyc.cn-hangzhou.fcapp.run",
   },
 };

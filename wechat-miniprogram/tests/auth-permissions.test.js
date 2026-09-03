@@ -7,17 +7,25 @@ const path = require("node:path");
 let storage = {};
 const requests = [];
 let loginCalls = 0;
+let qyLoginCalls = 0;
 let meCalls = 0;
 let refreshCalls = 0;
 
 global.wx = {
+  qy: {
+    login(options) {
+      qyLoginCalls += 1;
+      options.success({ code: "WECOM-CODE-001" });
+    },
+  },
   getStorageSync(key) { return storage[key]; },
   setStorageSync(key, value) { storage[key] = JSON.parse(JSON.stringify(value)); },
   removeStorageSync(key) { delete storage[key]; },
   request(options) {
     requests.push({ url: options.url, method: options.method, header: options.header, data: options.data });
-    if (options.url.endsWith("/api/v1/auth/login")) {
+    if (options.url.endsWith("/api/v1/auth/wecom")) {
       loginCalls += 1;
+      assert.equal(options.data.code, "WECOM-CODE-001");
       options.success({
         statusCode: 200,
         data: {
@@ -40,7 +48,7 @@ global.wx = {
               capabilities: ["task:read:related"],
             },
             scopes: [],
-            auth_mode: "prototype",
+            auth_mode: "wecom",
           },
         },
       });
@@ -75,7 +83,7 @@ global.wx = {
             capabilities: ["task:read:related"],
           },
           scopes: [],
-          auth_mode: "prototype",
+          auth_mode: "wecom",
         },
       });
       return;
@@ -87,8 +95,8 @@ global.wx = {
 const config = require("../config");
 config.mode = "api";
 config.apiBaseUrl = "https://auth.test";
-config.authMode = "prototype";
-config.prototypeEmployeeNo = "E1001";
+config.authMode = "wecom";
+config.prototypeEmployeeNo = "";
 
 const api = require("../utils/api");
 const access = require("../utils/access");
@@ -97,7 +105,8 @@ const access = require("../utils/access");
   const [bootstrapped, current] = await Promise.all([api.bootstrapSession(), api.currentUser()]);
   assert.equal(bootstrapped.employeeNo, "E1001");
   assert.equal(current.employeeNo, "E1001");
-  assert.equal(loginCalls, 1, "parallel first-load requests must share one controlled login");
+  assert.equal(loginCalls, 1, "parallel first-load requests must share one WeCom login");
+  assert.equal(qyLoginCalls, 1, "wx.qy.login should run only once for parallel first-load requests");
 
   const loggedIn = bootstrapped;
   assert.equal(loggedIn.employeeNo, "E1001");

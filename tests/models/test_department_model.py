@@ -1,4 +1,4 @@
-from sqlalchemy import Uuid, inspect
+from sqlalchemy import BigInteger, Uuid, inspect
 
 from app.db.base import Base
 from app.models import Department, User
@@ -64,6 +64,7 @@ def test_department_columns_and_primary_key_contract() -> None:
         "department_type",
         "department_path",
         "status",
+        "wecom_department_id",
     }
     assert [column.name for column in table.primary_key.columns] == ["department_id"]
     assert "id" not in table.columns
@@ -73,6 +74,14 @@ def test_department_columns_and_primary_key_contract() -> None:
     assert department_id.nullable is False
     assert department_id.default is not None
     assert department_id.default.is_callable
+
+
+def test_wecom_department_id_is_nullable_unique_external_identifier() -> None:
+    column = Department.__table__.c.wecom_department_id
+
+    assert isinstance(column.type, BigInteger)
+    assert column.nullable is True
+    assert column.unique is True
 
 
 def test_department_parent_foreign_key_and_nullability() -> None:
@@ -112,5 +121,9 @@ def test_department_indexes_are_non_redundant() -> None:
         for index in Department.__table__.indexes
     }
 
-    assert indexed_columns == {("parent_department_id",), ("status",)}
+    assert indexed_columns == {
+        ("parent_department_id",),
+        ("status",),
+        ("wecom_department_id",),
+    }
     assert ("department_id",) not in indexed_columns

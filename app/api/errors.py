@@ -7,8 +7,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from app.services.errors import (
+    AuthenticationFailedError,
     BusinessValidationError,
     DependencyCycleError,
+    ExternalIdentityUnavailableError,
+    IdentityBindingRequiredError,
     DependencyNotSatisfiedError,
     EntityNotFoundError,
     InvalidStateTransitionError,
@@ -42,6 +45,9 @@ def _response(
 
 
 _WORKFLOW_ERRORS: dict[type[WorkflowError], tuple[int, str]] = {
+    AuthenticationFailedError: (401, "wecom_authentication_failed"),
+    IdentityBindingRequiredError: (403, "wecom_user_not_bound"),
+    ExternalIdentityUnavailableError: (503, "wecom_unavailable"),
     EntityNotFoundError: (404, "entity_not_found"),
     PermissionDeniedError: (403, "permission_denied"),
     InvalidStateTransitionError: (409, "invalid_state_transition"),
@@ -85,7 +91,7 @@ async def authentication_error_handler(
     _request: Request,
     _exc: AuthenticationRequiredError,
 ) -> JSONResponse:
-    return _response(401, "authentication_required", "X-Employee-No is required")
+    return _response(401, "authentication_required", "Authentication is required")
 
 
 async def workflow_error_handler(

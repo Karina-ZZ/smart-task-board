@@ -940,6 +940,8 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
         ("POST", "/api/v1/auth/prototype-login"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/token"),
+        ("POST", "/api/v1/auth/wecom"),
+        ("POST", "/api/v1/auth/ai-token"),
         ("POST", "/api/v1/auth/refresh"),
         ("POST", "/api/v1/auth/revoke"),
         ("POST", "/api/v1/auth/logout"),
@@ -1049,8 +1051,8 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
     assert wave2_operations <= api_operations
     assert business_operations <= api_operations
     assert executive_operations <= api_operations
-    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 96
-    assert len(api_operations) == 102
+    assert len({path for path in specification["paths"] if path.startswith("/api/v1")}) == 98
+    assert len(api_operations) == 104
 
     security_schemes = specification["components"]["securitySchemes"]
     bearer_schemes = {
@@ -1065,6 +1067,7 @@ def test_openapi_and_swagger_expose_only_approved_contract(route_context) -> Non
         ("POST", "/api/v1/auth/prototype-login"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/token"),
+        ("POST", "/api/v1/auth/wecom"),
         ("POST", "/api/v1/auth/refresh"),
         ("POST", "/api/v1/auth/revoke"),
     }

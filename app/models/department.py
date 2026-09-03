@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import BigInteger, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -33,6 +33,12 @@ class Department(Base):
     department_type: Mapped[str] = mapped_column(String, nullable=False)
     department_path: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    wecom_department_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        unique=True,
+        index=True,
+    )
 
     parent: Mapped[Department | None] = relationship(
         back_populates="children",

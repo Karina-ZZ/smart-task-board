@@ -33,6 +33,16 @@ class PrototypeLoginResponse(StrictSchema):
     user: PrototypeLoginUserResponse
 
 
+class WeComLoginRequest(StrictSchema):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1024)]
+
+
+class AiTokenResponse(StrictSchema):
+    token: str = Field(repr=False)
+    token_type: str = "bearer"
+    expires_in: int
+
+
 class RefreshTokenRequest(StrictSchema):
     refresh_token: EmployeeNo
 

@@ -5,7 +5,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3.12}"
 EXPECTED_DB="smarttaskboard_core_test"
 EXPECTED_HOST="127.0.0.1"
 EXPECTED_PORT="46479"
-EXPECTED_HEAD="b1c2d3e4f5a6"
+EXPECTED_HEAD="c2d3e4f5a6b7"
 
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "ERROR: $PYTHON_BIN is required. Project supports Python >=3.12,<3.13." >&2

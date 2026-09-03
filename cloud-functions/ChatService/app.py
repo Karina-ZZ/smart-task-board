@@ -21,11 +21,9 @@ def fail(message: str, code: str, status=400):
     return jsonify({"success": False, "error": {"code": code, "message": message}, "requestId": str(uuid4())}), status
 
 
-def actor_key(claims, payload):
-    if claims.get("sub"):
-        return f"cloud:{claims['sub']}"
-    current = payload.get("currentUser") or {}
-    return current.get("employeeNo") if isinstance(current, dict) else None
+def actor_key(claims, _payload):
+    subject = claims.get("sub")
+    return str(subject).strip() if subject else None
 
 
 def authenticated_payload():

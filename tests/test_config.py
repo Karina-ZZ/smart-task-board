@@ -107,3 +107,43 @@ def test_openai_compatible_settings_do_not_expose_secret_values() -> None:
     assert "unit-secret-key" not in rendered
     assert "https://unit.invalid/v1" not in rendered
     assert "unit-model" not in rendered
+
+
+def test_wecom_auth_mode_requires_enterprise_credentials_and_keeps_secrets_private() -> None:
+    with pytest.raises(ValidationError, match="WECOM_CORP_ID"):
+        Settings(
+            database_url="sqlite+pysqlite:///:memory:",
+            auth_mode="wecom",
+            allow_test_employee_header=False,
+            jwt_secret_key="app-session-secret-with-at-least-32-characters",
+            _env_file=None,
+        )
+
+    settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        auth_mode="wecom",
+        allow_test_employee_header=False,
+        jwt_secret_key="app-session-secret-with-at-least-32-characters",
+        wecom_corp_id="ww-corp-001",
+        wecom_app_secret="wecom-secret-value",
+        chat_service_jwt_secret_key="chat-secret-with-at-least-32-characters",
+        _env_file=None,
+    )
+
+    rendered = repr(settings)
+    assert settings.auth_mode == "wecom"
+    assert "wecom-secret-value" not in rendered
+    assert "chat-secret-with-at-least-32-characters" not in rendered
+
+
+def test_wecom_auth_mode_rejects_test_employee_header() -> None:
+    with pytest.raises(ValidationError, match="ALLOW_TEST_EMPLOYEE_HEADER"):
+        Settings(
+            database_url="sqlite+pysqlite:///:memory:",
+            auth_mode="wecom",
+            allow_test_employee_header=True,
+            jwt_secret_key="app-session-secret-with-at-least-32-characters",
+            wecom_corp_id="ww-corp-001",
+            wecom_app_secret="wecom-secret-value",
+            _env_file=None,
+        )

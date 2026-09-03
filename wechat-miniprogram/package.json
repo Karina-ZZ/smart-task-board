@@ -4,6 +4,6 @@
   "private": true,
   "description": "旺序AI任务中枢微信原生小程序",
   "scripts": {
-    "test": "node tests/ai-input.test.js && node tests/auth-permissions.test.js && node tests/executive-dashboard.test.js && node tests/executive-employee-tasks-flow.test.js && node tests/executive-employee-tasks.test.js && node tests/notifications-node-assignment.test.js && node tests/progress-report.test.js && node tests/static-contract.test.js && node tests/task-change-lifecycle.test.js && node tests/task-completion-review.test.js && node tests/task-creation-api.test.js && node tests/task-creation.test.js && node tests/task-decomposition.test.js && node tests/task-detail.test.js && node tests/task-intelligence.test.js && node tests/task-node-execution.test.js && node tests/task-overview.test.js && node tests/workbench.test.js && node tests/workflow.test.js"
+    "test": "node tests/run-all-tests.js"
   }
 }

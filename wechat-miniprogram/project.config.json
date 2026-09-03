@@ -1,6 +1,17 @@
 {
   "description": "旺序AI任务中枢微信原生小程序",
-  "packOptions": { "ignore": ["README.md", "tests/**"] },
+  "packOptions": {
+    "ignore": [
+      {
+        "type": "file",
+        "value": "README.md"
+      },
+      {
+        "type": "folder",
+        "value": "tests"
+      }
+    ]
+  },
   "setting": {
     "urlCheck": false,
     "es6": true,

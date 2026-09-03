@@ -24,6 +24,14 @@ class UserRepository:
         )
         return self.session.execute(statement).scalar_one_or_none()
 
+    def get_by_wecom_user_id_with_department(self, wecom_user_id: str) -> User | None:
+        statement = (
+            select(User)
+            .where(User.wecom_user_id == wecom_user_id)
+            .options(selectinload(User.department))
+        )
+        return self.session.execute(statement).scalar_one_or_none()
+
     def list_by_employee_nos(self, employee_nos: tuple[str, ...]) -> list[User]:
         if not employee_nos:
             return []

@@ -2914,6 +2914,7 @@ class ReminderNotificationService:
                 )
                 .order_by(Notification.created_at, Notification.notification_id)
                 .limit(limit)
+                .with_for_update(skip_locked=True)
             ).all()
         )
         for row in rows:

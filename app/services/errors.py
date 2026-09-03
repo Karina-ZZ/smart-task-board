@@ -10,6 +10,18 @@ class PermissionDeniedError(WorkflowError):
     """The actor is not permitted to perform the requested operation."""
 
 
+class AuthenticationFailedError(WorkflowError):
+    """External identity could not be verified for sign-in."""
+
+
+class IdentityBindingRequiredError(WorkflowError):
+    """A verified external identity is not bound to an active local employee."""
+
+
+class ExternalIdentityUnavailableError(WorkflowError):
+    """The configured external identity provider is temporarily unavailable."""
+
+
 class InvalidStateTransitionError(WorkflowError):
     """The aggregate is not in a state accepted by the operation."""
 

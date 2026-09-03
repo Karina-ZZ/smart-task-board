@@ -517,7 +517,7 @@ pending_review --approve--> completed -> archived (one transaction)
 | DEV-15 | 通知、提醒、我的和生产演示清理 | DEV-12,DEV-13 | 支撑 | TODO |
 | DEV-16 | 高管基础看板 | DEV-14,DEV-15 | 第一阶段 | TODO |
 | DEV-17 | 高管按员工筛选任务下钻 | DEV-16 | 第二阶段 | BLOCKED |
-| DEV-18 | 全链路E2E、性能、安全、CI与发布验收 | DEV-17 | 发布 | TODO |
+| DEV-18 | 全链路E2E、性能、安全、CI与发布验收 | DEV-17 | 发布 | IN_PROGRESS |
 
 ## 12. 通用功能任务卡模板
 
@@ -779,6 +779,10 @@ pending_review --approve--> completed -> archived (one transaction)
 
 **测试**：员工筛选使用employeeNo而非姓名；授权内员工可查、授权外employeeNo/departmentId返回403且不泄漏；员工+状态/四象限/日期AND叠加；清除员工筛选恢复授权范围全部任务；任务卡进入现有详情；详情返回恢复筛选/滚动，再返回高管页恢复部门/周期；无新增迁移。
 
+### 功能16前置P0：企业微信身份与组织基线
+
+在 DEV-18 最终发布验收前，企业微信作为生产身份/组织上游。字段映射以 `docs/WECOM_IDENTITY_ORG_MAPPING.md` 为准。已新增 `departments.wecom_department_id` 保存企业微信部门外部ID；内部 `department_id` 与人员 `employee_no` 继续作为旺序权威主键。企业微信正式身份入口已经实现：`wx.qy.login()` → `/api/v1/auth/wecom` → `users.wecom_user_id` → 现有 `employee_no` → 现有旺序 access/refresh 会话。短信 LoginService 已退出运行源码；ChatService 只接受 FastAPI 签发的短时 `task-intake` token。该改造不改变任务权限、角色、授权范围、状态机或业务 DTO。
+
 ### DEV-18 全链路E2E、性能、安全、CI和发布验收
 
 **目标**：执行第15～18节全部门禁，修复回归，不新增产品范围。
@@ -944,7 +948,7 @@ python -m alembic upgrade head
 | DEV-15 | TODO | — | — | — | — | — |
 | DEV-16 | BLOCKED | 功能14高管聚合Service/API/微信页；available_actions真实500缺陷修复；无迁移 | 非PG累计451 passed；微信17组PASS；compileall/OpenAPI PASS | PostgreSQL/Web/Ruff/微信开发者工具门禁当前环境不可执行 | 2026-09-03 | 实现完成；完整开发成功仍待真实PostgreSQL、Web依赖和微信开发者工具验收 |
 | DEV-17 | BLOCKED | 功能15高管负荷→员工任务筛选→现有详情；无迁移 | 非PG累计460 passed；微信19组PASS；compileall/JS语法/Alembic head PASS | 真实PostgreSQL/微信开发者工具门禁当前环境不可执行 | 2026-09-03 | 实现完成；最终开发成功仍待环境门禁 |
-| DEV-18 | TODO | — | — | — | — | — |
+| DEV-18 | IN_PROGRESS | 企业微信组织字段基线；企业微信正式登录；LoginService退出；ChatService短期AI授权；发布门禁继续 | 非PG 475 passed；微信20/20；ChatService auth/intake PASS；compileall/Alembic PASS | 真实PG/Web/Ruff全量/微信DevTools/真实企微应用仍待完成 | 2026-09-03 | 详见 `FEATURE_16_WECOM_AUTH_ACCEPTANCE.md` |
 
 ### 19.2 状态定义
 

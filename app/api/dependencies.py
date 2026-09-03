@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Request, Security
@@ -11,7 +12,9 @@ from app.core.config import get_settings
 from app.core.security import InvalidPrototypeTokenError, decode_access_token
 from app.db.session import SessionLocal, get_db
 from app.db.unit_of_work import UnitOfWork
+from app.integrations.wecom import WeComClient
 from app.services.authentication import AuthenticationService
+from app.services.wecom_authentication import WeComAuthenticationService
 from app.services.business_capabilities import (
     ArchiveReuseService,
     AuditQueryService,
@@ -31,10 +34,10 @@ from app.services.task_query import TaskQueryService
 from app.services.task_workflow import TaskWorkflowService
 
 UowFactory = Callable[[], UnitOfWork]
-prototype_bearer = HTTPBearer(
+app_bearer = HTTPBearer(
     auto_error=False,
     bearerFormat="JWT",
-    description="Short-lived JWT for isolated prototype use only.",
+    description="Smart Task Board access token.",
 )
 
 
@@ -42,7 +45,7 @@ def get_current_employee_no(
     request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
-        Security(prototype_bearer),
+        Security(app_bearer),
     ] = None,
 ) -> str:
     settings = get_settings()
@@ -133,6 +136,18 @@ def get_authentication_service(
     session: Annotated[Session, Depends(get_db)],
 ) -> AuthenticationService:
     return AuthenticationService(session, get_settings())
+
+
+@lru_cache
+def get_wecom_client() -> WeComClient:
+    return WeComClient(get_settings())
+
+
+def get_wecom_authentication_service(
+    session: Annotated[Session, Depends(get_db)],
+    client: Annotated[WeComClient, Depends(get_wecom_client)],
+) -> WeComAuthenticationService:
+    return WeComAuthenticationService(session, get_settings(), client)
 
 
 def get_task_board_query_service(

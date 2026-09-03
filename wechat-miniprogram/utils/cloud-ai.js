@@ -1,14 +1,15 @@
 /**
  * Feature: Cloud AI gateway for task intake.
- * Responsibilities: call replaceable LoginService/ChatService cloud functions and keep cloud JWT isolated.
- * Does not own: Smart Task Board auth, task persistence, permissions, or business validation.
- * Plan task: WECHAT-MP-05.
+ * Responsibilities: obtain a short-lived FastAPI AI token and call the replaceable ChatService.
+ * Does not own: user login, task persistence, permissions, or business validation.
+ * Plan task: DEV-18 / WeCom authentication baseline.
  */
 
 const config = require("../config");
 
-const CLOUD_AI_TOKEN_KEY = "wangxu.cloudAiToken";
-const CLOUD_AI_EXPIRES_AT_KEY = "wangxu.cloudAiExpiresAt";
+const ACCESS_TOKEN_KEY = "wangxu.accessToken";
+let aiTokenCache = null;
+let aiTokenPromise = null;
 
 function baseUrl(name) {
   const value = config.cloudServices?.[name];
@@ -16,18 +17,52 @@ function baseUrl(name) {
   return String(value).replace(/\/$/, "");
 }
 
-function cloudRequest(serviceName, method, path, data, options = {}) {
+function clearAiToken() { aiTokenCache = null; }
+
+function requestAiToken() {
+  const now = Date.now();
+  if (aiTokenCache?.token && aiTokenCache.expiresAt > now + 30000) return Promise.resolve(aiTokenCache.token);
+  if (aiTokenPromise) return aiTokenPromise;
+  const accessToken = wx.getStorageSync(ACCESS_TOKEN_KEY);
+  if (!accessToken) return Promise.reject(Object.assign(new Error("请先完成企业微信登录"), { code: "AUTH_REQUIRED" }));
+  aiTokenPromise = new Promise((resolve, reject) => {
+    wx.request({
+      url: `${config.apiBaseUrl}/api/v1/auth/ai-token`,
+      method: "POST",
+      data: {},
+      timeout: config.requestTimeoutMs,
+      header: { "content-type": "application/json", Authorization: `Bearer ${accessToken}` },
+      success(response) {
+        const payload = response.data || {};
+        if (response.statusCode >= 200 && response.statusCode < 300 && payload.token) {
+          aiTokenCache = {
+            token: payload.token,
+            expiresAt: Date.now() + Number(payload.expires_in || payload.expiresIn || 300) * 1000,
+          };
+          resolve(aiTokenCache.token);
+          return;
+        }
+        reject(Object.assign(new Error(payload.error?.message || "AI授权获取失败"), {
+          code: payload.error?.code || "AI_AUTH_TOKEN_FAILED",
+          statusCode: response.statusCode,
+        }));
+      },
+      fail(error) {
+        reject(Object.assign(new Error(error.errMsg || "AI授权网络不可用"), { code: "NETWORK_ERROR" }));
+      },
+    });
+  }).finally(() => { aiTokenPromise = null; });
+  return aiTokenPromise;
+}
+
+function sendCloudRequest(serviceName, method, path, data, token, options = {}) {
   return new Promise((resolve, reject) => {
-    const token = wx.getStorageSync(CLOUD_AI_TOKEN_KEY);
     wx.request({
       url: `${baseUrl(serviceName)}${path}`,
       method,
       data,
       timeout: options.timeout || config.aiRequestTimeoutMs || 30000,
-      header: {
-        "content-type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      header: { "content-type": "application/json", Authorization: `Bearer ${token}` },
       success(response) {
         const payload = response.data || {};
         if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -48,28 +83,15 @@ function cloudRequest(serviceName, method, path, data, options = {}) {
   });
 }
 
-function saveCloudSession(session) {
-  if (!session?.token) return session;
-  wx.setStorageSync(CLOUD_AI_TOKEN_KEY, session.token);
-  if (session.expiresIn) wx.setStorageSync(CLOUD_AI_EXPIRES_AT_KEY, Date.now() + Number(session.expiresIn) * 1000);
-  return session;
-}
-
-function clearCloudSession() {
-  wx.removeStorageSync?.(CLOUD_AI_TOKEN_KEY);
-  wx.removeStorageSync?.(CLOUD_AI_EXPIRES_AT_KEY);
-  if (!wx.removeStorageSync) {
-    wx.setStorageSync(CLOUD_AI_TOKEN_KEY, "");
-    wx.setStorageSync(CLOUD_AI_EXPIRES_AT_KEY, "");
-  }
-}
-
-function requestSmsCode(phone) {
-  return cloudRequest("loginServiceBaseUrl", "POST", "/sms/code", { phone });
-}
-
-function loginByPhone(phone, code) {
-  return cloudRequest("loginServiceBaseUrl", "POST", "/login/phone", { phone, code }).then(saveCloudSession);
+function cloudRequest(serviceName, method, path, data, options = {}) {
+  return requestAiToken().then((token) => sendCloudRequest(serviceName, method, path, data, token, options))
+    .catch((error) => {
+      if (error.statusCode !== 401 || options.authRetried) throw error;
+      clearAiToken();
+      return requestAiToken().then((token) => sendCloudRequest(
+        serviceName, method, path, data, token, { ...options, authRetried: true },
+      ));
+    });
 }
 
 function extractTaskFields(payload) {
@@ -102,10 +124,7 @@ function transcribeVoice(filePath) {
 }
 
 module.exports = {
-  CLOUD_AI_TOKEN_KEY,
-  requestSmsCode,
-  loginByPhone,
-  clearCloudSession,
+  clearAiToken,
   extractTaskFields,
   clarifyTaskFields,
   transcribeVoice,

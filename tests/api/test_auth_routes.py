@@ -239,3 +239,109 @@ def test_cors_allows_only_configured_origin() -> None:
     )
     assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_wecom_login_uses_verified_external_identity_service_only() -> None:
+    from app.api.dependencies import get_wecom_authentication_service
+
+    settings = _settings(
+        auth_mode="wecom",
+        prototype_auth_enabled=False,
+        prototype_user_employee_nos="",
+        allow_test_employee_header=False,
+        wecom_corp_id="ww-corp-001",
+        wecom_app_secret="wecom-secret",
+    )
+    service = MagicMock()
+    service.login.return_value = {
+        "access_token": "wecom-access",
+        "refresh_token": "wecom-refresh",
+        "expires_in": 1800,
+        "current_user": {
+            "employee_no": "E-CREATOR",
+            "name": "Demo Creator",
+            "department": None,
+            "role_type": "employee",
+            "roles": ["employee"],
+            "permissions": {
+                "can_access_executive": False,
+                "can_manage_permissions": False,
+                "can_view_all_tasks": False,
+                "can_view_all_demo_data": False,
+                "allowed_routes": ["/workbench", "/tasks"],
+                "capabilities": ["task:read:related"],
+            },
+            "scopes": [],
+            "auth_mode": "wecom",
+        },
+    }
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_wecom_authentication_service] = lambda: service
+    try:
+        response = TestClient(app).post("/api/v1/auth/wecom", json={"code": "CODE-001"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["current_user"]["employee_no"] == "E-CREATOR"
+    assert response.json()["current_user"]["auth_mode"] == "wecom"
+    service.login.assert_called_once_with("CODE-001", user_agent="testclient")
+
+
+def test_wecom_login_request_cannot_inject_employee_number() -> None:
+    from app.api.dependencies import get_wecom_authentication_service
+
+    settings = _settings(
+        auth_mode="wecom",
+        prototype_auth_enabled=False,
+        prototype_user_employee_nos="",
+        allow_test_employee_header=False,
+        wecom_corp_id="ww-corp-001",
+        wecom_app_secret="wecom-secret",
+    )
+    service = MagicMock()
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_wecom_authentication_service] = lambda: service
+    try:
+        response = TestClient(app).post(
+            "/api/v1/auth/wecom",
+            json={"code": "CODE-001", "employee_no": "E-ADMIN"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    service.login.assert_not_called()
+
+
+def test_ai_token_is_scoped_and_requires_existing_app_bearer(monkeypatch) -> None:
+    import jwt
+
+    settings = _settings(
+        chat_service_jwt_secret_key="chat-secret-with-at-least-32-characters",
+        chat_service_jwt_issuer="smart-task-board",
+        chat_service_jwt_audience="wangxu-chat",
+    )
+    app.dependency_overrides[get_settings] = lambda: settings
+    monkeypatch.setattr(dependencies, "get_settings", lambda: settings)
+    access_token, _ = create_access_token("E-CREATOR", settings)
+    try:
+        response = TestClient(app).post(
+            "/api/v1/auth/ai-token",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        denied = TestClient(app).post("/api/v1/auth/ai-token")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    claims = jwt.decode(
+        response.json()["token"],
+        settings.chat_service_jwt_secret_key.get_secret_value(),
+        algorithms=["HS256"],
+        issuer="smart-task-board",
+        audience="wangxu-chat",
+    )
+    assert claims["sub"] == "E-CREATOR"
+    assert claims["scope"] == "task-intake"
+    assert denied.status_code == 401

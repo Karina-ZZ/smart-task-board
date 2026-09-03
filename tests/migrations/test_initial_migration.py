@@ -246,7 +246,7 @@ def _migration_index_signatures(
 def test_initial_migration_is_the_only_importable_root_revision() -> None:
     files = _migration_files()
 
-    assert len(files) == 9
+    assert len(files) == 10
     modules = [_load_migration(path) for path in files]
     roots = [module for module in modules if module.down_revision is None]
     assert len(roots) == 1

@@ -15,13 +15,21 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url: str = Field(repr=False)
     database_connect_timeout_seconds: int = Field(default=5, ge=1, le=60)
-    auth_mode: Literal["disabled", "prototype", "test_header"] = "test_header"
+    auth_mode: Literal["disabled", "prototype", "test_header", "wecom"] = "test_header"
     prototype_auth_enabled: bool = False
     prototype_user_employee_nos: str = ""
     jwt_secret_key: SecretStr | None = Field(default=None, repr=False)
     jwt_issuer: str = "smart-task-board"
     jwt_audience: str = "smart-task-board-web"
     jwt_expire_minutes: int = Field(default=30, ge=1, le=1440)
+    wecom_corp_id: str = ""
+    wecom_app_secret: SecretStr | None = Field(default=None, repr=False)
+    wecom_api_base_url: str = "https://qyapi.weixin.qq.com"
+    wecom_request_timeout_seconds: int = Field(default=8, ge=1, le=30)
+    chat_service_jwt_secret_key: SecretStr | None = Field(default=None, repr=False)
+    chat_service_jwt_issuer: str = "smart-task-board"
+    chat_service_jwt_audience: str = "wangxu-chat"
+    chat_service_jwt_expire_minutes: int = Field(default=5, ge=1, le=30)
     allow_test_employee_header: bool = True
     cors_allowed_origins: str = ""
     ai_provider: Literal["fake", "openai_compatible"] = "fake"
@@ -78,6 +86,23 @@ class Settings(BaseSettings):
                 raise ValueError("ALLOW_TEST_EMPLOYEE_HEADER must be false in prototype auth mode")
         if self.auth_mode == "test_header" and not self.allow_test_employee_header:
             raise ValueError("test_header auth mode requires ALLOW_TEST_EMPLOYEE_HEADER=true")
+        if self.auth_mode == "wecom":
+            if not self.wecom_corp_id.strip():
+                raise ValueError("WECOM_CORP_ID is required in wecom auth mode")
+            if (
+                self.wecom_app_secret is None
+                or not self.wecom_app_secret.get_secret_value().strip()
+            ):
+                raise ValueError("WECOM_APP_SECRET is required in wecom auth mode")
+            if self.jwt_secret_key is None or len(self.jwt_secret_key.get_secret_value()) < 32:
+                raise ValueError("JWT_SECRET_KEY must contain at least 32 characters")
+            if self.allow_test_employee_header:
+                raise ValueError("ALLOW_TEST_EMPLOYEE_HEADER must be false in wecom auth mode")
+        if (
+            self.chat_service_jwt_secret_key is not None
+            and len(self.chat_service_jwt_secret_key.get_secret_value()) < 32
+        ):
+            raise ValueError("CHAT_SERVICE_JWT_SECRET_KEY must contain at least 32 characters")
         if self.ai_provider == "openai_compatible":
             if self.ai_api_key is None or not self.ai_api_key.get_secret_value().strip():
                 raise ValueError("AI_API_KEY is required when AI_PROVIDER=openai_compatible")

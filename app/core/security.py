@@ -56,3 +56,31 @@ def decode_access_token(token: str, settings: Settings) -> str:
     if not isinstance(subject, str) or not subject.strip():
         raise InvalidPrototypeTokenError
     return subject.strip()
+
+
+def create_chat_service_token(
+    employee_no: str,
+    settings: Settings,
+    *,
+    now: datetime | None = None,
+) -> tuple[str, int]:
+    """Create a short-lived token scoped only to ChatService task intake."""
+    secret = settings.chat_service_jwt_secret_key
+    if secret is None:
+        raise RuntimeError("ChatService JWT secret is not configured")
+    issued_at = now or datetime.now(UTC)
+    expires_in = settings.chat_service_jwt_expire_minutes * 60
+    payload = {
+        "sub": employee_no,
+        "iss": settings.chat_service_jwt_issuer,
+        "aud": settings.chat_service_jwt_audience,
+        "scope": "task-intake",
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=expires_in),
+    }
+    token = jwt.encode(
+        payload,
+        secret.get_secret_value(),
+        algorithm=JWT_ALGORITHM,
+    )
+    return token, expires_in

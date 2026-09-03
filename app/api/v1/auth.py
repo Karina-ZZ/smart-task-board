@@ -6,11 +6,13 @@ from app.api.dependencies import (
     get_authentication_service,
     get_current_employee_no,
     get_identity_service,
+    get_wecom_authentication_service,
 )
 from app.core.config import Settings, get_settings
+from app.core.security import create_chat_service_token
 from app.models import User
-from app.schemas.current_user import CurrentUserResponse
 from app.schemas.auth import (
+    AiTokenResponse,
     LoginResponse,
     PrototypeLoginRequest,
     PrototypeLoginResponse,
@@ -18,16 +20,22 @@ from app.schemas.auth import (
     PrototypeUserResponse,
     RefreshTokenRequest,
     TokenResponse,
+    WeComLoginRequest,
 )
+from app.schemas.current_user import CurrentUserResponse
 from app.services.authentication import AuthenticationService
 from app.services.errors import PermissionDeniedError
 from app.services.identity import PROTOTYPE_WARNING, IdentityService
+from app.services.wecom_authentication import WeComAuthenticationService
 
 router = APIRouter(prefix="/auth", tags=["prototype-auth"])
 Identity = Annotated[IdentityService, Depends(get_identity_service)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 AuthService = Annotated[AuthenticationService, Depends(get_authentication_service)]
 Actor = Annotated[str, Depends(get_current_employee_no)]
+WeComAuthService = Annotated[
+    WeComAuthenticationService, Depends(get_wecom_authentication_service)
+]
 
 
 @router.get(
@@ -106,6 +114,29 @@ def issue_tokens(
     )
     result = service.issue(request.employee_no, user_agent=user_agent)
     return LoginResponse(**result, current_user=current_user)
+
+
+@router.post(
+    "/wecom",
+    response_model=LoginResponse,
+    summary="Sign in through a WeCom Mini Program login code",
+)
+def wecom_login(
+    request: WeComLoginRequest,
+    service: WeComAuthService,
+    user_agent: str | None = Header(default=None),
+) -> LoginResponse:
+    return LoginResponse(**service.login(request.code, user_agent=user_agent))
+
+
+@router.post(
+    "/ai-token",
+    response_model=AiTokenResponse,
+    summary="Issue a short-lived token scoped to ChatService task intake",
+)
+def issue_ai_token(actor: Actor, settings: AppSettings) -> AiTokenResponse:
+    token, expires_in = create_chat_service_token(actor, settings)
+    return AiTokenResponse(token=token, expires_in=expires_in)
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Rotate a refresh token")

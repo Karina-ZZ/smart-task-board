@@ -2,86 +2,24 @@
 
 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
 
-> 版本历史与各功能变更明细见 [CHANGELOG.md](CHANGELOG.md)。当前版本：**功能 15（高管员工任务筛选）**——本次交付同时包含功能 14（高管任务看板）。
+## 当前进度
 
-## 功能开发进度
+Phase 0～5 后端基础已经完成：
 
-> **进度计划来源**：项目当前 16 项功能计划源自 `docs/reference/` 中第二版核心逻辑与数据表结构文档的对应交付清单（功能 05、12、14 为高亮的当前重点）。
+- Phase 0：工程、配置、健康检查、SQLAlchemy、Alembic、Pytest 和 Ruff。
+- Phase 1：10张核心业务表的 ORM 和显式业务主键。
+- Phase 2：首份 PostgreSQL 迁移及升级、降级验证。
+- Phase 3：Repository 和 Unit of Work 事务边界。
+- Phase 4：任务和节点状态机 Service。
+- Phase 5：16条核心 REST API 业务路径，包括创建、查询、确认、发送、接受或退回、节点执行、完成提交和验收。
 
-**总体状态：功能 01 ～ 15 已全部完成并通过验收；功能 16 未开始。**
+Batch 1 已经实现基础原型身份、任务列表、统一 Inbox、Dashboard 首页摘要、后端授权动作投影和 React 响应式前端，并已通过全部质量门。Batch 2A 已新增进度汇报和任务卡点模型及迁移，本地 checkpoint 为 `94108af17225ca9e4a2f728e47a117f1d546a0af`。Batch 2B 已完成进度汇报、问题闭环及真实 PostgreSQL 验收，本地 checkpoint 为 `7a0cf4e3c6b920d5fea10c351d4d7789f39baf90`。
 
-### 功能清单（依据用户规划第二版交付线）
-
-| # | 功能 | 范围要点 | 当前状态 |
-|---|---|---|---|
-| 01 | 员工任务工作台 | 小程序工程基础、第二版应用壳、底部导航、任务指标、四象限、需要支持、AI 创建入口、最近任务 | ✅ 完成 |
-| 02 | 任务概览 | 任务/节点模式、状态筛选、四象限筛选、临期筛选、自定义日期、空态、任务跳转 | ✅ 完成 |
-| 03 | 任务详情 | 基础信息、责任关系、任务目标、验收标准、节点、汇报、卡点、绩效、状态轨迹、操作记录 | ✅ 完成 |
-| 04 | 登录与权限 | 当前用户、任务关系、员工/高管权限、数据范围、无权访问、Token 与刷新 | ✅ 完成 |
-| 05 | AI 任务输入 ⚠️ | 文字输入、录音、语音转文字、AI 字段识别、缺失字段追问、失败重试；任务创建人关联绩效指标 | ✅ 完成 |
-| 06 | 创建人三步创建 | 描述任务 → 信息确认 → 确认发送；发送后进入待接受、不生成节点 | ✅ 完成 |
-| 07 | 接受后 AI 拆解 | 接受/退回、拆解中、拆解失败、重新拆解、成功生效、迟到结果失效 | ✅ 完成 |
-| 08 | 节点执行 | 节点展开、依赖校验、开始、更新、完成、节点负责人和协同人权限 | ✅ 完成 |
-| 09 | 进度与卡点 | 当前进度、阶段成果、卡点开关、卡点说明、备注、问题处理和关闭 | ✅ 完成 |
-| 10 | 任务生命周期 | 变更申请、更换承办人、撤回、取消、合并、关闭、原因弹窗和通知 | ✅ 完成 |
-| 11 | 完成申请与验收 | 全部节点完成校验、多轮验收、退回修改、指定节点重开、通过后自动归档 | ✅ 完成 |
-| 12 | 智能计算 ⚠️ | 绩效关联、四象限、剩余工时、负荷、冲突和服务端计算口径 | ✅ 完成 |
-| 13 | 通知与我的 | 任务通知、提醒、系统消息、个人资料、任务关系统计和待办数量 | ✅ 完成 |
-| 14 | 高管任务看板 ⚠️ | 团队指标、状态分布、风险、负荷热力图、卡点和绩效态势 | ✅ 完成 |
-| 15 | 员工负荷任务下钻 | 负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改 | ✅ 完成 |
-| 16 | 全链路发布验收 | 主链路、异常链路、权限、安全、幂等、事务、性能和微信开发者工具验收 | ⬜ 未开始 |
-
-**后端覆盖矩阵**：功能 01～15 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE：完成验收与返工、任务变更与生命周期、组织档案与授权、绩效与 KPI 匹配、负荷/优先级/冲突、提醒与通知、归档与审计、AI 拆解、`/api/v1` 契约收敛、生产加固。Alembic 单一 head 为 `b1c2d3e4f5a6`。
-
-**当前未开工的功能**：功能 16（全链路发布验收）是规划中已确定范围、尚未立项开发的功能。提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`），未开工功能不得虚报为已完成。
-
-> 功能 15 无新增业务表、无新增数据库字段、无新增 Alembic 迁移，`alembic/versions` 文件集合与功能 14 基线一致。功能 15 正式链路为：高管看板 → 点击员工负荷格 → 负荷构成抽屉 → 查看该员工任务 → 现有任务概览（自动带员工姓名筛选，查询使用 `employeeNo`）→ 员工 + 状态 + 四象限 + 日期按 AND 叠加 → 现有任务详情 → 返回恢复筛选与高管上下文。
-
-### 测试进度
-
-> **以下为本机独立复核的实测结果**（复核日期 2026-09-03，基于功能 15 代码）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。注意项目声明 `requires-python = ">=3.12,<3.13"`，本次复核以 3.13.12 加装 `--ignore-requires-python` 执行，与官方 3.12 口径存在版本差异。
-
-| 质量门 | 实测结果 | 说明 |
-|---|---|---|
-| 后端全量 pytest | ✅ `460 passed, 28 skipped` | 2.24s；28 项 skipped 均为 PostgreSQL opt-in 集成测试 |
-| 后端（交付包口径 `-m 'not postgresql'`） | ✅ `460 passed, 28 deselected` | 与 `docs/FEATURE_15_ACCEPTANCE.md` 记录完全一致 |
-| PostgreSQL 集成测试 | ⚠️ 未执行 | 需 `RUN_POSTGRESQL_INTEGRATION=1` + 隔离 PG 测试库，本次未提供，**不宣称通过** |
-| Python `compileall` | ✅ PASS | `app` 包全量编译通过 |
-| `ruff check` | ⚠️ `220` 个告警 | **全部为风格类，F821 真实缺陷已清零**，详见下方说明 |
-| 微信小程序功能 01～15 | ✅ `19 / 19` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
-| 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
-| React 前端 ESLint | ✅ PASS | 无错误输出 |
-| React 前端测试 | ✅ `18 test files / 109 tests passed` | vitest `--run`，3.46s |
-| React 前端构建 | ✅ PASS | `tsc --noEmit && vite build`，546ms |
-| 功能 16 测试 | ⬜ 未开始 | 功能尚未立项开发，无对应测试任务 |
-
-> 相比功能 13 基线：后端测试由 `436` 增至 `460 passed`，小程序测试由 `16` 组增至 `19` 组（新增 `executive-dashboard`、`executive-employee-tasks`、`executive-employee-tasks-flow`）。
-
-### 静态检查状态
-
-`ruff check .` 当前 220 个告警，**全部为代码风格类，无功能性缺陷**：
-
-| 类型 | 数量 | 性质 |
-|---|---|---|
-| E501 行超长 | 163 | 代码风格 |
-| I001 import 未排序 | 35 | 代码风格 |
-| F401 未使用 import | 10 | 代码风格 |
-| E701 / E702 单行多语句 | 6 | 代码风格 |
-| F841 未使用变量 | 3 | 代码风格 |
-| B033 重复值 / UP035 弃用 import | 3 | 代码风格 |
-
-#### 已修复的真实缺陷（功能 15 交付中解决）
-
-功能 13 版本的 `app/services/task_board_query.py` `available_actions()` 方法曾引用未定义变量 `priority`，导致 `GET /api/v1/tasks/{task_id}/available-actions` 返回 HTTP 500。该缺陷在功能 15 交付包中**已由上游修复**，并补充了直接针对 service 层的回归测试。
-
-- **当初未被引爆的原因**：唯一覆盖真实实现的测试属于 PostgreSQL opt-in（默认 skipped），而单元测试用 mock 替换了 service 返回值，绕过了真实代码路径。
-- **现状**：`ruff --select F821` 已全部通过，该接口不再返回 500。
+Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交形成不可变验收轮次；验收人按任务指定 reviewer 快照，未指定时回退创建人；支持通过、强制原因驳回、仅返工整体交付物、指定节点显式重开、多轮历史、API、Inbox、任务详情和响应式 UI。旧有 `pending_review` / `completed` 数据由迁移安全回填。本文档随 Wave 1 checkpoint 候选提交，checkpoint commit hash 尚未创建。
 
 ## 微信小程序累计交付状态
 
-当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～15 已按第二版前端页面结构和 PRD V1.1 逐项实现并开放验收：工作台、任务概览、任务详情、登录与权限、云函数 AI 配置、创建人三步创建、AI 输入与追问、AI 拆解、节点执行、进度汇报与问题闭环、任务变更与生命周期、绩效优先级负荷冲突口径、通知与节点承接、高管任务看板、高管员工任务筛选。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
-
-小程序 `app.json` 当前注册页面数为 13。功能 15 已移除占位页面 `pages/workload-tasks/`（该页在前端拼装假负荷压力，不符合 P0 三页流程）；员工任务明细改由「高管看板 → 负荷构成抽屉 → 查看该员工任务」进入现有任务概览页承载，未新增第四个业务页。
+当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～04 已按第二版前端页面结构和 PRD V1.1 逐项实现：工作台、任务概览、任务详情、登录与权限。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
 
 登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。真实企业微信凭证换票仍需要部署环境提供企业应用配置后接入现有 Auth/Identity Service。
 
@@ -124,20 +62,30 @@ React 前端：
 
 ## 数据库与迁移
 
-当前 SQLAlchemy Metadata 覆盖 27 张业务表（含身份、组织授权、任务全生命周期、绩效、负荷、优先级、冲突、提醒、通知、归档与审计等，完整清单见 `FEATURE_COVERAGE.md` 核心业务表覆盖矩阵）。
+当前 SQLAlchemy Metadata 精确包含13张业务表：
 
-当前有九份不可重写的迁移，Alembic 单一 head 为 `b1c2d3e4f5a6`：
+```text
+users
+departments
+task_inputs
+ai_extraction_records
+tasks
+task_participants
+task_nodes
+task_node_participants
+task_node_dependencies
+task_status_logs
+task_progress_reports
+task_issues
+task_completion_reviews
+```
+
+当前有三份不可重写的迁移，Alembic head 为 `c31f8e7a4d02`：
 
 ```text
 alembic/versions/17f69ea12754_initial_schema.py
 alembic/versions/576787492bd1_add_progress_reports_and_task_issues.py
 alembic/versions/c31f8e7a4d02_add_task_completion_reviews.py
-alembic/versions/d4a8e53b7c19_add_task_change_requests.py
-alembic/versions/e6f1a2b3c4d5_add_remaining_business_tables.py
-alembic/versions/f7b8c9d0e1f2_add_auth_refresh_tokens.py
-alembic/versions/f8a1b2c3d4e5_add_task_decomposition_lifecycle.py
-alembic/versions/f9a1b2c3d4e5_feature11_archive_snapshot_nullable.py
-alembic/versions/fa1b2c3d4e5_feature13_node_assignment_and_reminders.py
 ```
 
 不要手工创建或修改业务表，应通过 Alembic 管理结构变更。Docker Compose 中的 PostgreSQL 数据通过 `./data/postgres:/var/lib/postgresql/data` 绑定到项目目录，不使用默认命名卷。
@@ -168,16 +116,19 @@ Wave 1 downgrade 只允许在 `task_completion_reviews` 为空时执行；一旦
 
 项目只正式支持 Python 3.12。`.env.example` 和 `web/.env.example` 只是开发占位模板，不能直接当作安全配置使用。
 
-后端运行必须提供 `DATABASE_URL`。使用原型身份时还需要配置：
+后端运行必须提供 `DATABASE_URL`。生产企业微信身份使用 `AUTH_MODE=wecom`；隔离开发仍可使用受控 prototype。企业微信生产配置至少包括：
 
 ```text
-AUTH_MODE=prototype
-PROTOTYPE_AUTH_ENABLED=true
-PROTOTYPE_USER_EMPLOYEE_NOS=<comma-separated-demo-employee-numbers>
+AUTH_MODE=wecom
+WECOM_CORP_ID=<enterprise-corp-id>
+WECOM_APP_SECRET=<self-built-app-secret>
 JWT_SECRET_KEY=<locally-generated-secret-of-at-least-32-characters>
+CHAT_SERVICE_JWT_SECRET_KEY=<separate-secret-of-at-least-32-characters>
 ALLOW_TEST_EMPLOYEE_HEADER=false
 CORS_ALLOWED_ORIGINS=<frontend-origin>
 ```
+
+隔离开发如需 prototype，可继续使用 `PROTOTYPE_AUTH_ENABLED` 与 `PROTOTYPE_USER_EMPLOYEE_NOS`；生产禁止 prototype/test-header。
 
 Docker Compose 启动 PostgreSQL 时还需要在本地环境提供 `POSTGRES_DB`、`POSTGRES_USER` 和 `POSTGRES_PASSWORD`。不要把真实数据库密码、JWT 密钥、API Key、Token 或完整数据库连接 URL 写入代码、README 或 Git。`.env`、`.venv/`、`data/` 和前端本地环境文件均已被 Git 忽略。
 
@@ -204,15 +155,15 @@ Uvicorn 未指定其他监听参数时，默认地址为 `http://127.0.0.1:8000`
 - Swagger UI：`GET /docs`
 - OpenAPI JSON：`GET /openapi.json`
 
-## 原型身份边界
+## 身份边界
 
-当前正常原型运行使用 HTTP Bearer JWT。客户端通过原型登录接口获得短期 Token，受保护接口使用：
+生产身份入口为企业微信小程序：`wx.qy.login()` 获取一次性 code，FastAPI 调用企业微信 `jscode2session` 得到 `userid/corpid`，再以 `users.wecom_user_id` 映射现有 `employee_no`。企业微信只证明身份，不改变旺序角色、授权范围或任务关系。成功后仍使用现有 HTTP Bearer JWT：
 
 ```http
 Authorization: Bearer <token>
 ```
 
-`X-Employee-No` 只保留给既有测试兼容模式或明确隔离的测试场景，不能替代正式认证。当前会话已经支持持久化哈希 refresh token、轮换刷新、撤销/登出，以及服务端角色与 `user_authorized_scopes` 权限投影；受控 `prototype` 登录仍只用于隔离开发/验收，不能替代企业统一身份或企业微信真实凭证交换。
+`X-Employee-No` 只保留给既有自动化测试。当前会话继续使用持久化哈希 refresh token、轮换刷新、撤销/登出，以及服务端角色与 `user_authorized_scopes` 权限投影。企业微信登录不会自动创建用户，也不会从企业微信部门负责人/管理员身份推导旺序 `role_type`。
 
 不要在生产环境使用示例密钥或员工编号 Header。JWT 密钥必须由运行环境安全提供，不得提交 Git。
 
@@ -235,7 +186,7 @@ npm.cmd run build
 
 ### 微信小程序 API 联调
 
-`wechat-miniprogram/config.js` 默认保持 `mode: "mock"`。隔离开发环境联调真实 API 时，可本地改为 `mode: "api"` 并配置 `apiBaseUrl`。只有后端明确启用受控 `prototype` 认证时，才配置 `authMode: "prototype"` 和允许名单中的 `prototypeEmployeeNo`；代码仓库不得写入真实 Token、Secret 或企业微信凭证。客户端会自动保存 access/refresh token，并在受保护请求返回 401 时旋转 refresh token 后重试一次。生产部署应由经过验证的企业微信/统一身份登录流程取得会话并交给同一 API 网关，不允许使用员工号选择器冒充正式登录。
+`wechat-miniprogram/config.js` 默认保持 `mode: "mock"`；切到真实 API 时配置 `mode: "api"`、`apiBaseUrl`，生产 `authMode` 使用 `wecom`。客户端先尝试现有 refresh token，无可用会话时调用 `wx.qy.login()`，再把 code 发送到 `/api/v1/auth/wecom`。小程序不保存企业微信 Secret/access_token。受控 `prototype` 仅保留给隔离开发，不进入生产。
 
 ## 原型登录使用流程
 
@@ -298,54 +249,58 @@ npm.cmd run test -- --run
 npm.cmd run build
 ```
 
-最新质量门状态（功能 13 冻结 ZIP 反向验收）见上方「测试进度」表；历史 Wave 1 门禁（后端 `306 passed`、PostgreSQL 集成 `20 passed`、前端 `10 test files / 28 tests passed`、Ruff / pip-audit / ESLint / Vite build 全通过）在当时的 OpenAPI 为 `35` 路径 / `38` operations，现已收敛至 `78` 路径 / `84` operations。
+当前 Wave 1 checkpoint 候选的完整质量门为：后端全量 `306 passed`，其中真实 PostgreSQL 16 集成测试 `20 passed`；前端 `10 test files / 28 tests passed`。Ruff、`pip check`、`pip-audit`、SQLAlchemy mapper、Alembic check 与 downgrade/upgrade、ESLint、TypeScript（随构建执行）和 Vite build 均已通过。OpenAPI 当前包含 `35` 条 API 路径、`38` 个 operations；测试后 PostgreSQL 业务数据残留为零。当前迁移 head 为 `c31f8e7a4d02`，Metadata 为13张业务表。
 
-## Git 仓库状态
+上述 Wave 1 门禁只证明完成验收与返工核心闭环。完成提醒与外部通知仍延期至 Wave 6，完成对绩效关联的影响延期至 Wave 4，负荷/看板统计重算延期至 Wave 5，完成后归档快照、检索与复用延期至 Wave 7。
 
-- 远程仓库：`https://github.com/Karina-ZZ/smart-task-board`（公开，`main` 分支）
-- 累计提交线：功能 12 全量源码首次入库 → 文档整理与验收标准 → 功能 13 交付 → 功能 14/15 交付（当前 head）
-- 变更明细见 [CHANGELOG.md](CHANGELOG.md)；单功能验收标准见 [docs/ACCEPTANCE_STANDARDS.md](docs/ACCEPTANCE_STANDARDS.md)
-- 微信小程序独立交付版位于 `wechat-miniprogram-standalone/`，与 `wechat-miniprogram/` 内容同源
+## Git checkpoint状态
+
+- Phase 0～5 基线：
+  - commit：`9a228cdd624339b964d21cff92e3f2533efd8275`
+  - tag：`phase-5-rest-api-baseline`
+- Batch 1 稳定基线：
+  - commit：`637106a172d5c10d54461b2a1f910fb5fee9d0df`
+  - tag：`batch-1-task-board-baseline`
+- Batch 2A 本地基线：
+  - commit：`94108af17225ca9e4a2f728e47a117f1d546a0af`
+  - push：待 GitHub 网络恢复
+- Batch 2B 本地 checkpoint：
+  - commit：`7a0cf4e3c6b920d5fea10c351d4d7789f39baf90`
+- Wave 1 checkpoint 候选：
+  - 完成验收与返工实现及总质量门已通过
+  - commit hash：尚未创建；本文档随候选提交
+- 远程仓库：`https://github.com/Z-pw-36/smart-task-board.git`
+- 两个稳定基线标签均已上传至 GitHub 私有仓库且不得移动；本地 `main` 当前领先 `origin/main`。
 
 ## 后续计划
 
-按用户第二版交付计划，功能 01 ～ 15 已全部完成，下一步是尚未立项的最后一项：
+Batch 1、Batch 2A、Batch 2B 和 Wave 1 功能与验收均已完成。下一步是在安全复核后创建 Wave 1 本地 checkpoint，再进入 Wave 2：不可变任务变更申请，以及取消、撤回、合并、关闭和允许场景下的恢复。不会在 Wave 1 checkpoint 中虚报 Wave 4～7 的完成下游能力。
 
-- **功能 16** 全链路发布验收：主链路、异常链路、权限、安全、幂等、事务、性能和微信开发者工具验收
+## 当前未实现
 
-提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`）。未开工功能不得虚报为已完成。
-
-> 说明：功能 14、15 虽已实现并通过当前可执行门禁，但按项目「全部门禁通过后才报告开发成功」的规则，交付文档将功能 15 状态记录为 `BLOCKED（实现完成，等待真实 PostgreSQL 与微信开发者工具等环境门禁）`。详见 `docs/FEATURE_15_ACCEPTANCE.md` 第 7 节。
-
-## 当前未实现 / 环境边界
-
-- 功能 16 全链路发布验收（按用户规划第二版尚未开发）。
-- 功能 15 明确不实现：`workload_snapshot_task_details`、snapshot task detail 字段、按 snapshotId 查询历史任务集合、独立员工负荷任务业务页、新负荷公式。
-- 正式生产登录认证、企业统一身份或企业微信真实凭证换票（当前为受控原型认证）。
-- 功能 13 明确不提前实现：待承接再次催办间隔（未经用户确认）、协办拒绝后的完整重新分配 UI、任务级逾期升级通知创建人、用户未确认的节点逾期固定钟点。
-- 企业微信 provider 当前使用确定性 fake provider，生产启用需真实凭证。
-- React 前端 lint/test/build 与 PostgreSQL opt-in 集成测试需在具备相应环境时执行，当前环境未宣称通过。
+- 正式生产登录认证、企业统一身份或企业微信认证。
+- 完整 JWT 刷新、撤销和登出机制，以及正式 RBAC 和组织范围权限。
+- 任务变更申请，以及取消、撤回、合并、关闭和允许场景下的恢复。
+- AI 结构化提取、真实 AI/LLM、多轮对话、语音上传和 ASR。
+- 企业微信机器人、通知和 Outbox。
+- 附件及交付物文件管理。
+- 负荷分析、冲突分析、优先级分析和绩效关联。
+- 完成提醒、完成后的绩效关联影响、负荷/看板统计重算、归档检索与复用，以及其他后续 Wave 功能。
 
 ## 有效需求文档
 
 项目仅以 `docs/` 中以下两份文档为当前有效需求，不得修改或删除：
 
-- `docs/第二版-智能任务看板核心逻辑与用户使用流程节点.docx`
-- `docs/第四版-智能任务看板数据表结构文档-显式ID版.docx`
-
-其他过程与参考文档见 `docs/`（验收记录、通知规则、开发计划、基线报告）与 `docs/reference/`（PRD V1.1、前端原型、交接文档）。
+- `第二版-智能任务看板核心逻辑与用户使用流程节点(1).docx`
+- `第四版-智能任务看板数据表结构文档-显式ID版(1).docx`
 
 ## Feature 05 cloud-function AI intake
 
-The cumulative source now includes `cloud-functions/LoginService` and `cloud-functions/ChatService` as independently deployable Flask functions. The Mini Program reads only `loginServiceBaseUrl` and `chatServiceBaseUrl` from `wechat-miniprogram/config.js`; Qwen/API/MySQL/JWT secrets stay in cloud-function environment variables. See `cloud-functions/README.md` and `cloud-functions/mysql/schema.sql`.
+The runtime source now contains only `cloud-functions/ChatService`; the historical SMS `LoginService` has been removed. The Mini Program authenticates through WeCom/FastAPI and obtains a short-lived `task-intake` token from `/api/v1/auth/ai-token` before calling ChatService. See `cloud-functions/README.md` and `docs/WECOM_IDENTITY_ORG_MAPPING.md`.
 
 ## Feature 13 notification and node-assignment delivery
 
 Feature 13 is implemented against the user-confirmed rules in `docs/FEATURE_13_NOTIFICATION_RULES.md`. Collaborator-owned AI nodes require server-persisted acceptance before execution/reminder responsibility starts; dynamic node due-soon timing uses working-span bands and never estimated hours. Notification projection is recipient-scoped and action-aware, delivery retry uses the same outbox record, and production Mini Program UI uses action-required rather than read/unread as the business badge. See `docs/FEATURE_13_ACCEPTANCE.md` for the exact migration, API, tests, environment limitations, and scope boundary.
-
-### 协作者快速上手
-
-第一次拿到本仓库、想在自己电脑上跑通并验证功能，请看 **[docs/LOCAL_TEST_GUIDE_FEATURE_13.md](docs/LOCAL_TEST_GUIDE_FEATURE_13.md)**（含从零搭建的完整命令、功能 13 的 8 个验证项、已知问题，以及一段可直接交给 AI 助手执行的一键提示词）。
 
 ## Feature 14 executive dashboard implementation
 
@@ -355,15 +310,4 @@ Feature 14 is implemented against `docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`
 
 Feature 15 follows the user-confirmed P0 scope in `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`. The workload breakdown sheet now has a real “查看该员工任务” action that reuses the existing task overview. The task overview displays an employee-name filter but sends only `employeeNo` to the backend, combines it with status/quadrant/date filters, revalidates explicit executive department scope, and opens the existing task detail page. The old standalone `pages/workload-tasks` fake page was removed from production registration. Feature 15 adds no business table, field, or Alembic migration.
 
-The same change also fixes the real `TaskBoardQueryService.available_actions()` undefined-`priority` 500 defect and adds direct service regression coverage.
-
-**新增接口**：
-
-| 接口 | 说明 |
-|---|---|
-| `GET /api/v1/executive/members` | 高管成员只读接口，仅返回当前高管有效部门授权范围内的 active 员工 |
-| `GET /api/v1/executive/tasks` | 扩展支持 `employeeNo`、状态、四象限、日期过滤，各条件按 AND 叠加 |
-
-**权限边界**：员工筛选在 Repository 层使用 `Task.main_assignee_employee_no == employee_no`；查询前先校验高管显式授权部门，再校验目标员工所属部门，授权外员工在任务查询前即被拒绝并审计；任务结果始终以授权部门集合为第一范围边界。
-
-**本机复核门禁**：后端非 PostgreSQL `460 passed, 28 deselected`；微信小程序 `19 / 19` 组 PASS；JS 语法与 Python `compileall` PASS；`ruff` F821 已清零。真实 PostgreSQL 与微信开发者工具门禁因环境不可用未执行，**不宣称最终通过**。详见 `docs/FEATURE_14_ACCEPTANCE.md` 与 `docs/FEATURE_15_ACCEPTANCE.md`。
+The same change also fixes the real `TaskBoardQueryService.available_actions()` undefined-`priority` 500 defect and adds direct service regression coverage. Current executable gates after Feature 15: backend non-PostgreSQL `460 passed, 28 deselected`; WeChat feature01-15 `19` groups PASS; JS syntax and Python compileall PASS. Real PostgreSQL, React dependency gates, Ruff, and WeChat Developer Tools are unavailable in this container and are not claimed as passed. See `docs/FEATURE_14_ACCEPTANCE.md`.

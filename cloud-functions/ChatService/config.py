@@ -1,4 +1,4 @@
-"""ChatService environment configuration. Qwen/MySQL/JWT secrets stay in cloud env vars."""
+"""ChatService environment configuration. Qwen/MySQL/AI-token secrets stay in cloud env vars."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ def env(name: str, default: str = "") -> str:
 
 APP_ENV = env("APP_ENV", "development")
 CHAT_REQUIRE_AUTH = env("CHAT_REQUIRE_AUTH", "false").casefold() == "true"
-JWT_SECRET = env("CLOUD_JWT_SECRET", "development-only-change-me-please")
-JWT_ISSUER = env("CLOUD_JWT_ISSUER", "wangxu-cloud-login")
-JWT_AUDIENCE = env("CLOUD_JWT_AUDIENCE", "wangxu-cloud-chat")
+JWT_SECRET = env("WANGXU_AI_JWT_SECRET", "development-only-change-me-please")
+JWT_ISSUER = env("WANGXU_AI_JWT_ISSUER", "smart-task-board")
+JWT_AUDIENCE = env("WANGXU_AI_JWT_AUDIENCE", "wangxu-chat")
+JWT_REQUIRED_SCOPE = "task-intake"
 
 QWEN_API_KEY = env("QWEN_API_KEY") or env("DASHSCOPE_API_KEY")
 QWEN_BASE_URL = env("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
@@ -33,8 +34,10 @@ def validate_production_config() -> None:
         return
     if not QWEN_API_KEY:
         raise RuntimeError("production ChatService requires QWEN_API_KEY")
-    if CHAT_REQUIRE_AUTH and JWT_SECRET.startswith("development-"):
-        raise RuntimeError("production authenticated ChatService requires CLOUD_JWT_SECRET")
+    if not CHAT_REQUIRE_AUTH:
+        raise RuntimeError("production ChatService requires CHAT_REQUIRE_AUTH=true")
+    if JWT_SECRET.startswith("development-"):
+        raise RuntimeError("production ChatService requires WANGXU_AI_JWT_SECRET")
 
 
 validate_production_config()

@@ -124,10 +124,11 @@ npm test
 
 ```js
 cloudServices: {
-  loginServiceBaseUrl: "https://your-login-service.example.com",
   chatServiceBaseUrl: "https://your-chat-service.example.com",
 }
 ```
+
+生产登录由 `wx.qy.login()` + FastAPI `/api/v1/auth/wecom` 完成。ChatService 调用前由 FastAPI `/api/v1/auth/ai-token` 签发短时 `task-intake` token；不再使用短信 LoginService 或持久化 `cloudAiToken`。
 
 Qwen Key、MySQL密码和JWT Secret只放云函数环境变量，不放小程序。
 

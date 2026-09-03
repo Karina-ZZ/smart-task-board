@@ -36,7 +36,7 @@ pytestmark = pytest.mark.postgresql
 EXPECTED_DATABASE = "smarttaskboard_core_test"
 EXPECTED_HOST = "127.0.0.1"
 EXPECTED_PORT = 46479
-EXPECTED_REVISION = "b1c2d3e4f5a6"
+EXPECTED_REVISION = "c2d3e4f5a6b7"
 NOW = datetime(2026, 9, 3, 8, 0, tzinfo=UTC)
 
 

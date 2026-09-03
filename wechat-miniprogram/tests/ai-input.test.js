@@ -16,6 +16,11 @@ global.wx = {
   removeStorageSync(key) { delete storage[key]; },
   request(options) {
     requests.push({ url: options.url, method: options.method, data: options.data, header: options.header });
+    if (options.url === "https://task.test/api/v1/auth/ai-token") {
+      assert.equal(options.header.Authorization, "Bearer task-board-access");
+      options.success({ statusCode: 200, data: { token: "ai-token-1", expires_in: 300, token_type: "bearer" } });
+      return;
+    }
     if (options.url === "https://task.test/api/v1/task-inputs/register") {
       options.success({ statusCode: 201, data: {
         input_id: "11111111-1111-4111-8111-111111111111",
@@ -112,7 +117,6 @@ global.wx = {
 const config = require("../config");
 config.mode = "api";
 config.apiBaseUrl = "https://task.test";
-config.cloudServices.loginServiceBaseUrl = "https://login.test";
 config.cloudServices.chatServiceBaseUrl = "https://chat.test";
 
 const api = require("../utils/api");
@@ -136,6 +140,8 @@ const api = require("../utils/api");
   assert.equal(extractionRound, 1);
   assert.ok(requests.some((item) => item.url === "https://chat.test/task-intake/extract"));
   assert.ok(requests.some((item) => item.url === "https://chat.test/task-intake/clarify"));
+  assert.ok(requests.filter((item) => item.url.startsWith("https://chat.test")).every((item) => item.header.Authorization === "Bearer ai-token-1"));
+  assert.equal(requests.filter((item) => item.url.endsWith("/api/v1/auth/ai-token")).length, 1, "AI token should be reused within its short lifetime");
   assert.ok(requests.some((item) => item.url.endsWith("/external-extractions")));
   assert.ok(requests.filter((item) => item.url.startsWith("https://chat.test")).every((item) => !String(item.data).includes("QWEN_API_KEY")));
 
@@ -143,7 +149,7 @@ const api = require("../utils/api");
   const configSource = fs.readFileSync(path.join(root, "config.js"), "utf8");
   const cloudSource = fs.readFileSync(path.join(root, "utils/cloud-ai.js"), "utf8");
   const detailsWxml = fs.readFileSync(path.join(root, "pages/create-details/index.wxml"), "utf8");
-  assert.match(configSource, /loginServiceBaseUrl/);
+  assert.doesNotMatch(configSource, /loginServiceBaseUrl/);
   assert.match(configSource, /chatServiceBaseUrl/);
   assert.match(cloudSource, /\/task-intake\/extract/);
   assert.match(cloudSource, /\/task-intake\/clarify/);
