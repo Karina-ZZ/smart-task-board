@@ -4,24 +4,50 @@
 
 > 版本历史与各功能变更明细见 [CHANGELOG.md](CHANGELOG.md)。当前版本：**功能 13（通知、提醒与协办节点承接）**。
 
-## 当前进度
+## 功能开发进度
 
-Phase 0～5 后端基础已经完成：
+**总体状态：DEV-00 ～ DEV-15（功能 01 ～ 13）已全部完成并通过验收；DEV-16 ～ DEV-18 未开始。**
 
-- Phase 0：工程、配置、健康检查、SQLAlchemy、Alembic、Pytest 和 Ruff。
-- Phase 1：10张核心业务表的 ORM 和显式业务主键。
-- Phase 2：首份 PostgreSQL 迁移及升级、降级验证。
-- Phase 3：Repository 和 Unit of Work 事务边界。
-- Phase 4：任务和节点状态机 Service。
-- Phase 5：16条核心 REST API 业务路径，包括创建、查询、确认、发送、接受或退回、节点执行、完成提交和验收。
+### 功能清单（按 DEVELOPMENT_PLAN_V1.1 逐功能执行卡）
 
-Batch 1 已经实现基础原型身份、任务列表、统一 Inbox、Dashboard 首页摘要、后端授权动作投影和 React 响应式前端，并已通过全部质量门。Batch 2A 已新增进度汇报和任务卡点模型及迁移，本地 checkpoint 为 `94108af17225ca9e4a2f728e47a117f1d546a0af`。Batch 2B 已完成进度汇报、问题闭环及真实 PostgreSQL 验收，本地 checkpoint 为 `7a0cf4e3c6b920d5fea10c351d4d7789f39baf90`。
+| 功能 | 执行卡 | 内容 | 状态 |
+|---|---|---|---|
+| 功能 01 | DEV-01~03 | 员工任务工作台、任务/节点概览、第二版页面转换 | ✅ 完成 |
+| 功能 02 | DEV-04 | 任务概览筛选与展示投影 | ✅ 完成 |
+| 功能 03 | DEV-05 | 任务详情、汇报、验收视觉与只读数据 | ✅ 完成 |
+| 功能 04 | DEV-06 | 登录、当前用户、权限投影对齐（服务端会话） | ✅ 完成 |
+| 功能 05 | DEV-00 契约 + 云函数 | 云函数 AI 配置（LoginService / ChatService 独立部署） | ✅ 完成 |
+| 功能 06 | DEV-08 | 创建人三步创建、任务级草稿、确认发送 | ✅ 完成 |
+| 功能 07 | DEV-07 | AI 输入、语音转文字、字段识别和追问 | ✅ 完成 |
+| 功能 08 | DEV-09 | 承办人接受后 AI 拆解、失败重试和失效 | ✅ 完成 |
+| 功能 09 | DEV-10 | 节点执行、依赖与协同权限 | ✅ 完成 |
+| 功能 10 | DEV-11 | 进度汇报、卡点、资源和问题闭环 | ✅ 完成 |
+| 功能 11 | DEV-12~13 | 任务变更、完整生命周期、多轮验收、自动归档 | ✅ 完成 |
+| 功能 12 | DEV-14 | 绩效（25%+25%+25%+20%+5%，阈值 70）、优先级、负荷、冲突口径 | ✅ 完成 |
+| 功能 13 | DEV-15 | 通知、提醒、协办节点承接与生产演示清理 | ✅ 完成 |
+| — | DEV-16 | 高管基础看板 | ⬜ 未开始 |
+| — | DEV-17 | 员工负荷快照任务下钻 | ⬜ 未开始 |
+| — | DEV-18 | 全链路 E2E、性能、安全、CI 和发布验收 | ⬜ 未开始 |
 
-Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交形成不可变验收轮次；验收人按任务指定 reviewer 快照，未指定时回退创建人；支持通过、强制原因驳回、仅返工整体交付物、指定节点显式重开、多轮历史、API、Inbox、任务详情和响应式 UI。旧有 `pending_review` / `completed` 数据由迁移安全回填。本文档随 Wave 1 checkpoint 候选提交，checkpoint commit hash 尚未创建。
+后端按 FEATURE_COVERAGE 的十波（Wave 1~10）覆盖矩阵已全部 COMPLETE：完成验收与返工、任务变更与生命周期、组织档案与授权、绩效与 KPI 匹配、负荷/优先级/冲突、提醒与通知、归档与审计、AI 拆解、`/api/v1` 契约收敛、生产加固。当前 Alembic 单一 head 为 `b1c2d3e4f5a6`，OpenAPI 共 78 条路径 / 84 个 operations。
+
+### 测试进度
+
+| 质量门 | 结果 | 说明 |
+|---|---|---|
+| 后端全量（非 PostgreSQL） | `436 passed, 21 skipped` | 21 项 skipped 为 PostgreSQL opt-in 集成测试，当前环境未启用 |
+| PostgreSQL 集成测试 | 未执行 | 本环境未启用 `RUN_POSTGRESQL_INTEGRATION=1`，不宣称通过 |
+| 迁移合同测试 | `32 passed` | Alembic 单一 head `b1c2d3e4f5a6` |
+| Python `compileall` | PASS | 正式 ZIP 反向验收通过 |
+| 微信小程序功能 01~13 | `16` 组测试文件 PASS | 累计 `npm test` |
+| 微信全部 JS 语法检查 | PASS | `node --check` |
+| React 前端 lint/test/build | 未执行 | 当前环境未安装 `web/node_modules`，不宣称通过 |
+
+> 历史 Wave 1 门禁参考：后端 `306 passed`（含真实 PostgreSQL 集成 `20 passed`）、前端 `10 test files / 28 tests passed`，Ruff、pip check、pip-audit、ESLint、Vite build 均通过。当前环境门禁以 `docs/FEATURE_13_ACCEPTANCE.md` 记录为准。
 
 ## 微信小程序累计交付状态
 
-当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～04 已按第二版前端页面结构和 PRD V1.1 逐项实现：工作台、任务概览、任务详情、登录与权限。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
+当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～13 已按第二版前端页面结构和 PRD V1.1 逐项实现并开放验收：工作台、任务概览、任务详情、登录与权限、云函数 AI 配置、创建人三步创建、AI 输入与追问、AI 拆解、节点执行、进度汇报与问题闭环、任务变更与生命周期、绩效优先级负荷冲突口径、通知与节点承接。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
 
 登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。真实企业微信凭证换票仍需要部署环境提供企业应用配置后接入现有 Auth/Identity Service。
 
@@ -64,30 +90,20 @@ React 前端：
 
 ## 数据库与迁移
 
-当前 SQLAlchemy Metadata 精确包含13张业务表：
+当前 SQLAlchemy Metadata 覆盖 27 张业务表（含身份、组织授权、任务全生命周期、绩效、负荷、优先级、冲突、提醒、通知、归档与审计等，完整清单见 `FEATURE_COVERAGE.md` 核心业务表覆盖矩阵）。
 
-```text
-users
-departments
-task_inputs
-ai_extraction_records
-tasks
-task_participants
-task_nodes
-task_node_participants
-task_node_dependencies
-task_status_logs
-task_progress_reports
-task_issues
-task_completion_reviews
-```
-
-当前有三份不可重写的迁移，Alembic head 为 `c31f8e7a4d02`：
+当前有九份不可重写的迁移，Alembic 单一 head 为 `b1c2d3e4f5a6`：
 
 ```text
 alembic/versions/17f69ea12754_initial_schema.py
 alembic/versions/576787492bd1_add_progress_reports_and_task_issues.py
 alembic/versions/c31f8e7a4d02_add_task_completion_reviews.py
+alembic/versions/d4a8e53b7c19_add_task_change_requests.py
+alembic/versions/e6f1a2b3c4d5_add_remaining_business_tables.py
+alembic/versions/f7b8c9d0e1f2_add_auth_refresh_tokens.py
+alembic/versions/f8a1b2c3d4e5_add_task_decomposition_lifecycle.py
+alembic/versions/f9a1b2c3d4e5_feature11_archive_snapshot_nullable.py
+alembic/versions/fa1b2c3d4e5_feature13_node_assignment_and_reminders.py
 ```
 
 不要手工创建或修改业务表，应通过 Alembic 管理结构变更。Docker Compose 中的 PostgreSQL 数据通过 `./data/postgres:/var/lib/postgresql/data` 绑定到项目目录，不使用默认命名卷。
@@ -248,50 +264,35 @@ npm.cmd run test -- --run
 npm.cmd run build
 ```
 
-当前 Wave 1 checkpoint 候选的完整质量门为：后端全量 `306 passed`，其中真实 PostgreSQL 16 集成测试 `20 passed`；前端 `10 test files / 28 tests passed`。Ruff、`pip check`、`pip-audit`、SQLAlchemy mapper、Alembic check 与 downgrade/upgrade、ESLint、TypeScript（随构建执行）和 Vite build 均已通过。OpenAPI 当前包含 `35` 条 API 路径、`38` 个 operations；测试后 PostgreSQL 业务数据残留为零。当前迁移 head 为 `c31f8e7a4d02`，Metadata 为13张业务表。
+最新质量门状态（功能 13 冻结 ZIP 反向验收）见上方「测试进度」表；历史 Wave 1 门禁（后端 `306 passed`、PostgreSQL 集成 `20 passed`、前端 `10 test files / 28 tests passed`、Ruff / pip-audit / ESLint / Vite build 全通过）在当时的 OpenAPI 为 `35` 路径 / `38` operations，现已收敛至 `78` 路径 / `84` operations。
 
-上述 Wave 1 门禁只证明完成验收与返工核心闭环。完成提醒与外部通知仍延期至 Wave 6，完成对绩效关联的影响延期至 Wave 4，负荷/看板统计重算延期至 Wave 5，完成后归档快照、检索与复用延期至 Wave 7。
+## Git 仓库状态
 
-## Git checkpoint状态
-
-- Phase 0～5 基线：
-  - commit：`9a228cdd624339b964d21cff92e3f2533efd8275`
-  - tag：`phase-5-rest-api-baseline`
-- Batch 1 稳定基线：
-  - commit：`637106a172d5c10d54461b2a1f910fb5fee9d0df`
-  - tag：`batch-1-task-board-baseline`
-- Batch 2A 本地基线：
-  - commit：`94108af17225ca9e4a2f728e47a117f1d546a0af`
-  - push：待 GitHub 网络恢复
-- Batch 2B 本地 checkpoint：
-  - commit：`7a0cf4e3c6b920d5fea10c351d4d7789f39baf90`
-- Wave 1 checkpoint 候选：
-  - 完成验收与返工实现及总质量门已通过
-  - commit hash：尚未创建；本文档随候选提交
-- 远程仓库：`https://github.com/Z-pw-36/smart-task-board.git`
-- 两个稳定基线标签均已上传至 GitHub 私有仓库且不得移动；本地 `main` 当前领先 `origin/main`。
+- 远程仓库：`https://github.com/Karina-ZZ/smart-task-board`（公开，`main` 分支）
+- 累计提交线：功能 12 全量源码首次入库 → 文档整理与验收标准 → 功能 13 交付（当前 head）
+- 变更明细见 [CHANGELOG.md](CHANGELOG.md)；单功能验收标准见 [docs/ACCEPTANCE_STANDARDS.md](docs/ACCEPTANCE_STANDARDS.md)
+- 微信小程序独立交付版位于 `wechat-miniprogram-standalone/`，与 `wechat-miniprogram/` 内容同源
 
 ## 后续计划
 
-Batch 1、Batch 2A、Batch 2B 和 Wave 1 功能与验收均已完成。下一步是在安全复核后创建 Wave 1 本地 checkpoint，再进入 Wave 2：不可变任务变更申请，以及取消、撤回、合并、关闭和允许场景下的恢复。不会在 Wave 1 checkpoint 中虚报 Wave 4～7 的完成下游能力。
+下一步按 DEVELOPMENT_PLAN_V1.1 继续：DEV-16 高管基础看板、DEV-17 员工负荷快照任务下钻、DEV-18 全链路 E2E / 性能 / 安全 / CI 和发布验收。提交新功能前须执行功能 01 ～ 当前功能的全量回归（见 `docs/ACCEPTANCE_STANDARDS.md`）。
 
-## 当前未实现
+## 当前未实现 / 环境边界
 
-- 正式生产登录认证、企业统一身份或企业微信认证。
-- 完整 JWT 刷新、撤销和登出机制，以及正式 RBAC 和组织范围权限。
-- 任务变更申请，以及取消、撤回、合并、关闭和允许场景下的恢复。
-- AI 结构化提取、真实 AI/LLM、多轮对话、语音上传和 ASR。
-- 企业微信机器人、通知和 Outbox。
-- 附件及交付物文件管理。
-- 负荷分析、冲突分析、优先级分析和绩效关联。
-- 完成提醒、完成后的绩效关联影响、负荷/看板统计重算、归档检索与复用，以及其他后续 Wave 功能。
+- DEV-16 高管基础看板、DEV-17 员工负荷快照任务下钻、DEV-18 全链路 E2E 与发布验收。
+- 正式生产登录认证、企业统一身份或企业微信真实凭证换票（当前为受控原型认证）。
+- 功能 13 明确不提前实现：待承接再次催办间隔（未经用户确认）、协办拒绝后的完整重新分配 UI、任务级逾期升级通知创建人、用户未确认的节点逾期固定钟点。
+- 企业微信 provider 当前使用确定性 fake provider，生产启用需真实凭证。
+- React 前端 lint/test/build 与 PostgreSQL opt-in 集成测试需在具备相应环境时执行，当前环境未宣称通过。
 
 ## 有效需求文档
 
 项目仅以 `docs/` 中以下两份文档为当前有效需求，不得修改或删除：
 
-- `第二版-智能任务看板核心逻辑与用户使用流程节点(1).docx`
-- `第四版-智能任务看板数据表结构文档-显式ID版(1).docx`
+- `docs/第二版-智能任务看板核心逻辑与用户使用流程节点.docx`
+- `docs/第四版-智能任务看板数据表结构文档-显式ID版.docx`
+
+其他过程与参考文档见 `docs/`（验收记录、通知规则、开发计划、基线报告）与 `docs/reference/`（PRD V1.1、前端原型、交接文档）。
 
 ## Feature 05 cloud-function AI intake
 
