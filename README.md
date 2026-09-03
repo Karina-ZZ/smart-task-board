@@ -69,6 +69,7 @@ Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交�
 | React 前端构建 | ✅ PASS | `tsc --noEmit && vite build` |
 | 功能 16 企业微信/安全配置测试 | ✅ 已实现并提交 | wecom_client、wecom_authentication、secret_contract 等随包交付 |
 | `ruff check` | ⚠️ `220` 个告警 | 全部为风格类，F821 真实缺陷已清零 |
+| 功能 16 发布门禁 Test3（`scripts/run_test3_release_gate.sh`） | 🚧 BLOCKED（预期） | 硬门禁：缺 Python 3.12 / PostgreSQL 16 / 真实企微配置即阻断；本次非PG `477 passed, 2 failed`（2 失败为旧 PG fixture 债务被门禁正确拦截）、微信 `20/20 PASS`；详见 `docs/FEATURE_16_TEST3_EXECUTION_REPORT.md` |
 
 ## 微信小程序累计交付状态
 

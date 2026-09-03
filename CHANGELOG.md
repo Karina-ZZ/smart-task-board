@@ -15,11 +15,12 @@
 #### 测试
 
 - 新增 `tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`、`tests/test_start_dev_secret_contract.py`（发布门禁：密钥契约校验）。
+- **Test3 发布门禁（2026-09-03）**：新增 `scripts/run_test3_release_gate.sh`（硬门禁：必须 Python 3.12 + 真实 PostgreSQL 16 + `RUN_POSTGRESQL_INTEGRATION=1` + `WANGXU_BACKEND_ENV_FILE` + `AUTH_MODE=wecom` + 真实企微 CorpId/AgentId/Secret + 非 `touristappid` 小程序 AppID，任一缺失即 `BLOCKED`）；新增 `tests/integration/v11_postgresql_helpers.py`、`tests/test_postgresql_v11_fixture_contract.py`（旧 PG fixture V1.1 前流程债务契约，已被门禁正确拦截）。Test3 结论 **BLOCKED（预期）**：当前环境缺 Python 3.12 / PostgreSQL 16 / 真实企微配置，非PG 实测 `477 passed, 2 failed`、微信 `20/20 PASS`；**非代码回归**，详见 `docs/FEATURE_16_TEST3_EXECUTION_REPORT.md`。
 - 后端测试保持 **460 passed**；`ruff` 仅风格类告警，F821 已清零。
 
 #### 文档
 
-- 新增 `docs/FEATURE_16_WECOM_AUTH_ACCEPTANCE.md`、`docs/WECOM_IDENTITY_ORG_MAPPING.md`、`docs/SECRETS_CONFIGURATION_GUIDE.md`、`docs/FEATURE_16_SECRET_CONFIG_ACCEPTANCE.md`、`docs/FEATURE_16_TEST2_RELEASE_GATE_REPORT.md`。
+- 新增 `docs/FEATURE_16_WECOM_AUTH_ACCEPTANCE.md`、`docs/WECOM_IDENTITY_ORG_MAPPING.md`、`docs/SECRETS_CONFIGURATION_GUIDE.md`、`docs/FEATURE_16_SECRET_CONFIG_ACCEPTANCE.md`、`docs/FEATURE_16_TEST2_RELEASE_GATE_REPORT.md`、`docs/FEATURE_16_TEST3_EXECUTION_REPORT.md`。
 
 ### 移除
 
