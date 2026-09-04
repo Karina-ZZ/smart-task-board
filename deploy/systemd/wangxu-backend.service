@@ -1,0 +1,21 @@
+[Unit]
+Description=Wangxu Smart Task Board FastAPI
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wangxu
+Group=wangxu
+WorkingDirectory=/opt/wangxu/current
+Environment=WANGXU_BACKEND_ENV_FILE=/etc/wangxu/backend.env
+ExecStart=/opt/wangxu/venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
