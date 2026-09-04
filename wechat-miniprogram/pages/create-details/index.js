@@ -48,6 +48,23 @@ Page({
     api.clarifyTaskDraft(answer).then((draft)=>{wx.hideLoading();this.setData({clarifying:false,clarificationText:""});this.applyDraft(draft);wx.showToast({title:"识别结果已更新",icon:"success"});})
       .catch((e)=>{wx.hideLoading();this.setData({clarifying:false});this.fail(e,"追问失败，请重试");});
   },
+  resolveAiField(field) {
+    const draft = this.data.draft || {};
+    const missingFields = (draft.missingFields || []).filter((item) => item !== field);
+    const lowConfidenceFields = (draft.lowConfidenceFields || []).filter((item) => item !== field);
+    const labels = { mainAssigneeEmployeeNo: "主承办", reportToEmployeeNo: "汇报", reviewerEmployeeNo: "验收", collaboratorEmployeeNos: "协同" };
+    const confirmQuestions = (draft.confirmQuestions || []).filter((item) => {
+      const text = typeof item === "string" ? item : (item?.question || "");
+      return !String(text).includes(labels[field] || field);
+    });
+    this.setData({
+      "draft.missingFields": missingFields,
+      "draft.lowConfidenceFields": lowConfidenceFields,
+      "draft.confirmQuestions": confirmQuestions,
+      aiQuestions: confirmQuestions,
+      needsClarification: Boolean(missingFields.length || lowConfidenceFields.length || confirmQuestions.length),
+    });
+  },
   openPeople(event) {
     const field=event.currentTarget.dataset.field; const titles={mainAssigneeEmployeeNo:"选择主承办人",reportToEmployeeNo:"选择汇报对象",reviewerEmployeeNo:"选择验收人",collaboratorEmployeeNos:"添加协同人"};
     this.setData({peopleSheet:true,peopleField:field,peopleTitle:titles[field],peopleKeyword:"",filteredUsers:this.data.users});
@@ -59,6 +76,7 @@ Page({
     if(field==="collaboratorEmployeeNos"){
       const list=[...new Set([...(this.data.draft.collaboratorEmployeeNos||[]),employeeNo])]; this.setData({"draft.collaboratorEmployeeNos":list,collaboratorDisplay:list.map((no)=>({employeeNo:no,name:this.data.users.find((u)=>u.employeeNo===no)?.name||no}))});
     } else { const name=this.data.users.find((u)=>u.employeeNo===employeeNo)?.name||employeeNo; const key=field==="mainAssigneeEmployeeNo"?"assigneeName":field==="reportToEmployeeNo"?"reportToName":"reviewerName"; this.setData({[`draft.${field}`]:employeeNo,[key]:name}); }
+    this.resolveAiField(field);
     this.closePeople();
   },
   removeCollaborator(event){const no=event.currentTarget.dataset.employee;const list=(this.data.draft.collaboratorEmployeeNos||[]).filter((item)=>item!==no);this.setData({"draft.collaboratorEmployeeNos":list,collaboratorDisplay:list.map((employeeNo)=>({employeeNo,name:this.data.users.find((u)=>u.employeeNo===employeeNo)?.name||employeeNo}))});},

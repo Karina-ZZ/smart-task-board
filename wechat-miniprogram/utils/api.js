@@ -299,6 +299,58 @@ function logout() {
 }
 function creationDraft() { return useMock() ? mock("getCreationDraft") : Promise.resolve({ ...productionCreationDraft }); }
 function saveCreationDraft(value) { if (useMock()) return mock("saveCreationDraft", value); productionCreationDraft = { ...productionCreationDraft, ...value }; return Promise.resolve({ ...productionCreationDraft }); }
+
+function explicitPeopleFromText(text, candidateUsers) {
+  const source = String(text || "");
+  const usersByName = new Map();
+  (candidateUsers || []).forEach((user) => {
+    const name = String(user.name || "").trim();
+    if (!name || !source.includes(name)) return;
+    const list = usersByName.get(name) || [];
+    list.push(user);
+    usersByName.set(name, list);
+  });
+  const unique = (name) => {
+    const matches = usersByName.get(name) || [];
+    return matches.length === 1 ? matches[0].employeeNo : null;
+  };
+  const names = [...usersByName.keys()];
+  const findByRole = (patterns) => {
+    for (const name of names) {
+      for (const pattern of patterns) {
+        if (pattern(name, source)) return unique(name);
+      }
+    }
+    return null;
+  };
+  const main = findByRole([
+    (name, value) => new RegExp(`${name}.{0,6}(负责|主办|主承办|牵头)`).test(value),
+    (name, value) => new RegExp(`(由|让)${name}.{0,4}(负责|主办|牵头)`).test(value),
+  ]);
+  const reportTo = findByRole([
+    (name, value) => new RegExp(`(向|给)${name}.{0,5}(汇报|报告)`).test(value),
+    (name, value) => new RegExp(`${name}.{0,4}(听取汇报|汇报)`).test(value),
+  ]);
+  const reviewer = findByRole([
+    (name, value) => new RegExp(`(由|请|给)${name}.{0,5}(验收|审核|审批)`).test(value),
+    (name, value) => new RegExp(`${name}.{0,5}(验收|审核|审批)`).test(value),
+  ]);
+  const collaborators = names.filter((name) => {
+    const no = unique(name);
+    if (!no || no === main || no === reportTo || no === reviewer) return false;
+    return new RegExp(`${name}.{0,6}(协助|协同|配合|参与)`).test(source)
+      || new RegExp(`(协助|协同|配合|参与).{0,6}${name}`).test(source);
+  }).map(unique).filter(Boolean);
+  return { mainAssigneeEmployeeNo: main, reportToEmployeeNo: reportTo, reviewerEmployeeNo: reviewer, collaboratorEmployeeNos: [...new Set(collaborators)] };
+}
+
+function unresolvedPeopleFields(draft) {
+  const fields = [];
+  if (!draft.mainAssigneeEmployeeNo) fields.push("mainAssigneeEmployeeNo");
+  if (!draft.reportToEmployeeNo) fields.push("reportToEmployeeNo");
+  if (!draft.reviewerEmployeeNo) fields.push("reviewerEmployeeNo");
+  return fields;
+}
 function questionText(question) {
   if (typeof question === "string") return question;
   if (question && typeof question === "object") return question.question || question.label || "请补充任务信息";
@@ -366,6 +418,8 @@ function extractTaskDraft(text) {
   const normalized = String(text || "").trim();
   if (!normalized) return Promise.reject(new Error("请先描述任务"));
   if (useMock()) {
+    const candidateUsers = store.read().users || [];
+    const people = explicitPeopleFromText(normalized, candidateUsers);
     const mockResult = {
       rawText: normalized,
       taskDescription: normalized,
@@ -374,12 +428,13 @@ function extractTaskDraft(text) {
       taskSource: "AI任务助手",
       taskWeight: 3,
       reportCycle: "每周",
-      missingFields: ["mainAssigneeEmployeeNo", "reportToEmployeeNo", "reviewerEmployeeNo", "deadline"],
+      ...people,
       lowConfidenceFields: [],
-      confirmQuestions: ["请确认主承办人、汇报对象、验收人和截止时间。"],
-      confidenceScore: "0.60",
+      confidenceScore: "0.75",
       aiProvider: "mock",
     };
+    mockResult.missingFields = [...unresolvedPeopleFields(mockResult), "deadline"];
+    mockResult.confirmQuestions = mockResult.missingFields.length ? ["请补充尚未明确的人员信息和截止时间；也可以直接在任务信息页选择。"] : [];
     return saveCreationDraft(mockResult);
   }
   return Promise.all([registerTaskInput(normalized), currentUser(), users()])
@@ -400,14 +455,20 @@ function clarifyTaskDraft(clarificationText) {
   const answer = String(clarificationText || "").trim();
   if (!answer) return Promise.reject(new Error("请先回答AI追问"));
   if (useMock()) {
-    return creationDraft().then((draft) => saveCreationDraft({
-      ...draft,
-      missingFields: [],
-      lowConfidenceFields: [],
-      confirmQuestions: [],
-      confidenceScore: "0.95",
-      clarificationText: answer,
-    }));
+    return creationDraft().then((draft) => {
+      const candidateUsers = store.read().users || [];
+      const people = explicitPeopleFromText(answer, candidateUsers);
+      const merged = {
+        ...draft,
+        ...Object.fromEntries(Object.entries(people).filter(([key, value]) => key === "collaboratorEmployeeNos" ? value.length > 0 : Boolean(value))),
+        clarificationText: answer,
+        confidenceScore: "0.95",
+      };
+      merged.missingFields = [...unresolvedPeopleFields(merged), ...(merged.deadline ? [] : ["deadline"])];
+      merged.lowConfidenceFields = [];
+      merged.confirmQuestions = merged.missingFields.length ? ["请继续补充尚未明确的信息，或直接在任务信息页选择。"] : [];
+      return saveCreationDraft(merged);
+    });
   }
   return Promise.all([creationDraft(), currentUser(), users()]).then(([draft, user, candidateUsers]) => {
     if (!draft.inputId) throw new Error("缺少任务输入记录，请返回工作台重新识别");

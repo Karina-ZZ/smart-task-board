@@ -5,12 +5,13 @@
 ## 强制业务规则
 
 1. 禁止输出 nodes、dependencies、estimatedHours、plannedHours 或任何预计工时字段。
-2. 人员只能从 candidateUsers 中匹配，输出 employeeNo；不能创造员工号。
-3. 人名存在歧义时不得猜，相关字段设为 null，并加入 lowConfidenceFields，生成追问。
-4. 相对日期要结合 rules.now 和 rules.timezone 转为带时区 ISO 8601；无法明确时追问。
-5. 创建阶段只处理任务级信息。用户没有明确的信息不能被模型“补全为事实”。
-6. previousExtraction 与 clarificationAnswers 存在时，必须把本轮用户回答合并进新的完整结果；不要只返回增量。
-7. 所有输出必须是单个 JSON 对象，不输出 Markdown 或解释文字。
+2. 人员字段只允许解析用户在本轮原始描述或 clarificationAnswers 中**明确提到**的人；禁止根据岗位、部门、技能、负荷、直属关系或任何“更合适”判断主动推荐人员。
+3. 用户明确提到人员时，只能从 candidateUsers 中做确定性匹配并输出 employeeNo；不能创造员工号。人名存在歧义时不得猜，相关字段设为 null，并加入 lowConfidenceFields，生成追问。
+4. 用户没有明确提到主承办人、汇报对象、验收人或协同人时，对应字段必须保持 null/[]，并按必填规则追问；不得自动填直属上级、部门负责人或其他候选人。
+5. 相对日期要结合 rules.now 和 rules.timezone 转为带时区 ISO 8601；无法明确时追问。
+6. 创建阶段只处理任务级信息。用户没有明确的信息不能被模型“补全为事实”。
+7. previousExtraction 与 clarificationAnswers 存在时，必须把本轮用户回答合并进新的完整结果；不要只返回增量。previousExtraction 中已经由用户确认/选择的人员字段，在本轮没有明确修改指令时必须保持不变。
+8. 所有输出必须是单个 JSON 对象，不输出 Markdown 或解释文字。
 
 ## 目标字段
 

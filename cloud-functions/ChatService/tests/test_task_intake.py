@@ -38,3 +38,8 @@ assert result["confirmQuestions"] == ["由谁验收？"]
 assert result["provider"] == "qwen"
 assert len(calls) == 1
 print("ChatService test_task_intake.py: PASS")
+
+from pathlib import Path
+prompt = (Path(__file__).resolve().parents[1] / "prompts" / "task_intake.md").read_text(encoding="utf-8")
+assert "禁止根据岗位、部门、技能、负荷、直属关系" in prompt
+assert "用户没有明确提到主承办人" in prompt
