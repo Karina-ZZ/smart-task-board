@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import jwt
 from jwt import InvalidTokenError

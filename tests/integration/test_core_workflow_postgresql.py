@@ -20,6 +20,7 @@ from app.models import (
     OperationLog,
     ReminderRule,
     Task,
+    TaskArchive,
     TaskCompletionReview,
     TaskDecompositionRecord,
     TaskInput,
@@ -221,6 +222,9 @@ def phase4_records(phase4_engine: Engine) -> Iterator[Phase4Records]:
                 )
             )
         if task_ids:
+            connection.execute(
+                delete(TaskArchive).where(TaskArchive.task_id.in_(task_ids))
+            )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         if records.input_ids:
             connection.execute(
@@ -440,9 +444,9 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
     with phase4_session_factory() as session:
         stored_task = TaskRepository(session).get_by_id(task.task_id)
         assert stored_task is not None
-        assert stored_task.status == "completed"
+        assert stored_task.status == "archived"
         assert stored_task.completed_at is not None
-        assert stored_task.task_version == 12
+        assert stored_task.task_version == 13
         stored_nodes = TaskNodeRepository(session).list_nodes(task.task_id)
         assert len(stored_nodes) == 5
         assert all(
@@ -450,7 +454,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             for node in stored_nodes
         )
         logs = TaskStatusLogRepository(session).list_by_task_id(task.task_id)
-        assert [log.task_version for log in logs] == list(range(1, 13))
+        assert [log.task_version for log in logs] == list(range(1, 14))
         assert [log.action_type for log in logs] == [
             "task_created",
             "submitted_for_confirmation",
@@ -464,6 +468,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             "node_completed",
             "completion_submitted",
             "completion_approved",
+            "task_archived",
         ]
         assert [
             (log.business_ref_type, log.business_ref_id)
@@ -483,7 +488,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             stored_review.review_result,
             stored_review.submitted_task_version,
             stored_review.reviewed_task_version,
-        ) == (1, "approved", "approved", 11, 12)
+        ) == (1, "approved", "approved", 11, 13)
         extraction = session.get(AIExtractionRecord, refs.extraction_id)
         assert extraction is not None and extraction.task_id == task.task_id
         participant = TaskRepository(session).find_participant(
@@ -500,7 +505,7 @@ def test_complete_core_workflow_reaches_completed_with_continuous_logs(
             task.task_id,
             first_node_id,
             refs.assignee,
-            12,
+            13,
             "phase4-integration",
         )
 

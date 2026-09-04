@@ -7,9 +7,9 @@ Plan task: DEV-18 / WeCom authentication baseline.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
+import json
 from threading import Lock
 from typing import Callable
 from urllib.parse import urlencode

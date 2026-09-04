@@ -11,7 +11,7 @@ Plan task: DEV-14.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta, UTC
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from zoneinfo import ZoneInfo
@@ -57,7 +57,8 @@ def working_hours_between(
             interval_start = max(start_local, day_start)
             interval_end = min(end_local, day_end)
             if interval_end > interval_start:
-                elapsed = Decimal(str((interval_end - interval_start).total_seconds())) / Decimal("3600")
+                elapsed_seconds = (interval_end - interval_start).total_seconds()
+                elapsed = Decimal(str(elapsed_seconds)) / Decimal("3600")
                 total += elapsed / Decimal("24") * capacity
         cursor += timedelta(days=1)
     return total.quantize(HOURS_QUANT, rounding=ROUND_HALF_UP)

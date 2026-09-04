@@ -5,12 +5,10 @@ from app.repositories.department import DepartmentRepository
 from app.repositories.operation_log import OperationLogRepository
 from app.repositories.progress_report import ProgressReportRepository
 from app.repositories.task import TaskRepository
-from app.repositories.task_change_request import TaskChangeRequestRepository
 from app.repositories.task_archive import TaskArchiveRepository
+from app.repositories.task_change_request import TaskChangeRequestRepository
+from app.repositories.task_completion_review import TaskCompletionReviewRepository
 from app.repositories.task_decomposition import TaskDecompositionRepository
-from app.repositories.task_completion_review import (
-    TaskCompletionReviewRepository,
-)
 from app.repositories.task_input import TaskInputRepository
 from app.repositories.task_issue import TaskIssueRepository
 from app.repositories.task_node import TaskNodeRepository

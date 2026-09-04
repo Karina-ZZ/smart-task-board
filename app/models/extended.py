@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (

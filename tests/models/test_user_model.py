@@ -1,4 +1,4 @@
-from sqlalchemy import String, UniqueConstraint, inspect
+from sqlalchemy import inspect, String, UniqueConstraint
 
 from app.models import (
     Task,

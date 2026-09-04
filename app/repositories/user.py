@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import selectinload, Session
 
 from app.models import User
 

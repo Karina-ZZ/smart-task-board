@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -6,8 +6,8 @@ from uuid import uuid4
 import pytest
 
 from app.services.errors import PermissionDeniedError
-from app.services.features.executive_dashboard.periods import resolve_executive_period
 from app.services.features.executive_dashboard.metrics import ExecutiveMetricsCalculator
+from app.services.features.executive_dashboard.periods import resolve_executive_period
 from app.services.features.executive_dashboard.permissions import ExecutiveScopeResolver
 from app.services.features.executive_dashboard.service import ExecutiveDashboardService
 from app.services.features.executive_dashboard.task_list import ExecutiveTaskListService
@@ -116,7 +116,9 @@ def test_kpi_metric_uses_confirmed_relationships_without_match_level_gate() -> N
     service.repo.list_confirmed_active_matches.return_value = [
         SimpleNamespace(task_id=tasks[0].task_id, metric_id=metric_a, match_level="strong"),
         SimpleNamespace(task_id=tasks[1].task_id, metric_id=metric_a, match_level="weak"),
-        SimpleNamespace(task_id=tasks[2].task_id, metric_id=metric_b, match_level="no_clear_relation"),
+        SimpleNamespace(
+            task_id=tasks[2].task_id, metric_id=metric_b, match_level="no_clear_relation"
+        ),
         SimpleNamespace(task_id=tasks[3].task_id, metric_id=metric_b, match_level="weak"),
     ]
 
@@ -255,7 +257,9 @@ def test_feature15_employee_task_filter_uses_main_assignee_inside_explicit_scope
     root = uuid4()
     actor_user = SimpleNamespace(status="active", role_type="executive", department_id=root)
     employee = SimpleNamespace(employee_no="E-1", name="Alice", status="active", department_id=root)
-    service.repo.get_user.side_effect = lambda employee_no: actor_user if employee_no == "E-X" else employee
+    service.repo.get_user.side_effect = (
+        lambda employee_no: actor_user if employee_no == "E-X" else employee
+    )
     service.repo.list_active_department_scopes.return_value = [SimpleNamespace(scope_id=str(root))]
     service.repo.list_active_departments.return_value = [_department(root, None, "Root")]
     task = _task(department_id=root, main_assignee_employee_no="E-1", start_time=NOW)
@@ -289,10 +293,17 @@ def test_feature15_employee_outside_selected_scope_is_denied_before_task_query()
     service = _service()
     root, outside = uuid4(), uuid4()
     actor_user = SimpleNamespace(status="active", role_type="executive", department_id=root)
-    employee = SimpleNamespace(employee_no="E-2", name="Outside", status="active", department_id=outside)
-    service.repo.get_user.side_effect = lambda employee_no: actor_user if employee_no == "E-X" else employee
+    employee = SimpleNamespace(
+        employee_no="E-2", name="Outside", status="active", department_id=outside
+    )
+    service.repo.get_user.side_effect = (
+        lambda employee_no: actor_user if employee_no == "E-X" else employee
+    )
     service.repo.list_active_department_scopes.return_value = [SimpleNamespace(scope_id=str(root))]
-    service.repo.list_active_departments.return_value = [_department(root, None, "Root"), _department(outside, None, "Outside")]
+    service.repo.list_active_departments.return_value = [
+        _department(root, None, "Root"),
+        _department(outside, None, "Outside"),
+    ]
 
     with pytest.raises(PermissionDeniedError):
         service.list_tasks(
@@ -341,7 +352,9 @@ def test_feature15_quadrant_filter_keeps_feature14_execution_scope_and_period_ov
     root = uuid4()
     actor_user = SimpleNamespace(status="active", role_type="executive", department_id=root)
     assignee = SimpleNamespace(employee_no="E-1", name="Alice", status="active", department_id=root)
-    service.repo.get_user.side_effect = lambda employee_no: actor_user if employee_no == "E-X" else assignee
+    service.repo.get_user.side_effect = (
+        lambda employee_no: actor_user if employee_no == "E-X" else assignee
+    )
     service.repo.list_active_department_scopes.return_value = [SimpleNamespace(scope_id=str(root))]
     service.repo.list_active_departments.return_value = [_department(root, None, "Root")]
     window = resolve_executive_period("week", NOW)

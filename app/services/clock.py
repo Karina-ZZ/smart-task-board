@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 
 Clock = Callable[[], datetime]
 

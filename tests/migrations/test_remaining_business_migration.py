@@ -209,8 +209,16 @@ def test_remaining_business_upgrade_matches_model_metadata_and_seeded_parameters
         if model is ReminderRule:
             # e6f1 keeps the historical reminder enum. Feature 13 extends it
             # incrementally with node_start/node_due in b1c2d3e4f5a6.
-            migration_constraints = {item for item in migration_constraints if item[:2] != ("ck", "ck_reminder_rules_type")}
-            model_constraints = {item for item in model_constraints if item[:2] != ("ck", "ck_reminder_rules_type")}
+            migration_constraints = {
+                item
+                for item in migration_constraints
+                if item[:2] != ("ck", "ck_reminder_rules_type")
+            }
+            model_constraints = {
+                item
+                for item in model_constraints
+                if item[:2] != ("ck", "ck_reminder_rules_type")
+            }
         assert migration_constraints == model_constraints
 
     model_indexes = set().union(*(_index_signatures(model.__table__) for model in NEW_MODELS))

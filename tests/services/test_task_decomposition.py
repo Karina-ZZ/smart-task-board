@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
@@ -210,7 +210,9 @@ def test_retry_creates_new_attempt_and_preserves_old_attempt():
 def test_invalidated_or_stale_callback_cannot_write_nodes():
     task = _task()
     uow, _ = _uow_context(task)
-    service = TaskDecompositionService(Mock(return_value=uow), provider=Provider(_valid_result()), clock=lambda: NOW)
+    service = TaskDecompositionService(
+        Mock(return_value=uow), provider=Provider(_valid_result()), clock=lambda: NOW
+    )
     service.accept_task(task.task_id, "E1001", 3)
     record = uow.task_decompositions.add.call_args.args[0]
     record.status = "running"
@@ -258,7 +260,8 @@ def test_success_main_assignee_nodes_are_accepted_without_success_fyi_notificati
     assert notifications == []
 
 
-def test_success_collaborator_nodes_are_pending_and_only_collaborator_gets_assignment_notice() -> None:
+def test_success_collaborator_nodes_are_pending_and_only_collaborator_gets_assignment_notice(
+) -> None:
     task = _task()
     uow, assignee = _uow_context(task)
     collaborator = TaskParticipant(

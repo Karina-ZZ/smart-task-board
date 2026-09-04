@@ -12,8 +12,8 @@ Plan task: DEV-14.
 from .calculations import (
     EXECUTION_TASK_STATUSES,
     overdue_days,
-    remaining_hours,
     overdue_pressure_score,
+    remaining_hours,
     time_pressure_score,
     working_hours_between,
     workload_level,

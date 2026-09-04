@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies import (
     get_archive_reuse_service,
@@ -559,7 +559,11 @@ def test_feature05_cloud_registration_and_external_extraction_routes(business_co
     registered = client.post(
         "/api/v1/task-inputs/register",
         headers={"X-Employee-No": "E-ACTOR"},
-        json={"input_type": "text", "raw_text": "周五完成渠道月报", "source_channel": "api"},
+        json={
+            "input_type": "text",
+            "raw_text": "周五完成渠道月报",
+            "source_channel": "api",
+        },
     )
     recorded = client.post(
         f"/api/v1/task-inputs/{input_id}/external-extractions",

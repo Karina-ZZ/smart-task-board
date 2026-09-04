@@ -3,8 +3,8 @@ from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
-from sqlalchemy.orm import Session
 import pytest
+from sqlalchemy.orm import Session
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
@@ -45,9 +45,22 @@ def _task(
     version: int = 1,
 ) -> Task:
     return Task(
-        task_id=uuid4(), task_name="Workflow task", task_description="Task description", task_goal="Task goal", task_source="unit-test",
-        creator_employee_no=creator, main_assignee_employee_no=assignee, report_to_employee_no="REPORTER", reviewer_employee_no=reviewer,
-        status=status, start_time=NOW, deadline=datetime(2026, 8, 30, tzinfo=UTC), task_weight=3, task_version=version, created_at=NOW, updated_at=NOW,
+        task_id=uuid4(),
+        task_name="Workflow task",
+        task_description="Task description",
+        task_goal="Task goal",
+        task_source="unit-test",
+        creator_employee_no=creator,
+        main_assignee_employee_no=assignee,
+        report_to_employee_no="REPORTER",
+        reviewer_employee_no=reviewer,
+        status=status,
+        start_time=NOW,
+        deadline=datetime(2026, 8, 30, tzinfo=UTC),
+        task_weight=3,
+        task_version=version,
+        created_at=NOW,
+        updated_at=NOW,
     )
 
 
@@ -224,9 +237,18 @@ def test_create_task_draft_can_be_published_without_nodes() -> None:
     uow.task_nodes.list_dependencies.return_value = []
     uow.task_status_logs.add.side_effect = lambda value: value
     command = CreateTaskDraftCommand(
-        task_name="Planning later", task_description="Task description", task_goal="Task goal", task_source="unit-test",
-        creator_employee_no="CREATOR", main_assignee_employee_no="ASSIGNEE", report_to_employee_no="REPORTER", reviewer_employee_no="REVIEWER",
-        start_time=NOW, deadline=datetime(2026, 8, 30, tzinfo=UTC), task_weight=3, operation_source="unit-test",
+        task_name="Planning later",
+        task_description="Task description",
+        task_goal="Task goal",
+        task_source="unit-test",
+        creator_employee_no="CREATOR",
+        main_assignee_employee_no="ASSIGNEE",
+        report_to_employee_no="REPORTER",
+        reviewer_employee_no="REVIEWER",
+        start_time=NOW,
+        deadline=datetime(2026, 8, 30, tzinfo=UTC),
+        task_weight=3,
+        operation_source="unit-test",
     )
     service = TaskWorkflowService(Mock(return_value=uow), clock=lambda: NOW)
 
@@ -503,7 +525,11 @@ def test_confirm_send_sets_pending_accept_and_notifies_only_assignee() -> None:
     assert task.accepted_at is None
     assert participant.confirm_status == PARTICIPANT_CONFIRM_PENDING
     assert task.task_no and task.task_no.startswith("WX-")
-    notifications=[call.args[0] for call in uow.session.add.call_args_list if isinstance(call.args[0], Notification)]
+    notifications = [
+        call.args[0]
+        for call in uow.session.add.call_args_list
+        if isinstance(call.args[0], Notification)
+    ]
     assert len(notifications) == 1
     assert notifications[0].recipient_employee_no == "ASSIGNEE"
     assert _last_log(uow).action_type == "confirmed_and_sent"

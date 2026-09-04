@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -6,11 +6,7 @@ import jwt
 import pytest
 
 from app.core.config import Settings
-from app.core.security import (
-    InvalidPrototypeTokenError,
-    create_access_token,
-    decode_access_token,
-)
+from app.core.security import create_access_token, decode_access_token, InvalidPrototypeTokenError
 from app.models import User
 from app.services.errors import EntityNotFoundError, PermissionDeniedError
 from app.services.identity import IdentityService

@@ -1,7 +1,7 @@
-import pytest
 from pydantic import ValidationError
+import pytest
 
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings, Settings
 
 
 def test_default_timezone() -> None:

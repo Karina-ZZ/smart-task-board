@@ -13,13 +13,13 @@ from app.models import (
     Task,
     TaskChangeRequest,
     TaskCompletionReview,
+    TaskConflict,
     TaskNode,
     TaskNodeDependency,
     TaskNodeParticipant,
     TaskParticipant,
     TaskPerformanceMatch,
     TaskPriorityScore,
-    TaskConflict,
     TaskStatusLog,
 )
 from app.repositories import (
@@ -33,11 +33,7 @@ from app.repositories import (
     TaskStatusLogRepository,
 )
 from app.services.business_capabilities import PermissionScopeService
-from app.services.errors import (
-    BusinessValidationError,
-    EntityNotFoundError,
-    PermissionDeniedError,
-)
+from app.services.errors import BusinessValidationError, EntityNotFoundError, PermissionDeniedError
 
 
 class TaskQueryService:

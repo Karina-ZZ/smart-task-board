@@ -3,10 +3,10 @@ import warnings
 from sqlalchemy import (
     CheckConstraint,
     ForeignKeyConstraint,
+    inspect,
     String,
     UniqueConstraint,
     Uuid,
-    inspect,
 )
 from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import configure_mappers

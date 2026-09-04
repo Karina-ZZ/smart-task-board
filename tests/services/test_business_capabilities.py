@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -274,7 +274,9 @@ def test_task_intake_voice_clarify_and_confirm_create_draft(
         source_channel="wecom",
     )
 
-    assert result.task_input.asr_text == "Transcribed voice input from https://example.invalid/audio.wav"
+    assert result.task_input.asr_text == (
+        "Transcribed voice input from https://example.invalid/audio.wav"
+    )
     assert "main_assignee_employee_no" in result.extraction.missing_fields
     assert _operation_logs(session)[0].action == "task_input_submitted"
 
@@ -287,6 +289,7 @@ def test_task_intake_voice_clarify_and_confirm_create_draft(
         {
             "main_assignee_employee_no": "ASSIGNEE",
             "report_to_employee_no": "REVIEWER",
+            "reviewer_employee_no": "REVIEWER",
             "deadline": "2026-08-30T09:00:00+00:00",
             "estimated_hours": "8",
             "performance_metric": "Revenue dashboard KPI",
@@ -360,6 +363,7 @@ def test_task_intake_accepts_browser_voice_transcript_without_persisting_audio()
         input_type="voice",
         raw_text=(
             "门店上线\nassignee:ASSIGNEE\nreport_to:REVIEWER\n"
+            "reviewer:REVIEWER\n"
             "deadline:2026-08-30T09:00:00+00:00"
         ),
         voice_file_url=None,
@@ -588,7 +592,11 @@ def test_performance_metric_suggestion_and_confirmation_are_explainable(
         updated_at=NOW,
     )
     session = RecordingSession(
-        objects={(User, "MANAGER"): _user("MANAGER", role="admin"), (Task, task.task_id): task, (PerformanceMetric, metric.metric_id): metric},
+        objects={
+            (User, "MANAGER"): _user("MANAGER", role="admin"),
+            (Task, task.task_id): task,
+            (PerformanceMetric, metric.metric_id): metric,
+        },
         scalar_results=[None],
         scalars_results=[[metric]],
     )
@@ -610,7 +618,9 @@ def test_performance_metric_suggestion_and_confirmation_are_explainable(
     matches = service.suggest_matches(task.creator_employee_no, task.task_id, limit=1)
     match = matches[0]
     session.objects[(TaskPerformanceMatch, match.performance_match_id)] = match
-    confirmed = service.confirm_match(task.creator_employee_no, task.task_id, match.performance_match_id)
+    confirmed = service.confirm_match(
+        task.creator_employee_no, task.task_id, match.performance_match_id
+    )
 
     assert created.metric_name == "Release quality"
     assert "指标名称" in match.match_reason
@@ -774,7 +784,9 @@ def test_planning_workload_priorities_and_conflict_dedupe(
         objects={(User, "ASSIGNEE"): target, (EmployeeProfile, "ASSIGNEE"): profile}
     )
     service = PlanningAnalyticsService(session, clock=lambda: NOW)
-    monkeypatch.setattr(service, "_active_tasks_for_employee", lambda _employee, **_kwargs: [active])
+    monkeypatch.setattr(
+        service, "_active_tasks_for_employee", lambda _employee, **_kwargs: [active]
+    )
     monkeypatch.setattr(service, "_blocked_count", lambda _employee, _tasks: 1)
     monkeypatch.setattr(service, "_visible_active_tasks", lambda _actor: [active])
     monkeypatch.setattr(service, "_confirmed_performance_score", lambda _task_id: Decimal("100"))
@@ -856,7 +868,9 @@ def test_feature12_priority_sort_is_stable_and_uses_weight_after_remaining_hours
     higher_weight.created_at = NOW - timedelta(days=1)
     session = RecordingSession(objects={(User, "ASSIGNEE"): user})
     service = PlanningAnalyticsService(session, clock=lambda: NOW)
-    monkeypatch.setattr(service, "_visible_active_tasks", lambda _actor: [lower_weight, higher_weight])
+    monkeypatch.setattr(
+        service, "_visible_active_tasks", lambda _actor: [lower_weight, higher_weight]
+    )
     monkeypatch.setattr(service, "_confirmed_performance_score", lambda _task_id: Decimal("100"))
 
     rows = service.calculate_priorities("ASSIGNEE")
@@ -1155,6 +1169,19 @@ def test_feature05_registers_input_without_ai_then_validates_cloud_extraction() 
     assert result.extraction.confirmed_at is None
 
 
+
+def test_intake_does_not_default_reviewer_from_report_to() -> None:
+    provider = FakeTaskExtractionProvider()
+
+    extracted = provider.extract(
+        "Task\nassignee: ASSIGNEE; report_to: MANAGER; "
+        "deadline: 2026-09-10T18:00:00+08:00; weight: 3"
+    )
+
+    assert extracted["extracted_json"]["report_to_employee_no"] == "MANAGER"
+    assert extracted["extracted_json"].get("reviewer_employee_no") is None
+    assert "reviewer_employee_no" in extracted["missing_fields"]
+
 def test_feature13_notification_retry_backoff_is_5_10_20_then_terminal() -> None:
     notification = Notification(
         notification_id=uuid4(),
@@ -1178,7 +1205,11 @@ def test_feature13_notification_retry_backoff_is_5_10_20_then_terminal() -> None
     current = NOW
     for index, delay in enumerate(expected, start=1):
         session.scalars_results.append([notification])
-        service = ReminderNotificationService(session, provider=FailingProvider(), clock=lambda value=current: value)
+        service = ReminderNotificationService(
+            session,
+            provider=FailingProvider(),
+            clock=lambda value=current: value,
+        )
         service.send_pending("ADMIN")
         assert notification.retry_count == index
         assert notification.retry_next_at == (current + timedelta(minutes=delay) if delay else None)

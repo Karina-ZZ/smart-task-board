@@ -6,17 +6,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import TaskIssue
-from app.repositories import (
-    ProgressReportRepository,
-    TaskIssueRepository,
-    TaskRepository,
-)
+from app.repositories import ProgressReportRepository, TaskIssueRepository, TaskRepository
 from app.services.clock import Clock, utc_now
-from app.services.errors import (
-    BusinessValidationError,
-    EntityNotFoundError,
-    PermissionDeniedError,
-)
+from app.services.errors import BusinessValidationError, EntityNotFoundError, PermissionDeniedError
 from app.services.progress_report import task_report_period
 from app.services.task_issue import issue_allowed_actions
 from app.services.task_workflow import _aware_utc

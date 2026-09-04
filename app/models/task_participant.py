@@ -11,9 +11,9 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    text,
     UniqueConstraint,
     Uuid,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -7,10 +7,6 @@ from sqlalchemy import select
 from app.db.unit_of_work import UnitOfWork
 from app.models import OperationLog, Task, TaskNode
 from app.services.clock import Clock, utc_now
-from app.services.features.notifications import (
-    emit_node_assignment_rejected_notification,
-    schedule_node_execution_reminders,
-)
 from app.services.errors import (
     BusinessValidationError,
     DependencyNotSatisfiedError,
@@ -19,13 +15,17 @@ from app.services.errors import (
     OpenTaskIssueConflictError,
     PermissionDeniedError,
 )
+from app.services.features.notifications import (
+    emit_node_assignment_rejected_notification,
+    schedule_node_execution_reminders,
+)
 from app.services.task_workflow import (
-    TASK_IN_PROGRESS,
     _append_log,
     _aware_utc,
     _increment_task,
     _lock_task,
     _require_state,
+    TASK_IN_PROGRESS,
 )
 
 UowFactory = Callable[[], UnitOfWork]

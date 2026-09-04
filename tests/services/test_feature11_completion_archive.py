@@ -1,5 +1,5 @@
 """Feature 11 completion, review, idempotency, and automatic archive rules."""
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4

@@ -5,12 +5,11 @@ Revises: d4a8e53b7c19
 """
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
-
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from datetime import datetime, UTC
 
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision: str = "e6f1a2b3c4d5"
 down_revision: str | Sequence[str] | None = "d4a8e53b7c19"

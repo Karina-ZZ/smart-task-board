@@ -23,6 +23,7 @@ from app.models import (
     OperationLog,
     ReminderRule,
     Task,
+    TaskArchive,
     TaskCompletionReview,
     TaskDecompositionRecord,
     TaskNode,
@@ -261,6 +262,9 @@ def _cleanup(
                 delete(TaskDecompositionRecord).where(
                     TaskDecompositionRecord.task_id.in_(task_ids)
                 )
+            )
+            connection.execute(
+                delete(TaskArchive).where(TaskArchive.task_id.in_(task_ids))
             )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         connection.execute(
@@ -662,7 +666,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 overall_approved.json()["status"],
                 overall_approved.json()["task_version"],
                 overall_approved.json()["review"]["review_status"],
-            ) == (200, "completed", 12, "approved")
+            ) == (200, "archived", 13, "approved")
 
             history_page_one = client.get(
                 f"/api/v1/tasks/{overall_task_id}/completion-reviews",
@@ -857,7 +861,7 @@ def test_completion_review_rounds_rework_api_and_atomicity(
                 node_approved.status_code,
                 node_approved.json()["status"],
                 node_approved.json()["task_version"],
-            ) == (200, "completed", 15)
+            ) == (200, "archived", 16)
 
             node_logs_response = client.get(
                 f"/api/v1/tasks/{node_task_id}/status-logs",

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
-import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta, UTC
 from decimal import Decimal
+import json
+import re
 from typing import Protocol
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -54,8 +54,8 @@ from app.services.features.performance_matching import PerformanceMatchScorer
 from app.services.features.planning_analytics import (
     EXECUTION_TASK_STATUSES,
     overdue_days as calculate_overdue_days,
-    remaining_hours as calculate_remaining_hours,
     overdue_pressure_score as calculate_overdue_pressure_score,
+    remaining_hours as calculate_remaining_hours,
     time_pressure_score as calculate_time_pressure_score,
     working_hours_between,
     workload_level as calculate_workload_level,
@@ -807,13 +807,15 @@ class FakeTaskExtractionProvider:
         merged.setdefault("task_weight", 3)
         for key, value in self._parse_key_values(normalized).items():
             merged[key] = value
-        if not merged.get("reviewer_employee_no") and merged.get("report_to_employee_no"):
-            merged["reviewer_employee_no"] = merged["report_to_employee_no"]
         missing = [field for field in self.CRITICAL_FIELDS if not merged.get(field)]
         low_confidence = [
             field
             for field in ("deadline", "estimated_hours", "performance_metric")
-            if field in merged and isinstance(merged[field], str) and "待确认" in str(merged[field])
+            if (
+                field in merged
+                and isinstance(merged[field], str)
+                and "待确认" in str(merged[field])
+            )
         ]
         questions = [
             f"Please confirm {field}." for field in dict.fromkeys(missing + low_confidence)
@@ -833,6 +835,8 @@ class FakeTaskExtractionProvider:
             "assignee": "main_assignee_employee_no",
             "main_assignee": "main_assignee_employee_no",
             "report_to": "report_to_employee_no",
+            "reviewer": "reviewer_employee_no",
+            "acceptor": "reviewer_employee_no",
             "deadline": "deadline",
             "estimated_hours": "estimated_hours",
             "hours": "estimated_hours",
@@ -1011,7 +1015,14 @@ class TaskIntakeService:
             normalized["agent_result"] = _json_value(
                 {
                     key: agent_result.get(key)
-                    for key in ("provider", "model", "requestId", "request_id", "chatSessionId", "chat_session_id")
+                    for key in (
+                        "provider",
+                        "model",
+                        "requestId",
+                        "request_id",
+                        "chatSessionId",
+                        "chat_session_id",
+                    )
                     if agent_result.get(key) is not None
                 }
             )
@@ -1269,8 +1280,7 @@ class TaskIntakeService:
             main_assignee_employee_no=str(payload.get("main_assignee_employee_no")),
             report_to_employee_no=str(payload.get("report_to_employee_no")),
             report_to_level=payload.get("report_to_level"),
-            reviewer_employee_no=payload.get("reviewer_employee_no")
-            or payload.get("report_to_employee_no"),
+            reviewer_employee_no=payload.get("reviewer_employee_no"),
             department_id=_optional_uuid(payload.get("department_id"), "department_id"),
             start_time=self._optional_datetime(payload.get("start_time"), "start_time"),
             deadline=(
@@ -1278,7 +1288,7 @@ class TaskIntakeService:
                 if payload.get("deadline")
                 else None
             ),
-            estimated_hours=_decimal(payload.get("estimated_hours")),
+            estimated_hours=None,
             task_weight=int(payload.get("task_weight") or 3),
             deliverable=payload.get("deliverable"),
             acceptance_criteria=str(payload.get("acceptance_criteria") or ""),
@@ -1920,7 +1930,9 @@ class PerformanceMetricService:
         if active_only:
             statement = statement.where(PerformanceMetric.status == "active")
         statement = statement.order_by(
-            PerformanceMetric.business_unit, PerformanceMetric.metric_name, PerformanceMetric.metric_id
+            PerformanceMetric.business_unit,
+            PerformanceMetric.metric_name,
+            PerformanceMetric.metric_id
         )
         return list(self.session.scalars(statement).all())
 
@@ -1950,7 +1962,8 @@ class PerformanceMetricService:
                 self.session.add(match)
                 current = match
             else:
-                # A creator-confirmed relation is a business fact; recalculation updates only candidates.
+                # A creator-confirmed relation is a business fact; recalculation
+                # updates only candidates.
                 if not existing.is_confirmed:
                     self._copy_match(existing, match)
                 current = existing
@@ -1961,7 +1974,10 @@ class PerformanceMetricService:
         _add_operation_log(
             self.session, actor=actor, action="performance_matches_suggested",
             object_type="task", object_id=task_id,
-            after_data={"match_count": min(limit, len(matches)), "algorithm_version": "tfidf-char-ngram-v1"},
+            after_data={
+                "match_count": min(limit, len(matches)),
+                "algorithm_version": "tfidf-char-ngram-v1",
+            },
             at=now,
         )
         self.session.commit()
@@ -2005,7 +2021,11 @@ class PerformanceMetricService:
         _add_operation_log(
             self.session, actor=actor, action="kpi_match_confirmed",
             object_type="task_performance_match", object_id=row.performance_match_id,
-            before_data={"confirmed_match_ids": [str(item.performance_match_id) for item in previous]},
+            before_data={
+                "confirmed_match_ids": [
+                    str(item.performance_match_id) for item in previous
+                ]
+            },
             after_data={"is_confirmed": True, "confirmed_by_employee_no": actor},
             at=now,
         )
@@ -2081,7 +2101,10 @@ class PerformanceMetricService:
                 str(value or "")
                 for value in (
                     metric.metric_type, metric.business_unit, metric.dimension, metric.metric_name,
-                    metric.definition_formula, metric.target_value, metric.deliverable, metric.data_source,
+                    metric.definition_formula,
+                    metric.target_value,
+                    metric.deliverable,
+                    metric.data_source,
                 )
             )
             for metric in metrics
@@ -2100,7 +2123,9 @@ class PerformanceMetricService:
         task_business_unit: str | None,
     ) -> TaskPerformanceMatch:
         score = scorer.score(
-            task_name=task.task_name, task_description=task.task_description, task_goal=task.task_goal,
+            task_name=task.task_name,
+            task_description=task.task_description,
+            task_goal=task.task_goal,
             task_source=task.task_source, task_deliverable=task.deliverable,
             task_business_unit=task_business_unit, metric_type=metric.metric_type,
             metric_business_unit=metric.business_unit, metric_name=metric.metric_name,
@@ -2110,7 +2135,8 @@ class PerformanceMetricService:
         return TaskPerformanceMatch(
             performance_match_id=uuid4(), task_id=task.task_id, metric_id=metric.metric_id,
             type_score=score.type_score, business_unit_score=score.business_unit_score,
-            metric_name_score=score.metric_name_score, definition_formula_score=score.definition_formula_score,
+            metric_name_score=score.metric_name_score,
+            definition_formula_score=score.definition_formula_score,
             deliverable_score=score.deliverable_score, total_score=score.total_score,
             match_level=score.match_level, match_reason=score.match_reason, is_confirmed=False,
             algorithm_version=score.algorithm_version, created_at=now, updated_at=now,
@@ -2211,7 +2237,9 @@ class PlanningAnalyticsService:
         }
         remaining_hours_sum = sum(remaining_by_task.values(), Decimal("0"))
         active_task_count = len(tasks)
-        active_task_weight_sum = sum((Decimal(task.task_weight or 0) for task in tasks), Decimal("0"))
+        active_task_weight_sum = sum(
+            (Decimal(task.task_weight or 0) for task in tasks), Decimal("0")
+        )
         urgent_task_count = sum(1 for task in tasks if task.is_urgent)
         blocked_tasks = [task for task in tasks if task.status == "blocked"]
         blocked_task_count = len(blocked_tasks)
@@ -2304,7 +2332,11 @@ class PlanningAnalyticsService:
         scored_rows.sort(
             key=lambda item: (
                 quadrant_order[item[0].priority_quadrant],
-                item[0].remaining_hours if item[0].remaining_hours is not None else Decimal("999999"),
+                (
+                    item[0].remaining_hours
+                    if item[0].remaining_hours is not None
+                    else Decimal("999999")
+                ),
                 -Decimal(item[1].task_weight or 0),
                 item[0].task_created_at_snapshot,
                 str(item[1].task_id),
@@ -2352,7 +2384,12 @@ class PlanningAnalyticsService:
         _add_operation_log(
             self.session, actor=actor, action="conflicts_detected",
             object_type="task_conflict", object_id=target,
-            after_data={"open_count": len(persisted), "resolved_count": len([r for r in existing_open if r.dedupe_key not in current_keys])},
+            after_data={
+                "open_count": len(persisted),
+                "resolved_count": len(
+                    [r for r in existing_open if r.dedupe_key not in current_keys]
+                ),
+            },
             at=now,
         )
         self.session.commit()
@@ -2426,7 +2463,9 @@ class PlanningAnalyticsService:
                 or_(Task.start_time.is_(None), Task.start_time <= period_end),
                 or_(Task.deadline.is_(None), Task.deadline >= period_start),
             )
-        statement = statement.order_by(Task.deadline.asc().nulls_last(), Task.created_at, Task.task_id)
+        statement = statement.order_by(
+            Task.deadline.asc().nulls_last(), Task.created_at, Task.task_id
+        )
         return list(self.session.scalars(statement).all())
 
     def _visible_active_tasks(self, actor: str) -> list[Task]:
@@ -2566,7 +2605,9 @@ class PlanningAnalyticsService:
         capacity = working_hours_between(now, period_end, daily_capacity_hours=daily_capacity)
         if capacity <= 0:
             return []
-        tasks = self._active_tasks_for_employee(employee_no, period_start=now, period_end=period_end)
+        tasks = self._active_tasks_for_employee(
+            employee_no, period_start=now, period_end=period_end
+        )
         remaining = sum(
             (
                 calculate_remaining_hours(
@@ -2583,20 +2624,40 @@ class PlanningAnalyticsService:
         ratio = remaining / capacity
         high_ratio = params.get("conflict_capacity_high_ratio")
         severity = "high" if high_ratio is not None and ratio >= _decimal(high_ratio) else "medium"
-        task = min(tasks, key=lambda item: (_aware_utc(item.deadline) if item.deadline else datetime.max.replace(tzinfo=UTC), item.created_at))
+        task = min(
+            tasks,
+            key=lambda item: (
+                _aware_utc(item.deadline)
+                if item.deadline
+                else datetime.max.replace(tzinfo=UTC),
+                item.created_at,
+            ),
+        )
         return [
             self._new_conflict(
                 "work_hour", employee_no, task.task_id, None, None, severity,
-                f"Active task time windows require {remaining}h against {capacity}h available capacity.",
+                (
+                    f"Active task time windows require {remaining}h against "
+                    f"{capacity}h available capacity."
+                ),
                 "Adjust assignments, scope, or deadlines.", now,
             )
         ]
 
     def _detect_deadline_concentration(self, employee_no: str, now: datetime) -> list[TaskConflict]:
         params = SystemParameterService(self.session).snapshot(
-            ("deadline_conflict_window_hours", "deadline_conflict_min_task_count", "deadline_conflict_min_weight")
+            (
+                "deadline_conflict_window_hours",
+                "deadline_conflict_min_task_count",
+                "deadline_conflict_min_weight",
+            )
         )
-        if not all(key in params for key in ("deadline_conflict_window_hours", "deadline_conflict_min_task_count", "deadline_conflict_min_weight")):
+        required = (
+            "deadline_conflict_window_hours",
+            "deadline_conflict_min_task_count",
+            "deadline_conflict_min_weight",
+        )
+        if not all(key in params for key in required):
             return []
         window = timedelta(hours=float(_decimal(params["deadline_conflict_window_hours"])))
         min_count = int(_decimal(params["deadline_conflict_min_task_count"]))
@@ -2614,7 +2675,17 @@ class PlanningAnalyticsService:
             ]
             if len(peers) + 1 < min_count:
                 continue
-            related = min(peers, key=lambda item: (abs(_aware_utc(item.deadline) - _aware_utc(task.deadline)), str(item.task_id))) if peers else None
+            related = (
+                min(
+                    peers,
+                    key=lambda item: (
+                        abs(_aware_utc(item.deadline) - _aware_utc(task.deadline)),
+                        str(item.task_id),
+                    ),
+                )
+                if peers
+                else None
+            )
             rows.append(
                 self._new_conflict(
                     "deadline_concentration", employee_no, task.task_id,
@@ -2626,8 +2697,16 @@ class PlanningAnalyticsService:
         return rows
 
     def _detect_dependency_conflicts(self, employee_no: str, now: datetime) -> list[TaskConflict]:
-        lead_params = SystemParameterService(self.session).snapshot(("dependency_conflict_lead_hours",))
-        lead = timedelta(hours=float(_decimal(lead_params["dependency_conflict_lead_hours"]))) if "dependency_conflict_lead_hours" in lead_params else timedelta(0)
+        lead_params = SystemParameterService(self.session).snapshot(
+            ("dependency_conflict_lead_hours",)
+        )
+        lead = (
+            timedelta(
+                hours=float(_decimal(lead_params["dependency_conflict_lead_hours"]))
+            )
+            if "dependency_conflict_lead_hours" in lead_params
+            else timedelta(0)
+        )
         statement = (
             select(Task, TaskNode, TaskNodeDependency)
             .join(TaskNode, TaskNode.task_id == Task.task_id)
@@ -2649,8 +2728,14 @@ class PlanningAnalyticsService:
             predecessor = self.session.get(TaskNode, dependency.predecessor_node_id)
             if predecessor is None or predecessor.status == "completed":
                 continue
-            start_due = successor.planned_start_time is not None and _aware_utc(successor.planned_start_time) <= now + lead
-            deadline_due = successor.planned_deadline is not None and _aware_utc(successor.planned_deadline) <= now + lead
+            start_due = (
+                successor.planned_start_time is not None
+                and _aware_utc(successor.planned_start_time) <= now + lead
+            )
+            deadline_due = (
+                successor.planned_deadline is not None
+                and _aware_utc(successor.planned_deadline) <= now + lead
+            )
             if not (start_due or deadline_due):
                 continue
             rows.append(
@@ -2693,11 +2778,23 @@ class PlanningAnalyticsService:
         if not overloaded and (capacity <= 0 or urgent_window <= capacity):
             return []
         impacted = min(regular, key=lambda task: _aware_utc(task.deadline))
-        urgent_task = min(urgent, key=lambda task: (_aware_utc(task.deadline) if task.deadline else datetime.max.replace(tzinfo=UTC), str(task.task_id)))
+        urgent_task = min(
+            urgent,
+            key=lambda task: (
+                _aware_utc(task.deadline)
+                if task.deadline
+                else datetime.max.replace(tzinfo=UTC),
+                str(task.task_id),
+            ),
+        )
         return [
             self._new_conflict(
                 "emergency_displacement", employee_no, impacted.task_id, urgent_task.task_id, None,
-                "high", "Urgent work pushes current capacity into overload or threatens an existing deadline.",
+                "high",
+                (
+                    "Urgent work pushes current capacity into overload or threatens "
+                    "an existing deadline."
+                ),
                 "Confirm the priority tradeoff and adjust assignment, scope, or deadline.", now,
             )
         ]
@@ -3012,7 +3109,11 @@ class ReminderNotificationService:
                         now=now,
                     )
                 )
-        if task.status in {"in_progress", "blocked", "pending_report"} and task.report_cycle and task.accepted_at is not None:
+        if (
+            task.status in {"in_progress", "blocked", "pending_report"}
+            and task.report_cycle
+            and task.accepted_at is not None
+        ):
             _, period_end = task_report_period(task.report_cycle, task.accepted_at, now)
             if period_end is not None and period_end <= now:
                 latest = self.session.scalar(
@@ -3138,7 +3239,11 @@ class ReminderNotificationService:
     def _copy(self, rule: ReminderRule) -> tuple[str, str]:
         task = self.session.get(Task, rule.task_id) if rule.task_id else None
         node = self.session.get(TaskNode, rule.node_id) if rule.node_id else None
-        name = node.node_name if node is not None else task.task_name if task is not None else "事项"
+        name = (
+            node.node_name
+            if node is not None
+            else task.task_name if task is not None else "事项"
+        )
         titles = {
             "node_start": "节点开始提醒",
             "due_soon": "节点即将到期" if node is not None else "任务即将到期",
@@ -3169,7 +3274,11 @@ class ReminderNotificationService:
         return title, content
 
     def _view(self, actor: str, row: Notification) -> NotificationView:
-        rule = self.session.get(ReminderRule, row.reminder_rule_id) if row.reminder_rule_id else None
+        rule = (
+            self.session.get(ReminderRule, row.reminder_rule_id)
+            if row.reminder_rule_id
+            else None
+        )
         node_id = rule.node_id if rule is not None else None
         target_type, action_required, can_open, reason = self._target(
             actor, row, rule

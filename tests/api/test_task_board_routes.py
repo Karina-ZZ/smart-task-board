@@ -1,9 +1,9 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies import get_task_board_query_service
 from app.main import app

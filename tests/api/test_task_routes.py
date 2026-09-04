@@ -1,11 +1,11 @@
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies import (
     get_intake_service,
@@ -201,7 +201,13 @@ def test_create_route_builds_command_from_header(route_context) -> None:
     client, tasks, _, _ = route_context
     response = client.post(
         "/api/v1/tasks", headers={"X-Employee-No": "  E-CREATOR  "},
-        json={"task_name":"Task","main_assignee_employee_no":"E-ASSIGNEE","participants":[{"employee_no":"E-COLLAB","participant_role":"collaborator"}]},
+        json={
+            "task_name": "Task",
+            "main_assignee_employee_no": "E-ASSIGNEE",
+            "participants": [
+                {"employee_no": "E-COLLAB", "participant_role": "collaborator"}
+            ],
+        },
     )
     assert response.status_code == 201
     command = tasks.create_task_draft.call_args.args[0]
@@ -840,7 +846,14 @@ def test_missing_or_blank_identity_is_401(route_context, headers: dict[str, str]
 
 @pytest.mark.parametrize(
     "computed_field",
-    ["priority_quadrant", "priorityQuadrant", "workload_score", "workloadScore", "remaining_hours", "remainingHours"],
+    [
+        "priority_quadrant",
+        "priorityQuadrant",
+        "workload_score",
+        "workloadScore",
+        "remaining_hours",
+        "remainingHours",
+    ],
 )
 def test_feature12_computed_fields_cannot_be_written_by_client(
     route_context, computed_field: str
@@ -852,7 +865,12 @@ def test_feature12_computed_fields_cannot_be_written_by_client(
         json={
             "task_name": "Task",
             "main_assignee_employee_no": "E-ASSIGNEE",
-            computed_field: 100 if "Quadrant" not in computed_field and "quadrant" not in computed_field else "important_urgent",
+            computed_field: (
+                100
+                if "Quadrant" not in computed_field
+                and "quadrant" not in computed_field
+                else "important_urgent"
+            ),
         },
     )
     assert response.status_code == 422

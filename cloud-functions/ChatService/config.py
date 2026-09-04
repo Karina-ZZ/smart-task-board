@@ -19,7 +19,8 @@ def resolve_chat_env_file() -> Path:
     return Path(configured).expanduser() if configured else DEFAULT_CHAT_ENV_FILE
 
 
-# Do not override real process environment variables; deployment platforms can inject secrets safely.
+# Do not override real process environment variables. Deployment platforms can
+# inject secrets safely.
 load_dotenv(resolve_chat_env_file(), override=False)
 
 

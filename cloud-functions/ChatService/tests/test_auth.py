@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, UTC
 import os
-from datetime import UTC, datetime, timedelta
 
 os.environ["CHAT_REQUIRE_AUTH"] = "true"
 os.environ["WANGXU_AI_JWT_SECRET"] = "chat-service-test-secret-with-at-least-32-characters"

@@ -10,14 +10,14 @@ Does not own: PostgreSQL locking semantics or browser rendering.
 Plan task: DEV-14.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from uuid import uuid4
 
 from app.models import Task
 from app.services.features.performance_matching.scoring import (
-    PerformanceMatchScorer,
     business_unit_score,
+    PerformanceMatchScorer,
     text_similarity,
 )
 from app.services.features.planning_analytics.calculations import (

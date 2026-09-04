@@ -27,11 +27,31 @@ def normalize_result(raw: dict[str, object]) -> dict[str, object]:
     task_draft = {key: value for key, value in task_draft.items() if key not in FORBIDDEN_FIELDS}
     for field in FORBIDDEN_FIELDS:
         task_draft.pop(field, None)
-    missing = [str(item) for item in (raw.get("missingFields") or raw.get("missing_fields") or []) if str(item) not in FORBIDDEN_FIELDS]
-    low = [str(item) for item in (raw.get("lowConfidenceFields") or raw.get("low_confidence_fields") or []) if str(item) not in FORBIDDEN_FIELDS]
-    questions = [text for text in (_question_text(item) for item in (raw.get("confirmQuestions") or raw.get("confirm_questions") or [])) if text]
+    missing = [
+        str(item)
+        for item in (raw.get("missingFields") or raw.get("missing_fields") or [])
+        if str(item) not in FORBIDDEN_FIELDS
+    ]
+    low = [
+        str(item)
+        for item in (
+            raw.get("lowConfidenceFields") or raw.get("low_confidence_fields") or []
+        )
+        if str(item) not in FORBIDDEN_FIELDS
+    ]
+    questions = [
+        text
+        for text in (
+            _question_text(item)
+            for item in (
+                raw.get("confirmQuestions") or raw.get("confirm_questions") or []
+            )
+        )
+        if text
+    ]
     try:
-        confidence = max(0.0, min(1.0, float(raw.get("confidenceScore", raw.get("confidence_score", 0)) or 0)))
+        score = raw.get("confidenceScore", raw.get("confidence_score", 0)) or 0
+        confidence = max(0.0, min(1.0, float(score)))
     except (TypeError, ValueError):
         confidence = 0.0
     return {
@@ -43,9 +63,20 @@ def normalize_result(raw: dict[str, object]) -> dict[str, object]:
     }
 
 
-def run_intake(payload: dict[str, object], *, clarification: bool, qwen: QwenService | None = None, external_user_key: str | None = None) -> dict[str, object]:
+def run_intake(
+    payload: dict[str, object],
+    *,
+    clarification: bool,
+    qwen: QwenService | None = None,
+    external_user_key: str | None = None,
+) -> dict[str, object]:
     input_payload = payload.get("input")
-    if not isinstance(input_payload, dict) or not str(input_payload.get("rawText") or input_payload.get("asrText") or "").strip():
+    raw_text = (
+        input_payload.get("rawText") or input_payload.get("asrText") or ""
+        if isinstance(input_payload, dict)
+        else ""
+    )
+    if not isinstance(input_payload, dict) or not str(raw_text).strip():
         raise ValueError("缺少任务描述文本")
     chat_session_id = str(
         payload.get("chatSessionId")
@@ -68,10 +99,25 @@ def run_intake(payload: dict[str, object], *, clarification: bool, qwen: QwenSer
             "requestId": request_id,
         })
         latency = int((time.perf_counter() - started) * 1000)
-        database.save_message(chat_session_id, "assistant", str(raw), structured=result, model=config.QWEN_MODEL)
-        database.save_llm_log(request_id, chat_session_id, scene, "succeeded", latency_ms=latency)
+        database.save_message(
+            chat_session_id,
+            "assistant",
+            str(raw),
+            structured=result,
+            model=config.QWEN_MODEL,
+        )
+        database.save_llm_log(
+            request_id, chat_session_id, scene, "succeeded", latency_ms=latency
+        )
         return result
     except Exception as exc:
         latency = int((time.perf_counter() - started) * 1000)
-        database.save_llm_log(request_id, chat_session_id, scene, "failed", latency_ms=latency, error_message=str(exc))
+        database.save_llm_log(
+            request_id,
+            chat_session_id,
+            scene,
+            "failed",
+            latency_ms=latency,
+            error_message=str(exc),
+        )
         raise

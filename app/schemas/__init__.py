@@ -50,12 +50,12 @@ from app.schemas.task import (
     ReassignTaskRequest,
     ReturnTaskRequest,
     TaskActionRequest,
-    UpdateTaskDraftRequest,
     TaskActionResponse,
     TaskDetailResponse,
     TaskParticipantDraftRequest,
     TaskParticipantResponse,
     TaskStatusLogResponse,
+    UpdateTaskDraftRequest,
 )
 from app.schemas.task_board import (
     AvailableActionsResponse,
@@ -64,11 +64,6 @@ from app.schemas.task_board import (
     PaginatedInboxResponse,
     PaginatedTaskBoardResponse,
     TaskBoardSummaryResponse,
-)
-from app.schemas.task_decomposition import (
-    ExecuteDecompositionRequest,
-    RetryDecompositionRequest,
-    TaskDecompositionResponse,
 )
 from app.schemas.task_change_request import (
     CancelTaskChangeRequest,
@@ -81,6 +76,11 @@ from app.schemas.task_change_request import (
     TaskChangeRequestRejectRequest,
     TaskChangeRequestResponse,
     TaskLifecycleActionResponse,
+)
+from app.schemas.task_decomposition import (
+    ExecuteDecompositionRequest,
+    RetryDecompositionRequest,
+    TaskDecompositionResponse,
 )
 from app.schemas.task_node import (
     ConfirmTaskPlanningRequest,

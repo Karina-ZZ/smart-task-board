@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import aliased, Session
 
 from app.models import TaskCompletionReview
 

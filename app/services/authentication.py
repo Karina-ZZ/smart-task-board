@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, UTC
 import hashlib
 import secrets
-from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select

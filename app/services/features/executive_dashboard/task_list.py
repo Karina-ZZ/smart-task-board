@@ -1,19 +1,31 @@
 """
 Feature: Executive employee task filtering.
-Responsibilities: authorize employee filters, apply task-list filters, and build read-only task summaries.
-Does not own: HTTP parsing, dashboard metrics, workload calculation, persistence writes, or task mutations.
+Responsibilities: authorize employee filters,
+apply task-list filters,
+and build read-only task summaries.
+Does not own: HTTP parsing,
+dashboard metrics,
+workload calculation,
+persistence writes,
+or task mutations.
 Plan task: DEV-17 / FEATURE-15.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, UTC
 from uuid import UUID
 
 from app.models import Task
 from app.repositories.executive_dashboard import ExecutiveDashboardRepository
-from app.services.features.executive_dashboard.metrics import EXECUTION_STATUSES, ExecutiveMetricsCalculator
-from app.services.features.executive_dashboard.periods import BUSINESS_TIMEZONE, resolve_executive_period
+from app.services.features.executive_dashboard.metrics import (
+    EXECUTION_STATUSES,
+    ExecutiveMetricsCalculator,
+)
+from app.services.features.executive_dashboard.periods import (
+    BUSINESS_TIMEZONE,
+    resolve_executive_period,
+)
 from app.services.features.executive_dashboard.permissions import ExecutiveScopeResolver
 
 QUADRANT_ALIASES = {
@@ -117,7 +129,9 @@ class ExecutiveTaskListService:
         for task in tasks:
             if task_status and task.status != task_status:
                 continue
-            if normalized_quadrant and not self._matches_quadrant(task, normalized_quadrant, latest):
+            if normalized_quadrant and not self._matches_quadrant(
+                task, normalized_quadrant, latest
+            ):
                 continue
             if normalized_search and normalized_search not in task.task_name.casefold():
                 continue
@@ -140,7 +154,9 @@ class ExecutiveTaskListService:
     def _matches_date(
         cls, task: Task, bounds: tuple[datetime, datetime], use_overlap: bool
     ) -> bool:
-        return cls._overlaps_range(task, *bounds) if use_overlap else cls._starts_in_range(task, *bounds)
+        if use_overlap:
+            return cls._overlaps_range(task, *bounds)
+        return cls._starts_in_range(task, *bounds)
 
     @staticmethod
     def _date_bounds(
@@ -154,7 +170,11 @@ class ExecutiveTaskListService:
             return window.start, window.end
         if date_preset == "custom" and start_date and end_date:
             start = datetime.combine(start_date, time.min, tzinfo=BUSINESS_TIMEZONE).astimezone(UTC)
-            end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=BUSINESS_TIMEZONE).astimezone(UTC)
+            end = datetime.combine(
+                end_date + timedelta(days=1),
+                time.min,
+                tzinfo=BUSINESS_TIMEZONE,
+            ).astimezone(UTC)
             return start, end
         return None
 
@@ -168,7 +188,11 @@ class ExecutiveTaskListService:
     @staticmethod
     def _overlaps_range(task: Task, start: datetime, end: datetime) -> bool:
         if task.start_time is not None:
-            value = task.start_time if task.start_time.tzinfo else task.start_time.replace(tzinfo=UTC)
+            value = (
+                task.start_time
+                if task.start_time.tzinfo
+                else task.start_time.replace(tzinfo=UTC)
+            )
             if value >= end:
                 return False
         if task.deadline is not None:
@@ -211,9 +235,17 @@ class ExecutiveTaskListService:
 
     def _task_summary(self, task: Task) -> dict[str, object]:
         progress = self.metrics.task_progress_map([task]).get(task.task_id, 0)
-        assignee = self.repo.get_user(task.main_assignee_employee_no) if task.main_assignee_employee_no else None
+        assignee = (
+            self.repo.get_user(task.main_assignee_employee_no)
+            if task.main_assignee_employee_no
+            else None
+        )
         deadline = task.deadline
-        aware_deadline = None if deadline is None else (deadline if deadline.tzinfo else deadline.replace(tzinfo=UTC))
+        aware_deadline = (
+            None
+            if deadline is None
+            else deadline if deadline.tzinfo else deadline.replace(tzinfo=UTC)
+        )
         return {
             "task_id": task.task_id,
             "task_no": task.task_no,

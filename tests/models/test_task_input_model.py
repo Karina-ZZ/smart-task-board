@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from sqlalchemy import DateTime, String, Uuid, inspect
+from sqlalchemy import DateTime, inspect, String, Uuid
 
 from app.models import TaskInput, User
 

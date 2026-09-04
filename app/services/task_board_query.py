@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone, UTC
 from uuid import UUID
 
 from sqlalchemy import exists, func, or_, select
@@ -148,7 +148,10 @@ def _change_and_lifecycle_actions(
     pending_change_request: TaskChangeRequest | None,
 ) -> list[str]:
     actions: list[str] = []
-    if task.status in {"in_progress", "blocked", "pending_report"} and actor == task.main_assignee_employee_no:
+    if (
+        task.status in {"in_progress", "blocked", "pending_report"}
+        and actor == task.main_assignee_employee_no
+    ):
         if pending_change_request is None:
             actions.append("submit_change_request")
         else:
@@ -671,7 +674,11 @@ class TaskBoardQueryService:
             "priority_quadrant": priority.priority_quadrant if priority else None,
             "importance_score": str(priority.importance_score) if priority else None,
             "urgency_score": str(priority.urgency_score) if priority else None,
-            "remaining_hours": str(priority.remaining_hours) if priority and priority.remaining_hours is not None else None,
+            "remaining_hours": (
+                str(priority.remaining_hours)
+                if priority and priority.remaining_hours is not None
+                else None
+            ),
             "sort_rank": priority.sort_rank if priority else None,
             "current_user_relations": self._current_user_relations(
                 task,

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import copy
-import re
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime
+import copy
+from datetime import datetime, UTC
 from decimal import Decimal
+import re
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -12,8 +12,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
-    OperationLog,
     Notification,
+    OperationLog,
     Task,
     TaskArchive,
     TaskCompletionReview,
@@ -31,8 +31,6 @@ from app.services.commands import (
     TaskNodeParticipantDraft,
 )
 from app.services.dependency_graph import validate_dependency_graph
-from app.services.features.task_creation import add_pending_accept_notification
-from app.services.shared.idempotency import find_task as find_idempotent_task, record_task as record_idempotent_task
 from app.services.errors import (
     BusinessValidationError,
     EntityNotFoundError,
@@ -40,6 +38,11 @@ from app.services.errors import (
     OpenTaskIssueConflictError,
     PermissionDeniedError,
     TaskVersionConflictError,
+)
+from app.services.features.task_creation import add_pending_accept_notification
+from app.services.shared.idempotency import (
+    find_task as find_idempotent_task,
+    record_task as record_idempotent_task,
 )
 
 UowFactory = Callable[[], UnitOfWork]
@@ -287,7 +290,10 @@ def _validate_send_ready_task(uow: UnitOfWork, task: Task) -> None:
     }
     missing = [key for key, value in required.items() if value is None or value == ""]
     if missing:
-        raise BusinessValidationError("required task fields are missing before sending: " + ", ".join(missing))
+        missing_text = ", ".join(missing)
+        raise BusinessValidationError(
+            "required task fields are missing before sending: " + missing_text
+        )
     if task.start_time and task.deadline and task.deadline < task.start_time:
         raise BusinessValidationError("deadline must not precede start_time")
     if task.estimated_hours is not None or task.actual_hours is not None:
@@ -300,7 +306,8 @@ def _validate_send_ready_task(uow: UnitOfWork, task: Task) -> None:
 
 def _assign_task_no(task: Task, now: datetime) -> None:
     if not task.task_no:
-        task.task_no = f"WX-{now.astimezone(UTC):%y%m%d}-{str(task.task_id).replace('-', '')[:8].upper()}"
+        task_key = str(task.task_id).replace("-", "")[:8].upper()
+        task.task_no = f"WX-{now.astimezone(UTC):%y%m%d}-{task_key}"
 
 
 def _json_value(value: object) -> object:
@@ -1591,7 +1598,9 @@ class TaskWorkflowService:
                 raise EntityNotFoundError("new assignee was not found or is inactive")
             old_assignee = task.main_assignee_employee_no
             if old_assignee == new_assignee:
-                raise BusinessValidationError("new assignee must be different from the current assignee")
+                raise BusinessValidationError(
+                    "new assignee must be different from the current assignee"
+                )
             now = _aware_utc(self._clock(), "clock")
             previous_status = task.status
             if previous_status == TASK_DECOMPOSING:
@@ -2110,9 +2119,15 @@ class TaskWorkflowService:
         with self._uow_factory() as uow:
             task = _lock_task(uow, task_id, expected_task_version)
             if task.status not in {TASK_DRAFT, TASK_PENDING_CONFIRMATION, TASK_RETURNED}:
-                raise InvalidStateTransitionError("task draft cannot be edited in the current state")
+                raise InvalidStateTransitionError(
+                    "task draft cannot be edited in the current state"
+                )
             _require_actor(actor_employee_no, task.creator_employee_no, "creator")
-            for field in ("main_assignee_employee_no", "report_to_employee_no", "reviewer_employee_no"):
+            for field in (
+                "main_assignee_employee_no",
+                "report_to_employee_no",
+                "reviewer_employee_no",
+            ):
                 value = changes.get(field)
                 if value:
                     self._require_user(uow, str(value))
@@ -2133,20 +2148,43 @@ class TaskWorkflowService:
                     if row is not None:
                         uow.tasks.delete_participant(row)
                 if task.main_assignee_employee_no:
-                    uow.tasks.add_participant(TaskParticipant(task_id=task.task_id, employee_no=task.main_assignee_employee_no, participant_role="assignee", is_primary=True))
+                    uow.tasks.add_participant(
+                        TaskParticipant(
+                            task_id=task.task_id,
+                            employee_no=task.main_assignee_employee_no,
+                            participant_role="assignee",
+                            is_primary=True,
+                        )
+                    )
             if collaborator_employee_nos is not None:
                 for row in uow.tasks.list_participants(task.task_id):
                     if row.participant_role == "collaborator":
                         uow.tasks.delete_participant(row)
                 for employee_no in dict.fromkeys(collaborator_employee_nos):
                     self._require_user(uow, employee_no)
-                    uow.tasks.add_participant(TaskParticipant(task_id=task.task_id, employee_no=employee_no, participant_role="collaborator", is_primary=False))
+                    uow.tasks.add_participant(
+                        TaskParticipant(
+                            task_id=task.task_id,
+                            employee_no=employee_no,
+                            participant_role="collaborator",
+                            is_primary=False,
+                        )
+                    )
             before = task.status
             if task.status == TASK_PENDING_CONFIRMATION:
                 task.status = TASK_DRAFT
             now = _aware_utc(self._clock(), "clock")
             _increment_task(task, now)
-            _append_log(uow, task, from_status=before, to_status=task.status, action_type="task_draft_updated", operator_employee_no=actor_employee_no, operation_source=operation_source, now=now)
+            _append_log(
+                uow,
+                task,
+                from_status=before,
+                to_status=task.status,
+                action_type="task_draft_updated",
+                operator_employee_no=actor_employee_no,
+                operation_source=operation_source,
+                now=now,
+            )
             uow.commit()
             return task
 
@@ -2241,10 +2279,21 @@ class TaskWorkflowService:
             return task
 
     def confirm_and_send(
-        self, task_id: UUID, actor_employee_no: str, expected_task_version: int, operation_source: str, idempotency_key: str | None = None,
+        self,
+        task_id: UUID,
+        actor_employee_no: str,
+        expected_task_version: int,
+        operation_source: str,
+        idempotency_key: str | None = None,
     ) -> Task:
         with self._uow_factory() as uow:
-            cached = find_idempotent_task(uow.session, key=idempotency_key, actor=actor_employee_no, action="confirm_and_send", task_id=task_id)
+            cached = find_idempotent_task(
+                uow.session,
+                key=idempotency_key,
+                actor=actor_employee_no,
+                action="confirm_and_send",
+                task_id=task_id,
+            )
             if cached is not None:
                 return cached
             task = _lock_task(uow, task_id, expected_task_version)
@@ -2261,14 +2310,35 @@ class TaskWorkflowService:
             participant.confirmed_at = None
             _increment_task(task, now)
             _assign_task_no(task, now)
-            _append_log(uow, task, from_status=TASK_PENDING_CONFIRMATION, to_status=TASK_PENDING_ACCEPTANCE, action_type="confirmed_and_sent", operator_employee_no=actor_employee_no, target_employee_no=task.main_assignee_employee_no, operation_source=operation_source, now=now)
+            _append_log(
+                uow,
+                task,
+                from_status=TASK_PENDING_CONFIRMATION,
+                to_status=TASK_PENDING_ACCEPTANCE,
+                action_type="confirmed_and_sent",
+                operator_employee_no=actor_employee_no,
+                target_employee_no=task.main_assignee_employee_no,
+                operation_source=operation_source,
+                now=now,
+            )
             add_pending_accept_notification(uow.session, task, created_at=now)
-            record_idempotent_task(uow.session, key=idempotency_key, actor=actor_employee_no, action="confirm_and_send", task=task, at=now)
+            record_idempotent_task(
+                uow.session,
+                key=idempotency_key,
+                actor=actor_employee_no,
+                action="confirm_and_send",
+                task=task,
+                at=now,
+            )
             uow.commit()
             return task
 
     def confirm_self_assigned(
-        self, task_id: UUID, actor_employee_no: str, expected_task_version: int, operation_source: str,
+        self,
+        task_id: UUID,
+        actor_employee_no: str,
+        expected_task_version: int,
+        operation_source: str,
     ) -> Task:
         with self._uow_factory() as uow:
             task = _lock_task(uow, task_id, expected_task_version)
@@ -2287,7 +2357,17 @@ class TaskWorkflowService:
             participant.confirmed_at = None
             _increment_task(task, now)
             _assign_task_no(task, now)
-            _append_log(uow, task, from_status=TASK_PENDING_CONFIRMATION, to_status=TASK_PENDING_ACCEPTANCE, action_type="confirmed_and_sent", operator_employee_no=actor_employee_no, target_employee_no=task.main_assignee_employee_no, operation_source=operation_source, now=now)
+            _append_log(
+                uow,
+                task,
+                from_status=TASK_PENDING_CONFIRMATION,
+                to_status=TASK_PENDING_ACCEPTANCE,
+                action_type="confirmed_and_sent",
+                operator_employee_no=actor_employee_no,
+                target_employee_no=task.main_assignee_employee_no,
+                operation_source=operation_source,
+                now=now,
+            )
             add_pending_accept_notification(uow.session, task, created_at=now)
             uow.commit()
             return task

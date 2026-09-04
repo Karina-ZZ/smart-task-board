@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, UTC
 import hashlib
-from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
 from app.core.config import Settings
 from app.models import RefreshToken, User
-from app.services import PermissionDeniedError
 from app.services import authentication as authentication_module
+from app.services import PermissionDeniedError
 from app.services.authentication import AuthenticationService
 
 NOW = datetime(2026, 8, 21, 9, 0, tzinfo=UTC)

@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, Uuid, inspect
+from sqlalchemy import CheckConstraint, DateTime, inspect, Integer, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models import Task, TaskDecompositionRecord
@@ -25,7 +25,10 @@ def test_decomposition_record_columns_constraints_and_relationship() -> None:
     assert "pending" in checks["ck_task_decomposition_records_status"]
     assert "invalidated" in checks["ck_task_decomposition_records_status"]
     assert next(iter(table.c.task_id.foreign_keys)).target_fullname == "tasks.task_id"
-    assert inspect(TaskDecompositionRecord).relationships.task.back_populates == "decomposition_records"
+    assert (
+        inspect(TaskDecompositionRecord).relationships.task.back_populates
+        == "decomposition_records"
+    )
     assert inspect(Task).relationships.decomposition_records.back_populates == "task"
 
 

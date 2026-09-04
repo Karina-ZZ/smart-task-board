@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, time, timedelta, UTC
+import re
 from uuid import UUID
 from zoneinfo import ZoneInfo
-import re
 
 from sqlalchemy import select
 

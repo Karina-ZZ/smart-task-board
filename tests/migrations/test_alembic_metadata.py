@@ -1,15 +1,15 @@
 import ast
-import runpy
 from contextlib import nullcontext
 from pathlib import Path
+import runpy
 
+from alembic import context
 from alembic.config import Config
 from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.sql.schema import PrimaryKeyConstraint
 
-from alembic import context
 from app.core.config import get_settings
-from app.db.base import NAMING_CONVENTION, Base
+from app.db.base import Base, NAMING_CONVENTION
 
 EXPECTED_TABLES = {
     "ai_extraction_records",

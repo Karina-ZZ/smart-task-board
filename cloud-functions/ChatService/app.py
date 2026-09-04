@@ -18,7 +18,16 @@ def ok(data, status=200):
 
 
 def fail(message: str, code: str, status=400):
-    return jsonify({"success": False, "error": {"code": code, "message": message}, "requestId": str(uuid4())}), status
+    return (
+        jsonify(
+            {
+                "success": False,
+                "error": {"code": code, "message": message},
+                "requestId": str(uuid4()),
+            }
+        ),
+        status,
+    )
 
 
 def actor_key(claims, _payload):
@@ -41,7 +50,13 @@ def health():
 def extract_task():
     try:
         claims, payload = authenticated_payload()
-        return ok(run_intake(payload, clarification=False, external_user_key=actor_key(claims, payload)))
+        return ok(
+            run_intake(
+                payload,
+                clarification=False,
+                external_user_key=actor_key(claims, payload),
+            )
+        )
     except PermissionError as exc:
         return fail(str(exc), "CLOUD_AUTH_REQUIRED", 401)
     except ValueError as exc:
@@ -56,7 +71,13 @@ def clarify_task():
         claims, payload = authenticated_payload()
         if not isinstance(payload.get("clarificationAnswers"), dict):
             raise ValueError("缺少追问回答")
-        return ok(run_intake(payload, clarification=True, external_user_key=actor_key(claims, payload)))
+        return ok(
+            run_intake(
+                payload,
+                clarification=True,
+                external_user_key=actor_key(claims, payload),
+            )
+        )
     except PermissionError as exc:
         return fail(str(exc), "CLOUD_AUTH_REQUIRED", 401)
     except ValueError as exc:

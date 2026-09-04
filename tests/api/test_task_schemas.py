@@ -1,9 +1,9 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from app.schemas import (
     CreateTaskRequest,

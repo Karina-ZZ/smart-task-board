@@ -70,7 +70,11 @@ def submit_progress_report(
     service: ReportService,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=160)] = None,
 ) -> ProgressReportResponse:
-    report_content = (request.remark or request.stage_result or f"进度更新至 {request.progress_percent}%").strip()
+    report_content = (
+        request.remark
+        or request.stage_result
+        or f"进度更新至 {request.progress_percent}%"
+    ).strip()
     report = service.submit(
         SubmitProgressReportCommand(
             task_id=task_id,

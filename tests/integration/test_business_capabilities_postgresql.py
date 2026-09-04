@@ -360,6 +360,7 @@ def test_full_business_capability_flow_with_real_postgresql(
             raw_text=(
                 "Revenue dashboard\n"
                 f"assignee: {refs.assignee}; report_to: {refs.reviewer}; "
+                f"reviewer: {refs.reviewer}; "
                 "deadline: 2026-08-22T09:00:00+00:00; weight: 5; "
                 "deliverable: Revenue dashboard; acceptance: KPI is measurable"
             ),
@@ -513,13 +514,40 @@ def test_full_business_capability_flow_with_real_postgresql(
         "postgresql-test",
         review.completion_review_id,
     )
-    assert task.status == "completed"
+    assert task.status == "archived"
 
     with business_session_factory() as session:
+        # Feature 11 automatically archives approved tasks without a reusable
+        # snapshot. Exercise the legacy/manual archive-reuse capability with a
+        # separate completed task so the two contracts do not overwrite each other.
+        reusable_source = Task(
+            task_id=uuid4(),
+            task_name="Reusable revenue dashboard source",
+            task_description="Reusable revenue dashboard source",
+            task_goal="Preserve archive reuse capability",
+            task_source="postgresql-test",
+            creator_employee_no=refs.creator,
+            main_assignee_employee_no=refs.assignee,
+            report_to_employee_no=refs.reviewer,
+            reviewer_employee_no=refs.reviewer,
+            department_id=refs.department_id,
+            start_time=clock.current - timedelta(days=2),
+            deadline=clock.current - timedelta(days=1),
+            task_weight=3,
+            status="completed",
+            task_version=1,
+            created_at=clock.current - timedelta(days=3),
+            updated_at=clock.current,
+            effective_at=clock.current,
+        )
+        session.add(reusable_source)
+        session.commit()
+        records.task_ids.add(reusable_source.task_id)
+
         archive_service = ArchiveReuseService(session, uow_factory, clock=clock)
         archive = archive_service.archive_task(
             refs.creator,
-            task.task_id,
+            reusable_source.task_id,
             summary="Reusable revenue dashboard",
             search_keywords=["revenue", "dashboard"],
             review_result=review.review_result,

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
-from uuid import UUID, uuid4
 import os
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine, delete, Engine, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.api import dependencies
 from app.api.v1 import tasks as task_routes
@@ -22,6 +22,7 @@ from app.models import (
     OperationLog,
     ReminderRule,
     Task,
+    TaskArchive,
     TaskCompletionReview,
     TaskDecompositionRecord,
     TaskInput,
@@ -195,6 +196,9 @@ def phase5_records(phase5_engine: Engine) -> Iterator[Phase5Records]:
                 )
             )
         if task_ids:
+            connection.execute(
+                delete(TaskArchive).where(TaskArchive.task_id.in_(task_ids))
+            )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         if records.input_ids:
             connection.execute(
@@ -535,14 +539,14 @@ def test_http_core_workflow_and_read_permissions(
         11,
     )
     assert (approved.json()["status"], approved.json()["task_version"]) == (
-        "completed",
-        12,
+        "archived",
+        13,
     )
 
     completed_rejected = phase5_client.post(
         f"/api/v1/tasks/{task_id}/nodes/{first}/actions/start",
         headers=_headers(refs.assignee),
-        json={"expected_task_version": 12},
+        json={"expected_task_version": 13},
     )
     assert completed_rejected.status_code == 409
     assert completed_rejected.json()["error"]["code"] == "invalid_state_transition"
@@ -560,7 +564,7 @@ def test_http_core_workflow_and_read_permissions(
             headers=_headers(reader),
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "completed"
+        assert response.json()["status"] == "archived"
     outsider = phase5_client.get(
         f"/api/v1/tasks/{task_id}",
         headers=_headers(refs.outsider),
@@ -590,16 +594,16 @@ def test_http_core_workflow_and_read_permissions(
         (item["status"], item["progress_percent"]) == ("completed", 100)
         for item in nodes.json()
     )
-    assert logs.json()["total"] == 12
+    assert logs.json()["total"] == 13
     assert [item["task_version"] for item in logs.json()["items"]] == list(
-        range(1, 13)
+        range(1, 14)
     )
     assert {item["operation_source"] for item in logs.json()["items"]} == {"rest_api"}
 
     with phase5_session_factory() as session:
         stored = session.get(Task, task_id)
         assert stored is not None
-        assert (stored.status, stored.task_version) == ("completed", 12)
+        assert (stored.status, stored.task_version) == ("archived", 13)
         stored_nodes = TaskNodeRepository(session).list_nodes(task_id)
         assert len(stored_nodes) == 5
         assert all(
@@ -607,7 +611,7 @@ def test_http_core_workflow_and_read_permissions(
             for item in stored_nodes
         )
         stored_logs = TaskStatusLogRepository(session).list_by_task_id(task_id)
-        assert len(stored_logs) == 12
+        assert len(stored_logs) == 13
 
 
 def test_http_unique_conflict_is_sanitized_and_rolled_back(

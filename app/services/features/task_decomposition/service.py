@@ -3,7 +3,9 @@ Feature: Assignee acceptance and AI decomposition lifecycle.
 
 Responsibilities:
 - Accept only by the main assignee and create one effective decomposition attempt.
-- Execute/validate AI output, atomically persist nodes/dependencies/reminders, and activate the task.
+- Execute/validate AI output,
+atomically persist nodes/dependencies/reminders,
+and activate the task.
 - Persist failure/retry state and reject stale or invalidated results.
 
 Does not own: HTTP parsing, raw SQL, or provider transport implementation.
@@ -313,7 +315,11 @@ class TaskDecompositionService:
             if task is None:
                 raise EntityNotFoundError("task was not found")
             participants = {p.employee_no for p in uow.tasks.list_participants(task_id)}
-            if actor not in participants | {task.creator_employee_no, task.main_assignee_employee_no}:
+            allowed = participants | {
+                task.creator_employee_no,
+                task.main_assignee_employee_no,
+            }
+            if actor not in allowed:
                 raise PermissionDeniedError("actor cannot view task decomposition")
             record = uow.task_decompositions.get_latest_for_task(task_id)
             if record is None:
@@ -400,11 +406,20 @@ class TaskDecompositionService:
             client_id = str(raw.get("client_node_id") or raw.get("clientNodeId") or f"node-{index}")
             if client_id in node_map:
                 raise BusinessValidationError("duplicate decomposition node identifier")
-            owner = self._nonblank(raw.get("owner_employee_no") or raw.get("ownerEmployeeNo"), "owner_employee_no")
+            owner = self._nonblank(
+                raw.get("owner_employee_no") or raw.get("ownerEmployeeNo"),
+                "owner_employee_no",
+            )
             if owner not in pool:
                 raise BusinessValidationError("node owner must be in confirmed participant pool")
-            start = self._parse_time(raw.get("planned_start_time") or raw.get("plannedStartTime"), "planned_start_time")
-            deadline = self._parse_time(raw.get("planned_deadline") or raw.get("plannedDeadline"), "planned_deadline")
+            start = self._parse_time(
+                raw.get("planned_start_time") or raw.get("plannedStartTime"),
+                "planned_start_time",
+            )
+            deadline = self._parse_time(
+                raw.get("planned_deadline") or raw.get("plannedDeadline"),
+                "planned_deadline",
+            )
             if deadline < start:
                 raise BusinessValidationError("node deadline must not precede node start")
             if task.start_time and start < task.start_time.astimezone(UTC):
@@ -415,7 +430,10 @@ class TaskDecompositionService:
                 node_id=uuid4(), task_id=task.task_id, node_order=index,
                 sort_weight=int(raw.get("sort_weight") or raw.get("sortWeight") or 0),
                 node_name=self._nonblank(raw.get("node_name") or raw.get("nodeName"), "node_name"),
-                action_detail=self._nonblank(raw.get("action_detail") or raw.get("actionDetail"), "action_detail"),
+                action_detail=self._nonblank(
+                    raw.get("action_detail") or raw.get("actionDetail"),
+                    "action_detail",
+                ),
                 tools_or_materials=raw.get("tools_or_materials") or raw.get("toolsOrMaterials"),
                 owner_employee_no=owner,
                 assignment_status=(
@@ -440,8 +458,16 @@ class TaskDecompositionService:
         for raw in raw_dependencies:
             if not isinstance(raw, Mapping):
                 raise BusinessValidationError("dependency must be an object")
-            before = str(raw.get("predecessor_client_node_id") or raw.get("predecessorClientNodeId") or "")
-            after = str(raw.get("successor_client_node_id") or raw.get("successorClientNodeId") or "")
+            before = str(
+                raw.get("predecessor_client_node_id")
+                or raw.get("predecessorClientNodeId")
+                or ""
+            )
+            after = str(
+                raw.get("successor_client_node_id")
+                or raw.get("successorClientNodeId")
+                or ""
+            )
             if before not in node_map or after not in node_map:
                 raise BusinessValidationError("dependency references unknown node")
             edge = (node_map[before].node_id, node_map[after].node_id)
@@ -452,7 +478,11 @@ class TaskDecompositionService:
                 TaskNodeDependency(
                     task_id=task.task_id,
                     predecessor_node_id=edge[0], successor_node_id=edge[1],
-                    dependency_type=str(raw.get("dependency_type") or raw.get("dependencyType") or "finish_to_start"),
+                    dependency_type=str(
+                        raw.get("dependency_type")
+                        or raw.get("dependencyType")
+                        or "finish_to_start"
+                    ),
                 )
             )
         validate_dependency_graph((n.node_id for n in nodes), edges)
@@ -544,7 +574,9 @@ class TaskDecompositionService:
             return record
 
     @staticmethod
-    def invalidate_active(uow: UnitOfWork, task: Task, *, now: datetime) -> TaskDecompositionRecord | None:
+    def invalidate_active(
+        uow: UnitOfWork, task: Task, *, now: datetime
+    ) -> TaskDecompositionRecord | None:
         """Invalidate the active attempt inside the caller's existing lifecycle transaction."""
         record = uow.task_decompositions.get_active_for_task(task.task_id)
         if record is None:

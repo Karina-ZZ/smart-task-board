@@ -1,14 +1,14 @@
 import importlib.util
-import re
 from pathlib import Path
+import re
 from types import ModuleType
 
 import sqlalchemy as sa
 from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.sql.schema import PrimaryKeyConstraint
 
-import app.models  # noqa: F401
 from app.db.base import Base
+import app.models
 
 MIGRATION_DIRECTORY = Path("alembic/versions")
 INITIAL_REVISION = "17f69ea12754"

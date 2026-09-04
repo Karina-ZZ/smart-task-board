@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AliasChoices, Field, StringConstraints, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator, StringConstraints
 
 from app.schemas.common import DecimalString, NonNegativeDecimalString, StrictSchema
 from app.schemas.task_node import _require_aware

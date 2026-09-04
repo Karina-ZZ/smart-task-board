@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, UTC
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -6,11 +6,7 @@ from uuid import uuid4
 from app.models import Task, TaskCompletionReview, TaskNode, TaskNodeDependency
 from app.schemas.task_board import AvailableActionsResponse
 from app.services.errors import BusinessValidationError
-from app.services.task_board_query import (
-    TaskBoardQueryService,
-    _node_actions,
-    _task_actions,
-)
+from app.services.task_board_query import _node_actions, _task_actions, TaskBoardQueryService
 
 NOW = datetime(2026, 8, 18, 8, 0, tzinfo=UTC)
 

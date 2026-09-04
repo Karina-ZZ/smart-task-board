@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 

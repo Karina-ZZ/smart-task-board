@@ -5,13 +5,23 @@ Does not own: HTTP header parsing or task state transitions.
 Plan task: DEV-08 and later write actions.
 """
 from __future__ import annotations
+
 from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
 from app.models import OperationLog, Task
 
 
-def find_task(session: Session, *, key: str | None, actor: str, action: str, task_id) -> Task | None:
+def find_task(
+    session: Session,
+    *,
+    key: str | None,
+    actor: str,
+    action: str,
+    task_id,
+) -> Task | None:
     if not key:
         return None
     row = session.scalar(
@@ -29,11 +39,20 @@ def find_task(session: Session, *, key: str | None, actor: str, action: str, tas
     return session.get(Task, task_id)
 
 
-def record_task(session: Session, *, key: str | None, actor: str, action: str, task: Task, at: datetime) -> None:
+def record_task(
+    session: Session,
+    *,
+    key: str | None,
+    actor: str,
+    action: str,
+    task: Task,
+    at: datetime,
+) -> None:
     if not key:
         return
-    session.add(OperationLog(
-        request_id=key,
+    session.add(
+        OperationLog(
+            request_id=key,
         operator_employee_no=actor,
         action=action,
         object_type="task",
@@ -41,5 +60,6 @@ def record_task(session: Session, *, key: str | None, actor: str, action: str, t
         before_data=None,
         after_data={"status": task.status, "task_version": task.task_version},
         result="success",
-        created_at=at,
-    ))
+            created_at=at,
+        )
+    )

@@ -20,8 +20,6 @@ from app.schemas import (
     CreateTaskRequest,
     ErrorResponse,
     ExecuteDecompositionRequest,
-    RetryDecompositionRequest,
-    TaskDecompositionResponse,
     MergeTaskRequest,
     NodeActionResponse,
     NodeAssignmentActionResponse,
@@ -35,21 +33,23 @@ from app.schemas import (
     RejectCompletionRequest,
     ReopenNodeRequest,
     RestoreTaskRequest,
+    RetryDecompositionRequest,
     ReturnTaskRequest,
     SubmitCompletionRequest,
     TaskActionRequest,
     TaskActionResponse,
-    UpdateTaskDraftRequest,
     TaskChangeRequestActionResponse,
     TaskChangeRequestCreate,
     TaskChangeRequestDecisionRequest,
     TaskChangeRequestRejectRequest,
     TaskChangeRequestResponse,
+    TaskDecompositionResponse,
     TaskDetailResponse,
     TaskNodeResponse,
     TaskPlanningSuggestionRequest,
     TaskPlanningSuggestionResponse,
     UpdateNodeProgressRequest,
+    UpdateTaskDraftRequest,
 )
 from app.services.commands import (
     CreateTaskDraftCommand,
@@ -58,8 +58,8 @@ from app.services.commands import (
     TaskNodeParticipantDraft,
     TaskParticipantDraft,
 )
-from app.services.task_node_workflow import TaskNodeWorkflowService
 from app.services.features.task_decomposition import TaskDecompositionService
+from app.services.task_node_workflow import TaskNodeWorkflowService
 from app.services.task_query import TaskQueryService
 from app.services.task_workflow import TaskWorkflowService
 
@@ -87,7 +87,9 @@ def _create_command(request: CreateTaskRequest, actor: str) -> CreateTaskDraftCo
     values = request.model_dump(exclude={"task_id", "participants", "extraction_record_ids"})
     command = {
         **values, "creator_employee_no": actor, "operation_source": OPERATION_SOURCE,
-        "participants": tuple(TaskParticipantDraft(**item.model_dump()) for item in request.participants),
+        "participants": tuple(
+            TaskParticipantDraft(**item.model_dump()) for item in request.participants
+        ),
         "extraction_record_ids": request.extraction_record_ids,
     }
     if request.task_id is not None:
@@ -112,11 +114,29 @@ def create_task(
 
 
 @router.patch(
-    "/{task_id}/draft", response_model=TaskActionResponse, summary="Update creator task-level draft fields", responses=ERROR_RESPONSES,
+    "/{task_id}/draft",
+    response_model=TaskActionResponse,
+    summary="Update creator task-level draft fields",
+    responses=ERROR_RESPONSES,
 )
-def update_task_draft(task_id: UUID, request: UpdateTaskDraftRequest, actor: Actor, service: TaskService) -> TaskActionResponse:
-    changes = request.model_dump(exclude={"expected_task_version", "collaborator_employee_nos"}, exclude_unset=True)
-    task = service.update_task_draft(task_id, actor, request.expected_task_version, OPERATION_SOURCE, changes, request.collaborator_employee_nos)
+def update_task_draft(
+    task_id: UUID,
+    request: UpdateTaskDraftRequest,
+    actor: Actor,
+    service: TaskService,
+) -> TaskActionResponse:
+    changes = request.model_dump(
+        exclude={"expected_task_version", "collaborator_employee_nos"},
+        exclude_unset=True,
+    )
+    task = service.update_task_draft(
+        task_id,
+        actor,
+        request.expected_task_version,
+        OPERATION_SOURCE,
+        changes,
+        request.collaborator_employee_nos,
+    )
     return TaskActionResponse.model_validate(task)
 
 
@@ -1004,7 +1024,14 @@ def start_node(
     if idempotency_key is None:
         service.start_node(task_id, node_id, actor, request.expected_task_version, OPERATION_SOURCE)
     else:
-        service.start_node(task_id, node_id, actor, request.expected_task_version, OPERATION_SOURCE, idempotency_key)
+        service.start_node(
+            task_id,
+            node_id,
+            actor,
+            request.expected_task_version,
+            OPERATION_SOURCE,
+            idempotency_key,
+        )
     return _node_response(task_id, node_id, actor, query_service)
 
 
@@ -1049,9 +1076,18 @@ def complete_node(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key", max_length=160)] = None,
 ) -> NodeActionResponse:
     if idempotency_key is None:
-        service.complete_node(task_id, node_id, actor, request.expected_task_version, OPERATION_SOURCE)
+        service.complete_node(
+            task_id, node_id, actor, request.expected_task_version, OPERATION_SOURCE
+        )
     else:
-        service.complete_node(task_id, node_id, actor, request.expected_task_version, OPERATION_SOURCE, idempotency_key)
+        service.complete_node(
+            task_id,
+            node_id,
+            actor,
+            request.expected_task_version,
+            OPERATION_SOURCE,
+            idempotency_key,
+        )
     return _node_response(task_id, node_id, actor, query_service)
 
 

@@ -9,12 +9,11 @@ from sqlalchemy.orm import Session
 from app.ai.providers import OpenAICompatibleTaskAgentProvider
 from app.api.errors import AuthenticationRequiredError
 from app.core.config import get_settings
-from app.core.security import InvalidPrototypeTokenError, decode_access_token
-from app.db.session import SessionLocal, get_db
+from app.core.security import decode_access_token, InvalidPrototypeTokenError
+from app.db.session import get_db, SessionLocal
 from app.db.unit_of_work import UnitOfWork
 from app.integrations.wecom import WeComClient
 from app.services.authentication import AuthenticationService
-from app.services.wecom_authentication import WeComAuthenticationService
 from app.services.business_capabilities import (
     ArchiveReuseService,
     AuditQueryService,
@@ -25,13 +24,14 @@ from app.services.business_capabilities import (
     SystemParameterService,
     TaskIntakeService,
 )
-from app.services.progress_issue_query import ProgressIssueQueryService
 from app.services.features.task_decomposition import TaskDecompositionService
+from app.services.progress_issue_query import ProgressIssueQueryService
 from app.services.progress_report import ProgressReportService
 from app.services.task_issue import TaskIssueService
 from app.services.task_node_workflow import TaskNodeWorkflowService
 from app.services.task_query import TaskQueryService
 from app.services.task_workflow import TaskWorkflowService
+from app.services.wecom_authentication import WeComAuthenticationService
 
 UowFactory = Callable[[], UnitOfWork]
 app_bearer = HTTPBearer(

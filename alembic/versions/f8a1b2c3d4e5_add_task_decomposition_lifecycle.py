@@ -5,10 +5,9 @@ Revises: f7b8c9d0e1f2
 """
 from collections.abc import Sequence
 
+from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
-from alembic import op
 
 revision: str = "f8a1b2c3d4e5"
 down_revision: str | None = "f7b8c9d0e1f2"
@@ -118,8 +117,17 @@ def downgrade() -> None:
     op.drop_column("tasks", "decomposition_status")
     op.drop_column("tasks", "effective_at")
 
-    op.drop_index("uq_task_decomposition_records_one_active", table_name="task_decomposition_records")
-    op.drop_index("uq_task_decomposition_records_idempotency", table_name="task_decomposition_records")
+    op.drop_index(
+        "uq_task_decomposition_records_one_active",
+        table_name="task_decomposition_records",
+    )
+    op.drop_index(
+        "uq_task_decomposition_records_idempotency",
+        table_name="task_decomposition_records",
+    )
     op.drop_index("ix_task_decomposition_records_status", table_name="task_decomposition_records")
-    op.drop_index("ix_task_decomposition_records_task_created", table_name="task_decomposition_records")
+    op.drop_index(
+        "ix_task_decomposition_records_task_created",
+        table_name="task_decomposition_records",
+    )
     op.drop_table("task_decomposition_records")

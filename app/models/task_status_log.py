@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 

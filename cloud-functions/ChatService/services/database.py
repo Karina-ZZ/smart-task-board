@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, UTC
 import json
-from datetime import UTC, datetime
 from typing import Any
 
 import config
@@ -28,7 +28,12 @@ def _connection():
     )
 
 
-def ensure_chat_session(chat_session_id: str, scene: str, external_user_key: str | None, model: str) -> None:
+def ensure_chat_session(
+    chat_session_id: str,
+    scene: str,
+    external_user_key: str | None,
+    model: str,
+) -> None:
     if not enabled():
         return
     with _connection() as conn, conn.cursor() as cursor:
@@ -44,7 +49,13 @@ def ensure_chat_session(chat_session_id: str, scene: str, external_user_key: str
         conn.commit()
 
 
-def save_message(chat_session_id: str, role: str, content: str, structured: Any = None, model: str | None = None) -> None:
+def save_message(
+    chat_session_id: str,
+    role: str,
+    content: str,
+    structured: Any = None,
+    model: str | None = None,
+) -> None:
     if not enabled():
         return
     with _connection() as conn, conn.cursor() as cursor:
@@ -53,19 +64,45 @@ def save_message(chat_session_id: str, role: str, content: str, structured: Any 
             INSERT INTO chat_messages (chat_session_id, role, content, structured_json, model_name)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (chat_session_id, role, content, json.dumps(structured, ensure_ascii=False) if structured is not None else None, model),
+            (
+                chat_session_id,
+                role,
+                content,
+                json.dumps(structured, ensure_ascii=False)
+                if structured is not None
+                else None,
+                model,
+            ),
         )
         conn.commit()
 
 
-def save_llm_log(request_id: str, chat_session_id: str, request_type: str, status: str, *, latency_ms: int | None = None, error_message: str | None = None) -> None:
+def save_llm_log(
+    request_id: str,
+    chat_session_id: str,
+    request_type: str,
+    status: str,
+    *,
+    latency_ms: int | None = None,
+    error_message: str | None = None,
+) -> None:
     if not enabled():
         return
     with _connection() as conn, conn.cursor() as cursor:
         cursor.execute(
             """
             INSERT INTO llm_request_logs
-                (llm_request_id, chat_session_id, provider, model_name, request_type, status, latency_ms, error_message, completed_at)
+                (
+                    llm_request_id,
+                    chat_session_id,
+                    provider,
+                    model_name,
+                    request_type,
+                    status,
+                    latency_ms,
+                    error_message,
+                    completed_at,
+                )
             VALUES (%s, %s, 'qwen', %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE status=VALUES(status), latency_ms=VALUES(latency_ms),
                 error_message=VALUES(error_message), completed_at=VALUES(completed_at)

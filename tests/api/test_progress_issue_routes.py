@@ -1,11 +1,11 @@
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies import (
     get_progress_issue_query_service,

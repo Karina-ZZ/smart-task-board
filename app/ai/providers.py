@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal, InvalidOperation
+import json
 from pathlib import Path
 from urllib import error, request
 
@@ -14,7 +14,9 @@ CompletionClient = Callable[[list[dict[str, str]]], Mapping[str, object]]
 
 DEFAULT_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "task_agent.md"
 DEFAULT_INTAKE_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "task_intake.md"
-DEFAULT_DECOMPOSITION_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "task_decomposition.md"
+DEFAULT_DECOMPOSITION_PROMPT_PATH = (
+    Path(__file__).resolve().parent / "prompts" / "task_decomposition.md"
+)
 
 FIELD_ALIASES = {
     "taskName": "task_name",

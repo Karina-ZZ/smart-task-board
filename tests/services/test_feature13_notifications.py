@@ -3,15 +3,12 @@ Feature: DEV-15 node assignment and reminder policies.
 
 Verifies collaborator acceptance gates and the approved working-span reminder bands.
 """
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from decimal import Decimal
 from uuid import uuid4
 
 from app.models import ReminderRule, Task, TaskNode
-from app.services.features.notifications import (
-    node_due_soon_at,
-    schedule_node_execution_reminders,
-)
+from app.services.features.notifications import node_due_soon_at, schedule_node_execution_reminders
 from app.services.features.planning_analytics import working_hours_between
 
 NOW = datetime(2026, 9, 3, 1, 0, tzinfo=UTC)

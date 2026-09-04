@@ -3,15 +3,15 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
-from uuid import UUID, uuid4
 import os
 import secrets
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
-import pytest
 
 from app.api import dependencies
 from app.core.config import get_settings, Settings
@@ -24,6 +24,7 @@ from app.models import (
     OperationLog,
     ReminderRule,
     Task,
+    TaskArchive,
     TaskCompletionReview,
     TaskDecompositionRecord,
     TaskNode,
@@ -315,6 +316,9 @@ def _cleanup_and_count(
                 delete(TaskDecompositionRecord).where(
                     TaskDecompositionRecord.task_id.in_(task_ids)
                 )
+            )
+            connection.execute(
+                delete(TaskArchive).where(TaskArchive.task_id.in_(task_ids))
             )
             connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
         connection.execute(
@@ -725,15 +729,8 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 UUID(item["node_id"]): item["allowed_actions"]
                 for item in in_progress_actions.json()["nodes"]
             }
-            assert action_nodes[alpha_nodes[0]] == [
-                "start_node",
-                "submit_progress_report",
-                "report_task_issue",
-            ]
-            assert action_nodes[alpha_nodes[1]] == [
-                "submit_progress_report",
-                "report_task_issue",
-            ]
+            assert action_nodes[alpha_nodes[0]] == ["start_node"]
+            assert action_nodes[alpha_nodes[1]] == []
             assert all(not action_nodes[node_id] for node_id in alpha_nodes[2:])
             assert collaborator_actions.json()["allowed_actions"] == []
             collaborator_node_actions = {
@@ -859,17 +856,18 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 11,
                 completion_review_id=completion_review_id,
             )
-            assert (approved.status_code, approved.json()["status"]) == (
-                200,
-                "completed",
-            )
+            assert (
+                approved.status_code,
+                approved.json()["status"],
+                approved.json()["task_version"],
+            ) == (200, "archived", 13)
 
-            expected_completed_actions = {
-                creator_token: ["close_task", "archive_task", "merge_task"],
+            expected_archived_actions = {
+                creator_token: ["restore_task"],
                 assignee_token: [],
                 reviewer_token: [],
             }
-            for token, expected_actions in expected_completed_actions.items():
+            for token, expected_actions in expected_archived_actions.items():
                 completed_actions = client.get(
                     f"/api/v1/tasks/{alpha_id}/available-actions",
                     headers=_bearer(token),
@@ -907,8 +905,8 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
             )
             assert final_detail.status_code == 200
             assert (final_detail.json()["status"], final_detail.json()["task_version"]) == (
-                "completed",
-                12,
+                "archived",
+                13,
             )
             _assert_safe_response(final_detail.json())
             with factory() as session:
@@ -916,7 +914,7 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                     select(func.count()).select_from(TaskStatusLog).where(
                         TaskStatusLog.task_id == alpha_id
                     )
-                ) == 12
+                ) == 13
                 beta = session.get(Task, beta_id)
                 assert beta is not None
                 assert (beta.status, beta.task_version) == ("draft", 1)

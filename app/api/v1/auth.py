@@ -8,7 +8,7 @@ from app.api.dependencies import (
     get_identity_service,
     get_wecom_authentication_service,
 )
-from app.core.config import Settings, get_settings
+from app.core.config import get_settings, Settings
 from app.core.security import create_chat_service_token
 from app.models import User
 from app.schemas.auth import (
@@ -25,7 +25,7 @@ from app.schemas.auth import (
 from app.schemas.current_user import CurrentUserResponse
 from app.services.authentication import AuthenticationService
 from app.services.errors import PermissionDeniedError
-from app.services.identity import PROTOTYPE_WARNING, IdentityService
+from app.services.identity import IdentityService, PROTOTYPE_WARNING
 from app.services.wecom_authentication import WeComAuthenticationService
 
 router = APIRouter(prefix="/auth", tags=["prototype-auth"])

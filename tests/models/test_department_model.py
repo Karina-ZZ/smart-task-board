@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Uuid, inspect
+from sqlalchemy import BigInteger, inspect, Uuid
 
 from app.db.base import Base
 from app.models import Department, User

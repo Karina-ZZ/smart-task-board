@@ -20,7 +20,11 @@ class QwenService:
             {"role": "system", "content": PROMPT_PATH.read_text(encoding="utf-8")},
             {"role": "user", "content": json.dumps(context, ensure_ascii=False, default=str)},
         ]
-        response = self.completion_client(messages) if self.completion_client else self._chat_completion(messages)
+        response = (
+            self.completion_client(messages)
+            if self.completion_client
+            else self._chat_completion(messages)
+        )
         content = self._message_content(response)
         parsed = self._parse_json(content)
         if not isinstance(parsed, dict):
@@ -37,7 +41,10 @@ class QwenService:
                 "role": "user",
                 "content": [
                     {"type": "input_audio", "input_audio": {"data": audio_base64, "format": ext}},
-                    {"type": "text", "text": "请只返回这段中文语音的逐字转写文本。"},
+                    {
+                        "type": "text",
+                        "text": "请只返回这段中文语音的逐字转写文本。",
+                    },
                 ],
             }],
             "temperature": 0,

@@ -1,22 +1,29 @@
 """
 Feature: Executive team dashboard.
-Responsibilities: orchestrate authorized DEV-16 metrics/workload and expose the DEV-17 task-list facade.
-Does not own: persistence queries, priority/workload formulas, task-filter internals, or task mutations.
+Responsibilities: orchestrate authorized DEV-16 metrics/workload and expose the
+DEV-17 task-list facade.
+Does not own: persistence queries,
+priority/workload formulas,
+task-filter internals,
+or task mutations.
 Plan task: DEV-16 / FEATURE-14 and DEV-17 / FEATURE-15.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime, UTC
 from uuid import UUID
 
 from app.repositories.executive_dashboard import ExecutiveDashboardRepository
 from app.services.features.executive_dashboard.metrics import (
     EXECUTION_STATUSES,
-    PROGRESS_STATUSES,
     ExecutiveMetricsCalculator,
+    PROGRESS_STATUSES,
 )
-from app.services.features.executive_dashboard.periods import ExecutivePeriod, resolve_executive_period
+from app.services.features.executive_dashboard.periods import (
+    ExecutivePeriod,
+    resolve_executive_period,
+)
 from app.services.features.executive_dashboard.permissions import ExecutiveScopeResolver
 from app.services.features.executive_dashboard.task_list import ExecutiveTaskListService
 from app.services.features.executive_dashboard.workload import ExecutiveWorkloadHeatmapBuilder

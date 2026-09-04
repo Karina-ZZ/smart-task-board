@@ -11,11 +11,21 @@ Plan task: DEV-09.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, Uuid, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+    Uuid,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,7 +67,9 @@ class TaskDecompositionRecord(Base):
         ),
     )
 
-    decomposition_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    decomposition_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
     task_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("tasks.task_id", ondelete="RESTRICT"), nullable=False
     )
@@ -71,7 +83,9 @@ class TaskDecompositionRecord(Base):
     idempotency_key: Mapped[str] = mapped_column(String, nullable=False)
     model_name: Mapped[str | None] = mapped_column(String)
     model_version: Mapped[str | None] = mapped_column(String)
-    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="task-decomposition-v1")
+    prompt_version: Mapped[str] = mapped_column(
+        String, nullable=False, default="task-decomposition-v1"
+    )
     node_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     result_json: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     error_code: Mapped[str | None] = mapped_column(String)

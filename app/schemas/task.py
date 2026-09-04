@@ -50,7 +50,11 @@ class CreateTaskRequest(StrictSchema):
 
     @model_validator(mode="after")
     def validate_time_order(self) -> "CreateTaskRequest":
-        if self.start_time is not None and self.deadline is not None and self.deadline < self.start_time:
+        if (
+            self.start_time is not None
+            and self.deadline is not None
+            and self.deadline < self.start_time
+        ):
             raise ValueError("deadline must not precede start_time")
         return self
 
@@ -80,7 +84,11 @@ class UpdateTaskDraftRequest(StrictSchema):
 
     @model_validator(mode="after")
     def validate_time_order(self) -> "UpdateTaskDraftRequest":
-        if self.start_time is not None and self.deadline is not None and self.deadline < self.start_time:
+        if (
+            self.start_time is not None
+            and self.deadline is not None
+            and self.deadline < self.start_time
+        ):
             raise ValueError("deadline must not precede start_time")
         return self
 

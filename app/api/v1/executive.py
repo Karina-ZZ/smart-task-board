@@ -35,7 +35,11 @@ Quadrant = Literal[
 ]
 
 
-@router.get("/overview", response_model=ExecutiveOverviewResponse, summary="Get executive team overview")
+@router.get(
+    "/overview",
+    response_model=ExecutiveOverviewResponse,
+    summary="Get executive team overview",
+)
 def get_executive_overview(
     actor: Actor,
     service: ExecutiveService,
@@ -58,7 +62,11 @@ def list_executive_members(
     return service.list_members(actor, department_id=department_id)
 
 
-@router.get("/tasks", response_model=ExecutiveTaskPageResponse, summary="List authorized team tasks")
+@router.get(
+    "/tasks",
+    response_model=ExecutiveTaskPageResponse,
+    summary="List authorized team tasks",
+)
 def list_executive_tasks(
     actor: Actor,
     service: ExecutiveService,

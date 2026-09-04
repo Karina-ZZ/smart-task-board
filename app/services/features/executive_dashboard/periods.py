@@ -8,7 +8,7 @@ Plan task: DEV-16.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Literal
 from zoneinfo import ZoneInfo
 

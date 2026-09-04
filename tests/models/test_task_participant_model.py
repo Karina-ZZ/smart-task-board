@@ -1,11 +1,4 @@
-from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
-    DateTime,
-    UniqueConstraint,
-    Uuid,
-    inspect,
-)
+from sqlalchemy import Boolean, CheckConstraint, DateTime, inspect, UniqueConstraint, Uuid
 
 from app.models import Task, TaskParticipant, User
 

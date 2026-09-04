@@ -53,7 +53,12 @@ class ExecutiveWorkloadHeatmapBuilder:
         result = []
         while cursor < end_date:
             if cursor.weekday() < 5:
-                result.append({"date": cursor.isoformat(), "label": f"周{labels[cursor.weekday()]}"})
+                result.append(
+                    {
+                        "date": cursor.isoformat(),
+                        "label": f"周{labels[cursor.weekday()]}",
+                    }
+                )
             cursor += timedelta(days=1)
         return result
 

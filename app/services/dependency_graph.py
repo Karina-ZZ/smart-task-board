@@ -2,10 +2,7 @@ from collections import deque
 from collections.abc import Iterable
 from uuid import UUID
 
-from app.services.errors import (
-    BusinessValidationError,
-    DependencyCycleError,
-)
+from app.services.errors import BusinessValidationError, DependencyCycleError
 
 
 def validate_dependency_graph(

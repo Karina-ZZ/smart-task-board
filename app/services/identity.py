@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session

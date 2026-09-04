@@ -1,9 +1,9 @@
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.dependencies import get_executive_dashboard_service
 from app.main import app
@@ -34,8 +34,19 @@ def test_executive_overview_forwards_scope_and_period(executive_context) -> None
             "previous_end": NOW,
         },
         "metrics": {
-            "active_tasks": {"count": 0, "previous_count": 0, "change_rate": 0, "change_direction": "flat"},
-            "on_time_rate": {"completed_count": 0, "on_time_count": 0, "rate": None, "previous_rate": None, "change_percentage_points": None},
+            "active_tasks": {
+                "count": 0,
+                "previous_count": 0,
+                "change_rate": 0,
+                "change_direction": "flat",
+            },
+            "on_time_rate": {
+                "completed_count": 0,
+                "on_time_count": 0,
+                "rate": None,
+                "previous_rate": None,
+                "change_percentage_points": None,
+            },
             "kpi_links": {"linked_task_count": 0, "linked_metric_count": 0},
             "overall_progress": {"rate": None, "task_count": 0, "data_quality_issue_count": 0},
         },

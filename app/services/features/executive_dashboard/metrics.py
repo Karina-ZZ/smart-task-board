@@ -1,7 +1,10 @@
 """
 Feature: Executive dashboard team metrics.
 Responsibilities: calculate the four approved metrics and aggregate persisted priority quadrants.
-Does not own: department authorization, priority calculation, workload calculation, or HTTP transport.
+Does not own: department authorization,
+priority calculation,
+workload calculation,
+or HTTP transport.
 Plan task: DEV-16.
 """
 
@@ -185,6 +188,9 @@ class ExecutiveMetricsCalculator:
         result: dict[UUID, list[TaskNode]] = defaultdict(list)
         for node in nodes:
             task = task_by_id[node.task_id]
-            if task.latest_decomposition_id is not None and node.decomposition_id == task.latest_decomposition_id:
+            if (
+                task.latest_decomposition_id is not None
+                and node.decomposition_id == task.latest_decomposition_id
+            ):
                 result[node.task_id].append(node)
         return result

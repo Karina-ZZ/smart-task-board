@@ -1,12 +1,12 @@
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    inspect,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
     Uuid,
-    inspect,
 )
 
 from app.models import (
@@ -80,7 +80,10 @@ def test_task_node_foreign_keys_nullability_and_string_contract() -> None:
     assert owner_foreign_key.target_fullname == "users.employee_no"
     assert owner_foreign_key.ondelete == "RESTRICT"
     assert table.c.owner_employee_no.nullable is True
-    assert decomposition_foreign_key.target_fullname == "task_decomposition_records.decomposition_id"
+    assert (
+        decomposition_foreign_key.target_fullname
+        == "task_decomposition_records.decomposition_id"
+    )
     assert decomposition_foreign_key.ondelete == "RESTRICT"
     assert table.c.decomposition_id.nullable is True
     for field_name in (
