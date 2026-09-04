@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone, UTC
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import exists, func, or_, select
@@ -666,7 +666,6 @@ class TaskBoardQueryService:
             raise PermissionDeniedError("actor cannot read this task")
         nodes, dependencies, task_participants, node_participants = self._context(task_id)
         current_review, latest_review, rework_node_reopened = self._review_context(task_id)
-        nodes_by_id = {node.node_id: node for node in nodes}
         priority = self._latest_priority(task.task_id)
         return {
             "task_id": task.task_id,
@@ -700,43 +699,52 @@ class TaskBoardQueryService:
                 pending_change_request=self._change_requests.get_pending(task.task_id),
                 include_change_actions=True,
             ),
-            "nodes": [
-                {
-                    "node_id": node.node_id,
-                    "allowed_actions": _node_actions(
-                        task,
-                        node,
-                        actor,
-                        dependencies,
-                        nodes_by_id,
-                        can_execute=self._node_can_execute(
-                            task,
-                            node,
-                            actor,
-                            node_participants,
-                        ),
-                        can_report=self._node_can_report(
-                            task,
-                            node,
-                            actor,
-                            node_participants,
-                        ),
-                        has_active_blocker=self._issues.has_active_blocker(
-                            task.task_id,
-                            node.node_id,
-                        ),
-                        can_reopen=self._can_reopen_node(
-                            task,
-                            node,
-                            actor,
-                            latest_review,
-                            rework_node_reopened,
-                        ),
-                    ),
-                }
-                for node in nodes
-            ],
+            # available-actions is intentionally sparse: node details come from
+            # the task DTO, while this projection only lists actionable nodes.
+            "nodes": self._available_node_actions(
+                task,
+                actor,
+                nodes,
+                dependencies,
+                node_participants,
+                latest_review,
+                rework_node_reopened,
+            ),
         }
+
+    def _available_node_actions(
+        self,
+        task: Task,
+        actor: str,
+        nodes: list[TaskNode],
+        dependencies: list[TaskNodeDependency],
+        node_participants: list[TaskNodeParticipant],
+        latest_review: TaskCompletionReview | None,
+        rework_node_reopened: bool,
+    ) -> list[dict[str, object]]:
+        nodes_by_id = {node.node_id: node for node in nodes}
+        items: list[dict[str, object]] = []
+        for node in nodes:
+            actions = _node_actions(
+                task,
+                node,
+                actor,
+                dependencies,
+                nodes_by_id,
+                can_execute=self._node_can_execute(task, node, actor, node_participants),
+                can_report=self._node_can_report(task, node, actor, node_participants),
+                has_active_blocker=self._issues.has_active_blocker(task.task_id, node.node_id),
+                can_reopen=self._can_reopen_node(
+                    task,
+                    node,
+                    actor,
+                    latest_review,
+                    rework_node_reopened,
+                ),
+            )
+            if actions:
+                items.append({"node_id": node.node_id, "allowed_actions": actions})
+        return items
 
     def _list_visible_tasks(
         self,

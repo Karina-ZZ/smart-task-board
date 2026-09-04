@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, UTC
 import os
+from datetime import UTC, datetime, timedelta
 
 os.environ["CHAT_REQUIRE_AUTH"] = "true"
 os.environ["WANGXU_AI_JWT_SECRET"] = "chat-service-test-secret-with-at-least-32-characters"
@@ -11,7 +11,6 @@ os.environ["WANGXU_AI_JWT_ISSUER"] = "smart-task-board"
 os.environ["WANGXU_AI_JWT_AUDIENCE"] = "wangxu-chat"
 
 import jwt  # noqa: E402
-
 from services.auth import verify_bearer  # noqa: E402
 
 now = datetime.now(UTC)

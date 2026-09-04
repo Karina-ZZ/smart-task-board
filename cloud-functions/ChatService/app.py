@@ -5,7 +5,6 @@ from __future__ import annotations
 from uuid import uuid4
 
 from flask import Flask, jsonify, request
-
 from services.auth import verify_bearer
 from services.qwen_service import QwenService
 from services.task_intake import run_intake

@@ -1,4 +1,4 @@
-from sqlalchemy import DateTime, inspect, Numeric, UniqueConstraint, Uuid
+from sqlalchemy import DateTime, Numeric, UniqueConstraint, Uuid, inspect
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base

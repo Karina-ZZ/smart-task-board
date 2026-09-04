@@ -6,8 +6,8 @@ import sqlalchemy as sa
 from sqlalchemy import CheckConstraint, ForeignKeyConstraint, UniqueConstraint
 from sqlalchemy.sql.schema import PrimaryKeyConstraint
 
+import app.models  # noqa: F401 - register all ORM models in Base.metadata
 from app.db.base import Base
-import app.models
 
 MIGRATION_DIRECTORY = Path("alembic/versions")
 EXPECTED_CREATE_ORDER = (

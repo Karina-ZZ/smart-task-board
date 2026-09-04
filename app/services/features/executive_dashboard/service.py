@@ -11,7 +11,7 @@ Plan task: DEV-16 / FEATURE-14 and DEV-17 / FEATURE-15.
 
 from __future__ import annotations
 
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from app.repositories.executive_dashboard import ExecutiveDashboardRepository

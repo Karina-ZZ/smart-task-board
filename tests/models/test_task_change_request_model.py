@@ -4,10 +4,10 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKeyConstraint,
-    inspect,
     Integer,
     String,
     Uuid,
+    inspect,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 

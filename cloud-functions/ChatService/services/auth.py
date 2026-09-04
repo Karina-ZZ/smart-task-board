@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import jwt
-
 import config
+import jwt
 
 
 def verify_bearer(header: str | None) -> dict[str, object]:

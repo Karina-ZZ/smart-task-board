@@ -3,7 +3,7 @@ Feature: DEV-15 node assignment and reminder policies.
 
 Verifies collaborator acceptance gates and the approved working-span reminder bands.
 """
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 

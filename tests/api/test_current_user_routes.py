@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 import app.api.dependencies as dependencies
 from app.api.dependencies import get_identity_service
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.core.security import create_access_token
 from app.main import app
 from app.services.errors import PermissionDeniedError

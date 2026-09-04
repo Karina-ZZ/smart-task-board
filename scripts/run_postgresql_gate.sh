@@ -51,6 +51,12 @@ fi
 
 echo "Alembic empty-db upgrade: PASS ($CURRENT_HEAD)"
 
+echo "PostgreSQL suite pass 1/2"
+"$PYTHON_BIN" -m pytest -m postgresql -q
+
+# Run the same suite again without clearing the database. The second pass is
+# the isolation proof: every PostgreSQL test must fully clean its own graph.
+echo "PostgreSQL suite pass 2/2"
 "$PYTHON_BIN" -m pytest -m postgresql -q
 
 STRESS_TESTS=(

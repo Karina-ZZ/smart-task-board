@@ -3,9 +3,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.models  # noqa: F401 - register all ORM models in Base.metadata
 from app.core.config import get_settings
 from app.db.base import Base
-import app.models
 
 config = context.config
 if config.config_file_name is not None:

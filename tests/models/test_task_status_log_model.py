@@ -1,7 +1,7 @@
-from datetime import timedelta
 import warnings
+from datetime import timedelta
 
-from sqlalchemy import CheckConstraint, DateTime, inspect, Integer, String, Uuid
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, Uuid, inspect
 from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import configure_mappers
 

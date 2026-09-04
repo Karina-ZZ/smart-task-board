@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, exists, false, func, or_, Select, select
+from sqlalchemy import Select, and_, exists, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (

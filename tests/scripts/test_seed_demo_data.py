@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from scripts.seed_demo_data import (
-    build_parser,
     DEMO_DEPARTMENT_ID,
+    build_parser,
     seed_demo_data,
     validate_seed_target,
 )

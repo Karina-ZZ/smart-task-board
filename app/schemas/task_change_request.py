@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import Field, field_validator, StringConstraints
+from pydantic import Field, StringConstraints, field_validator
 
 from app.schemas.common import StrictSchema, TaskStatus
 

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from app.api.dependencies import (
     get_archive_reuse_service,

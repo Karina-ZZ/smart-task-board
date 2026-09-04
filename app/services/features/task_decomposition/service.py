@@ -14,7 +14,7 @@ Plan task: DEV-09.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 

@@ -4,12 +4,12 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    inspect,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
     Uuid,
+    inspect,
 )
 
 from app.models import (

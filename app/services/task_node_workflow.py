@@ -20,12 +20,12 @@ from app.services.features.notifications import (
     schedule_node_execution_reminders,
 )
 from app.services.task_workflow import (
+    TASK_IN_PROGRESS,
     _append_log,
     _aware_utc,
     _increment_task,
     _lock_task,
     _require_state,
-    TASK_IN_PROGRESS,
 )
 
 UowFactory = Callable[[], UnitOfWork]

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from datetime import datetime, UTC
 import os
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, Engine, func, inspect, select, text
+from sqlalchemy import Engine, create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 

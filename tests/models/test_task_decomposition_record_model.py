@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, DateTime, inspect, Integer, String, Uuid
+from sqlalchemy import CheckConstraint, DateTime, Integer, String, Uuid, inspect
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.models import Task, TaskDecompositionRecord

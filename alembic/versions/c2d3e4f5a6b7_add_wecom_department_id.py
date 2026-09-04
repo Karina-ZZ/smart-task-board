@@ -13,8 +13,8 @@ Plan task: pre-DEV-18 P0 baseline.
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "c2d3e4f5a6b7"
 down_revision: str | None = "b1c2d3e4f5a6"

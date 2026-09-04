@@ -7,8 +7,8 @@ Create Date: 2026-08-18 16:48:20.161791
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "17f69ea12754"

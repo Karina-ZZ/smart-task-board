@@ -8,7 +8,7 @@ from app.api.dependencies import (
     get_identity_service,
     get_wecom_authentication_service,
 )
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.core.security import create_chat_service_token
 from app.models import User
 from app.schemas.auth import (

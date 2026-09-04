@@ -2,12 +2,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 import app.api.dependencies as dependencies
 from app.api.dependencies import get_authentication_service, get_identity_service
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.core.security import create_access_token
 from app.main import app, create_app
 from app.services.errors import EntityNotFoundError, PermissionDeniedError

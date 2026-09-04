@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping, Sequence
 from decimal import Decimal, InvalidOperation
-import json
 from pathlib import Path
 from urllib import error, request
 

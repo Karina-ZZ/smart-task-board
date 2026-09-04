@@ -1,9 +1,9 @@
 from collections.abc import Iterator
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.api.errors import AuthenticationRequiredError, register_exception_handlers

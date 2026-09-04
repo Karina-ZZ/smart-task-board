@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
 import copy
-from datetime import datetime, UTC
-from decimal import Decimal
 import re
+from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import select

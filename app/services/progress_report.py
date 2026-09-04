@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import datetime, time, timedelta, UTC
 import re
+from collections.abc import Callable
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -14,12 +14,12 @@ from app.services.clock import Clock, utc_now
 from app.services.commands import SubmitProgressReportCommand
 from app.services.errors import BusinessValidationError, EntityNotFoundError, PermissionDeniedError
 from app.services.task_workflow import (
+    TASK_IN_PROGRESS,
     _append_log,
     _aware_utc,
     _increment_task,
     _lock_task,
     _required_text,
-    TASK_IN_PROGRESS,
 )
 
 UowFactory = Callable[[], UnitOfWork]

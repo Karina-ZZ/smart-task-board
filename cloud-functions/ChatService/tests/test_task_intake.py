@@ -1,5 +1,7 @@
 """Feature 05 ChatService task extraction/clarification contract test."""
 
+from pathlib import Path
+
 from services.qwen_service import QwenService
 from services.task_intake import normalize_result, run_intake
 
@@ -47,7 +49,6 @@ assert result["provider"] == "qwen"
 assert len(calls) == 1
 print("ChatService test_task_intake.py: PASS")
 
-from pathlib import Path
 prompt = (
     Path(__file__).resolve().parents[1] / "prompts" / "task_intake.md"
 ).read_text(encoding="utf-8")

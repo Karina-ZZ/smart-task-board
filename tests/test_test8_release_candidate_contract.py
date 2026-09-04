@@ -50,8 +50,8 @@ def test_postgresql_completion_contract_uses_automatic_archive() -> None:
 
 def test_task_board_pending_node_actions_follow_v11_contract() -> None:
     text = _text("tests/integration/test_task_board_api_postgresql.py")
-    assert 'assert action_nodes[alpha_nodes[0]] == ["start_node"]' in text
-    assert "assert action_nodes[alpha_nodes[1]] == []" in text
+    assert 'assert action_nodes == {alpha_nodes[0]: ["start_node"]}' in text
+    assert 'assert collaborator_actions.json()["nodes"] == []' in text
 
 
 def test_python_sources_fit_the_configured_ruff_line_length() -> None:

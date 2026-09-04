@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.ai.providers import OpenAICompatibleTaskAgentProvider
 from app.api.errors import AuthenticationRequiredError
 from app.core.config import get_settings
-from app.core.security import decode_access_token, InvalidPrototypeTokenError
-from app.db.session import get_db, SessionLocal
+from app.core.security import InvalidPrototypeTokenError, decode_access_token
+from app.db.session import SessionLocal, get_db
 from app.db.unit_of_work import UnitOfWork
 from app.integrations.wecom import WeComClient
 from app.services.authentication import AuthenticationService

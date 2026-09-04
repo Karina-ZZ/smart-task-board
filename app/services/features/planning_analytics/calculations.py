@@ -11,9 +11,9 @@ Plan task: DEV-14.
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, UTC
-from decimal import Decimal, ROUND_HALF_UP
 import math
+from datetime import UTC, datetime, time, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
 EXECUTION_TASK_STATUSES = frozenset({"in_progress", "blocked", "pending_report"})

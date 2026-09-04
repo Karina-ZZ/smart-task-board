@@ -5,8 +5,8 @@ Revises: f7b8c9d0e1f2
 """
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "f8a1b2c3d4e5"

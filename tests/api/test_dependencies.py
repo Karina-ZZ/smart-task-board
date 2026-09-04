@@ -1,7 +1,7 @@
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from fastapi.security import HTTPAuthorizationCredentials
 import pytest
+from fastapi.security import HTTPAuthorizationCredentials
 from starlette.requests import Request
 
 import app.api.dependencies as dependencies

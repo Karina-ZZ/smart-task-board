@@ -4,12 +4,12 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKeyConstraint,
-    inspect,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
     Uuid,
+    inspect,
 )
 
 from app.models import Task, TaskIssue, TaskNode, TaskProgressReport, User

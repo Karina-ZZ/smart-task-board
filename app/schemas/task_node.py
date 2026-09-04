@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from pydantic import Field, field_validator, model_validator, StringConstraints
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from app.schemas.common import (
     DecimalString,

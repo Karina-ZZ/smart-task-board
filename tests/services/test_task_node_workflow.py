@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import call, MagicMock, Mock
+from unittest.mock import MagicMock, Mock, call
 from uuid import uuid4
 
 import pytest

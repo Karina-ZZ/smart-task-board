@@ -11,17 +11,17 @@ Plan task: DEV-15 PostgreSQL gate.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
 import os
 import threading
 import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, delete, Engine, inspect, select, text
+from sqlalchemy import Engine, create_engine, delete, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker

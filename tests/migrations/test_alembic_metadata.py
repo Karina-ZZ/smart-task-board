@@ -1,7 +1,7 @@
 import ast
+import runpy
 from contextlib import nullcontext
 from pathlib import Path
-import runpy
 
 from alembic import context
 from alembic.config import Config

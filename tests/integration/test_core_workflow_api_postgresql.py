@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
-import os
 from uuid import UUID, uuid4
 
-from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import create_engine, delete, Engine, inspect, select, text, update
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, create_engine, delete, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 

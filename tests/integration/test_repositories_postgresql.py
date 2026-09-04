@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-import os
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, delete, Engine, inspect, text
+from sqlalchemy import Engine, create_engine, delete, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker

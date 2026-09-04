@@ -12,13 +12,13 @@ Plan task: DEV-14.
 
 from __future__ import annotations
 
+import math
+import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-import math
-import re
 from typing import Iterable, Mapping, Sequence
-import unicodedata
 
 SCORE_QUANT = Decimal("0.01")
 

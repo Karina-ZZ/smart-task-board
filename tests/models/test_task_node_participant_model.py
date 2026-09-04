@@ -1,6 +1,6 @@
 import warnings
 
-from sqlalchemy import ForeignKeyConstraint, inspect, UniqueConstraint, Uuid
+from sqlalchemy import ForeignKeyConstraint, UniqueConstraint, Uuid, inspect
 from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import configure_mappers
 

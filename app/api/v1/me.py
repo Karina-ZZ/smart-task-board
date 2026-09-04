@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_current_employee_no, get_identity_service
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.schemas.current_user import CurrentUserResponse
 from app.services.identity import IdentityService
 

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
 import os
 import secrets
+from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, create_engine, delete, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api import dependencies
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.db.unit_of_work import UnitOfWork
 from app.main import app
 from app.models import (
@@ -729,15 +729,9 @@ def test_batch1_real_bearer_task_board_workflow_and_cleanup(
                 UUID(item["node_id"]): item["allowed_actions"]
                 for item in in_progress_actions.json()["nodes"]
             }
-            assert action_nodes[alpha_nodes[0]] == ["start_node"]
-            assert action_nodes[alpha_nodes[1]] == []
-            assert all(not action_nodes[node_id] for node_id in alpha_nodes[2:])
+            assert action_nodes == {alpha_nodes[0]: ["start_node"]}
             assert collaborator_actions.json()["allowed_actions"] == []
-            collaborator_node_actions = {
-                UUID(item["node_id"]): item["allowed_actions"]
-                for item in collaborator_actions.json()["nodes"]
-            }
-            assert all(not actions for actions in collaborator_node_actions.values())
+            assert collaborator_actions.json()["nodes"] == []
 
             node1_started = client.post(
                 f"/api/v1/tasks/{alpha_id}/nodes/{alpha_nodes[0]}/actions/start",

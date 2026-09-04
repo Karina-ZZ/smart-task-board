@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from app.models.ai_extraction_record import AIExtractionRecord
     from app.models.department import Department
     from app.models.task_change_request import TaskChangeRequest
-    from app.models.task_decomposition_record import TaskDecompositionRecord
     from app.models.task_completion_review import TaskCompletionReview
+    from app.models.task_decomposition_record import TaskDecompositionRecord
     from app.models.task_issue import TaskIssue
     from app.models.task_node import TaskNode
     from app.models.task_node_dependency import TaskNodeDependency

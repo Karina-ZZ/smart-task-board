@@ -11,7 +11,7 @@ Plan task: DEV-09.
 """
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -23,8 +23,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    text,
     Uuid,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship

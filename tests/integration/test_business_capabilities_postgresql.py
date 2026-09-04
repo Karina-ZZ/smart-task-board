@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-import os
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, delete, Engine, inspect, select, text
+from sqlalchemy import Engine, create_engine, delete, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -27,7 +27,9 @@ from app.models import (
     TaskChangeRequest,
     TaskCompletionReview,
     TaskConflict,
+    TaskDecompositionRecord,
     TaskInput,
+    TaskIssue,
     TaskNode,
     TaskNodeDependency,
     TaskNodeParticipant,
@@ -176,28 +178,58 @@ def records(business_engine: Engine) -> Iterator[CreatedRecords]:
     created = CreatedRecords()
     yield created
     with business_engine.begin() as connection:
+        task_ids = created.task_ids
+        if task_ids:
+            # Test cleanup follows the task graph, not only explicitly captured IDs.
+            # Business services can create reminders/issues/decomposition records
+            # implicitly, so ID-only cleanup is not sufficient for isolation.
+            connection.execute(delete(Notification).where(Notification.task_id.in_(task_ids)))
+            connection.execute(delete(ReminderRule).where(ReminderRule.task_id.in_(task_ids)))
+            connection.execute(delete(TaskIssue).where(TaskIssue.task_id.in_(task_ids)))
+            connection.execute(delete(TaskConflict).where(TaskConflict.task_id.in_(task_ids)))
+            connection.execute(
+                delete(TaskCompletionReview).where(TaskCompletionReview.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(TaskChangeRequest).where(TaskChangeRequest.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(TaskPerformanceMatch).where(TaskPerformanceMatch.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(TaskPriorityScore).where(TaskPriorityScore.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(TaskProgressReport).where(TaskProgressReport.task_id.in_(task_ids))
+            )
+            connection.execute(delete(TaskArchive).where(TaskArchive.task_id.in_(task_ids)))
+            connection.execute(delete(TaskStatusLog).where(TaskStatusLog.task_id.in_(task_ids)))
+            connection.execute(
+                delete(TaskNodeDependency).where(TaskNodeDependency.task_id.in_(task_ids))
+            )
+            connection.execute(
+                delete(TaskNodeParticipant).where(TaskNodeParticipant.task_id.in_(task_ids))
+            )
+            connection.execute(delete(TaskParticipant).where(TaskParticipant.task_id.in_(task_ids)))
+            connection.execute(
+                delete(AIExtractionRecord).where(AIExtractionRecord.task_id.in_(task_ids))
+            )
+            connection.execute(delete(TaskNode).where(TaskNode.task_id.in_(task_ids)))
+            connection.execute(
+                update(Task)
+                .where(Task.task_id.in_(task_ids))
+                .values(latest_decomposition_id=None)
+            )
+            connection.execute(
+                delete(TaskDecompositionRecord).where(
+                    TaskDecompositionRecord.task_id.in_(task_ids)
+                )
+            )
+            connection.execute(delete(Task).where(Task.task_id.in_(task_ids)))
+
         for model, column, values in (
-            (Notification, Notification.notification_id, created.notification_ids),
-            (ReminderRule, ReminderRule.reminder_rule_id, created.reminder_ids),
-            (TaskConflict, TaskConflict.conflict_id, created.conflict_ids),
-            (TaskPriorityScore, TaskPriorityScore.priority_score_id, created.priority_ids),
             (WorkloadSnapshot, WorkloadSnapshot.workload_snapshot_id, created.workload_ids),
-            (
-                TaskPerformanceMatch,
-                TaskPerformanceMatch.performance_match_id,
-                created.match_ids,
-            ),
-            (TaskArchive, TaskArchive.archive_id, created.archive_ids),
-            (TaskChangeRequest, TaskChangeRequest.task_id, created.task_ids),
-            (TaskCompletionReview, TaskCompletionReview.task_id, created.task_ids),
-            (TaskProgressReport, TaskProgressReport.task_id, created.task_ids),
-            (TaskStatusLog, TaskStatusLog.task_id, created.task_ids),
-            (TaskNodeDependency, TaskNodeDependency.task_id, created.task_ids),
-            (TaskNodeParticipant, TaskNodeParticipant.task_id, created.task_ids),
-            (TaskParticipant, TaskParticipant.task_id, created.task_ids),
-            (TaskNode, TaskNode.task_id, created.task_ids),
             (AIExtractionRecord, AIExtractionRecord.extraction_id, created.extraction_ids),
-            (Task, Task.task_id, created.task_ids),
             (TaskInput, TaskInput.input_id, created.input_ids),
             (PerformanceMetric, PerformanceMetric.metric_id, created.metric_ids),
             (
@@ -281,9 +313,9 @@ def _create_references(
                 ),
                 User(
                     employee_no=refs.scoped_user,
-                    name="Scoped",
+                    name="Scoped Executive",
                     department_id=department_id,
-                    role_type="employee",
+                    role_type="executive",
                     status="active",
                 ),
             ]

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import os
+import secrets
 from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal
-import os
-import secrets
 from uuid import UUID, uuid4
 
-from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import create_engine, delete, Engine, func, inspect, select, text, update
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, create_engine, delete, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api import dependencies
-from app.core.config import get_settings, Settings
+from app.core.config import Settings, get_settings
 from app.db.unit_of_work import UnitOfWork
 from app.main import app
 from app.models import (

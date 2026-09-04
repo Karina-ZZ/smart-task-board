@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.models import Task, TaskCompletionReview, TaskNode, TaskNodeDependency
 from app.schemas.task_board import AvailableActionsResponse
 from app.services.errors import BusinessValidationError
-from app.services.task_board_query import _node_actions, _task_actions, TaskBoardQueryService
+from app.services.task_board_query import TaskBoardQueryService, _node_actions, _task_actions
 
 NOW = datetime(2026, 8, 18, 8, 0, tzinfo=UTC)
 
@@ -232,6 +232,34 @@ def test_node_actions_keep_owner_fallback_and_dependency_rules() -> None:
         has_active_blocker=False,
         can_reopen=True,
     ) == ["reopen_node"]
+
+
+def test_available_node_actions_only_projects_actionable_nodes() -> None:
+    service = TaskBoardQueryService(MagicMock(), clock=lambda: NOW)
+    task = _task("in_progress")
+    actionable = _node(task, status="pending", node_order=1)
+    inert = _node(task, status="completed", node_order=2, progress_percent=100)
+    service._issues = MagicMock()
+    service._issues.has_active_blocker.return_value = False
+    service._node_can_execute = MagicMock(
+        side_effect=lambda _task, node, *_args: node is actionable
+    )
+    service._node_can_report = MagicMock(return_value=False)
+    service._can_reopen_node = MagicMock(return_value=False)
+
+    result = service._available_node_actions(
+        task,
+        "E-OWNER",
+        [actionable, inert],
+        [],
+        [],
+        None,
+        False,
+    )
+
+    assert result == [
+        {"node_id": actionable.node_id, "allowed_actions": ["start_node"]}
+    ]
 
 
 def test_inbox_projects_task_and_node_actions_with_expected_version() -> None:

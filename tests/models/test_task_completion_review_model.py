@@ -5,11 +5,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKeyConstraint,
-    inspect,
     Integer,
     String,
     UniqueConstraint,
     Uuid,
+    inspect,
 )
 
 from app.models import Task, TaskCompletionReview, TaskNode, User
