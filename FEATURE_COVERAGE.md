@@ -132,3 +132,9 @@ Feature 15 implementation checkpoint:
 - no business table, field, or Alembic migration is added.
 
 Current executable evidence after Feature 15: `460 passed, 28 deselected` backend non-PostgreSQL; `19` WeChat test groups PASS; Python compileall and WeChat JS syntax PASS. Real PostgreSQL and WeChat Developer Tools are not available in this container and are not claimed as passed. Full Feature 14 evidence remains in `docs/FEATURE_14_ACCEPTANCE.md`; Feature 15 evidence is in `docs/FEATURE_15_ACCEPTANCE.md`.
+
+## Feature16 / DEV-18 Test11 final technical gate
+
+Test11 adds no user-facing feature and no schema change. It closes the six remaining Ruff findings from the user's Test10 run, keeps the version-first task-status-log ordering fix frozen, and formalizes the final technical gate as Python 3.12 + Ruff 0 + PostgreSQL 28/28 for three consecutive same-database passes + 5 x 20 concurrency stress + non-PG/Web/Mini Program/ChatService regression. Real WeCom production E2E remains a separate environment gate and must not be reported as passed without real credentials, HTTPS deployment, employee mapping, and a fresh login code.
+
+The user's Test10 local evidence before this closure was: non-PG 504/504, one real PostgreSQL pass 28/28, Web 109/109 with lint/build PASS, and Mini Program 21/21; the remaining static debt was exactly 6 Ruff findings (4 I001, 2 UP035). Test11 changes only those import-level findings plus release-gate/docs/tests.

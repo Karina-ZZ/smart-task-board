@@ -45,3 +45,12 @@ DEV-17 no longer implements historical workload-snapshot task details. The appro
 - Explicit Web test dependency: `@testing-library/dom`.
 - Remaining formal gates: real Ruff 0 errors, PostgreSQL 28/28 consecutive passes under Python 3.12, clean `npm ci`, and real WeCom E2E when credentials/environment are available.
 - Status: release candidate; do not mark V1.1 final release until the formal gates pass.
+
+## DEV-18 / Feature16 Test11 final technical gate
+
+- No product feature or schema change.
+- Close the six remaining Ruff findings reported by the user's Test10 local run.
+- Freeze task-status-log version-first ordering; do not modify the state machine.
+- Require PostgreSQL 28/28 for three consecutive same-database passes plus 5 x 20 concurrency stress.
+- Require Python 3.12 and check-only Ruff in the formal technical gate.
+- Keep real WeCom production E2E as a separate environment gate.

@@ -53,11 +53,21 @@ from app.services.errors import (
 from app.services.features.performance_matching import PerformanceMatchScorer
 from app.services.features.planning_analytics import (
     EXECUTION_TASK_STATUSES,
-    overdue_days as calculate_overdue_days,
-    overdue_pressure_score as calculate_overdue_pressure_score,
-    remaining_hours as calculate_remaining_hours,
-    time_pressure_score as calculate_time_pressure_score,
     working_hours_between,
+)
+from app.services.features.planning_analytics import (
+    overdue_days as calculate_overdue_days,
+)
+from app.services.features.planning_analytics import (
+    overdue_pressure_score as calculate_overdue_pressure_score,
+)
+from app.services.features.planning_analytics import (
+    remaining_hours as calculate_remaining_hours,
+)
+from app.services.features.planning_analytics import (
+    time_pressure_score as calculate_time_pressure_score,
+)
+from app.services.features.planning_analytics import (
     workload_level as calculate_workload_level,
 )
 from app.services.progress_report import task_report_period

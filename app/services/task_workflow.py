@@ -40,10 +40,8 @@ from app.services.errors import (
     TaskVersionConflictError,
 )
 from app.services.features.task_creation import add_pending_accept_notification
-from app.services.shared.idempotency import (
-    find_task as find_idempotent_task,
-    record_task as record_idempotent_task,
-)
+from app.services.shared.idempotency import find_task as find_idempotent_task
+from app.services.shared.idempotency import record_task as record_idempotent_task
 
 UowFactory = Callable[[], UnitOfWork]
 
