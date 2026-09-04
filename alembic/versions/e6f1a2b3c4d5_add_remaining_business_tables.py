@@ -8,8 +8,9 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "e6f1a2b3c4d5"
 down_revision: str | Sequence[str] | None = "d4a8e53b7c19"

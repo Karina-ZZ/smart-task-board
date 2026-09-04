@@ -3,9 +3,11 @@
 Revision ID: b1c2d3e4f5a6
 Revises: a9c4e7f1b2d3
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "b1c2d3e4f5a6"

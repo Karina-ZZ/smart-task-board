@@ -6,6 +6,7 @@ EXPECTED_DB="smarttaskboard_core_test"
 EXPECTED_HOST="127.0.0.1"
 EXPECTED_PORT="46479"
 EXPECTED_HEAD="c2d3e4f5a6b7"
+POSTGRES_GATE_PASSES="${POSTGRES_GATE_PASSES:-2}"
 
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "ERROR: $PYTHON_BIN is required. Project supports Python >=3.12,<3.13." >&2
@@ -51,13 +52,16 @@ fi
 
 echo "Alembic empty-db upgrade: PASS ($CURRENT_HEAD)"
 
-echo "PostgreSQL suite pass 1/2"
-"$PYTHON_BIN" -m pytest -m postgresql -q
-
-# Run the same suite again without clearing the database. The second pass is
-# the isolation proof: every PostgreSQL test must fully clean its own graph.
-echo "PostgreSQL suite pass 2/2"
-"$PYTHON_BIN" -m pytest -m postgresql -q
+if ! [[ "$POSTGRES_GATE_PASSES" =~ ^[2-9][0-9]*$ ]]; then
+  echo "ERROR: POSTGRES_GATE_PASSES must be an integer >= 2" >&2
+  exit 4
+fi
+for pass_number in $(seq 1 "$POSTGRES_GATE_PASSES"); do
+  # The first pass proves behavior on a freshly migrated database. Every
+  # later pass reuses the same database and therefore proves test isolation.
+  echo "PostgreSQL suite pass ${pass_number}/${POSTGRES_GATE_PASSES}"
+  "$PYTHON_BIN" -m pytest -m postgresql -q
+done
 
 STRESS_TESTS=(
   "tests/integration/test_repositories_postgresql.py::test_task_for_update_blocks_a_second_session_with_bounded_timeout"

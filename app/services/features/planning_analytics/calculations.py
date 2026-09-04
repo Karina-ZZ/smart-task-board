@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from datetime import UTC, datetime, time, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 EXECUTION_TASK_STATUSES = frozenset({"in_progress", "blocked", "pending_report"})

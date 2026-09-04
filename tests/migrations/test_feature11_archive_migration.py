@@ -1,7 +1,7 @@
 """Feature 11 migration contract: new archives do not require snapshots."""
+
 import importlib.util
 from pathlib import Path
-
 
 PATH = Path("alembic/versions/f9a1b2c3d4e5_feature11_archive_snapshot_nullable.py")
 

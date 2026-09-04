@@ -3,11 +3,13 @@
 Revision ID: f8a1b2c3d4e5
 Revises: f7b8c9d0e1f2
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "f8a1b2c3d4e5"
 down_revision: str | None = "f7b8c9d0e1f2"

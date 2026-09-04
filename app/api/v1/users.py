@@ -1,4 +1,5 @@
 """Feature 06 creator-flow people search endpoint."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -8,6 +9,7 @@ from app.api.dependencies import get_current_employee_no
 from app.db.session import get_db
 from app.schemas.task_creation import TaskCreationPersonResponse
 from app.services.features.task_creation.people import TaskCreationPeopleService
+
 router=APIRouter(tags=["users"])
 @router.get(
     "/users",

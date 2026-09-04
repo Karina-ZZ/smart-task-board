@@ -46,7 +46,7 @@ def test_available_actions_projection_is_sparse() -> None:
 
 def test_formal_postgresql_gate_requires_two_consecutive_suite_passes() -> None:
     gate = _text("scripts/run_postgresql_gate.sh")
-    command = '"$PYTHON_BIN" -m pytest -m postgresql -q'
-    assert gate.count(command) >= 2
-    assert "PostgreSQL suite pass 1/2" in gate
-    assert "PostgreSQL suite pass 2/2" in gate
+    assert 'POSTGRES_GATE_PASSES="${POSTGRES_GATE_PASSES:-2}"' in gate
+    assert 'for pass_number in $(seq 1 "$POSTGRES_GATE_PASSES")' in gate
+    assert '"$PYTHON_BIN" -m pytest -m postgresql -q' in gate
+    assert "PostgreSQL suite pass ${pass_number}/${POSTGRES_GATE_PASSES}" in gate

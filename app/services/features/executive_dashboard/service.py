@@ -17,8 +17,8 @@ from uuid import UUID
 from app.repositories.executive_dashboard import ExecutiveDashboardRepository
 from app.services.features.executive_dashboard.metrics import (
     EXECUTION_STATUSES,
-    ExecutiveMetricsCalculator,
     PROGRESS_STATUSES,
+    ExecutiveMetricsCalculator,
 )
 from app.services.features.executive_dashboard.periods import (
     ExecutivePeriod,

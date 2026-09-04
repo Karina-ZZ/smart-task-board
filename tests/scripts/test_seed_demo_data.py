@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
 from scripts.seed_demo_data import (
     DEMO_DEPARTMENT_ID,
     build_parser,

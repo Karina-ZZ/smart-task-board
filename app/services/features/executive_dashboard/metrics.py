@@ -11,7 +11,7 @@ Plan task: DEV-16.
 from __future__ import annotations
 
 from collections import defaultdict
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from app.models import Task, TaskNode, TaskProgressReport, TaskStatusLog

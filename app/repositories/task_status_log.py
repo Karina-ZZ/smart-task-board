@@ -27,7 +27,11 @@ class TaskStatusLogRepository:
         statement = (
             select(TaskStatusLog)
             .where(TaskStatusLog.task_id == task_id)
-            .order_by(TaskStatusLog.created_at, TaskStatusLog.status_log_id)
+            .order_by(
+                TaskStatusLog.task_version,
+                TaskStatusLog.created_at,
+                TaskStatusLog.status_log_id,
+            )
         )
         return list(self.session.execute(statement).scalars().all())
 
@@ -41,7 +45,11 @@ class TaskStatusLogRepository:
         statement = (
             select(TaskStatusLog)
             .where(TaskStatusLog.task_id == task_id)
-            .order_by(TaskStatusLog.created_at, TaskStatusLog.status_log_id)
+            .order_by(
+                TaskStatusLog.task_version,
+                TaskStatusLog.created_at,
+                TaskStatusLog.status_log_id,
+            )
             .limit(limit)
             .offset(offset)
         )
@@ -58,6 +66,7 @@ class TaskStatusLogRepository:
             select(TaskStatusLog)
             .where(TaskStatusLog.task_id == task_id)
             .order_by(
+                TaskStatusLog.task_version.desc(),
                 TaskStatusLog.created_at.desc(),
                 TaskStatusLog.status_log_id.desc(),
             )

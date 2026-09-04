@@ -300,12 +300,16 @@ def test_status_log_repository_is_append_only_and_orders_timeline_stably() -> No
     timeline_sql = _executed_sql(session)
     assert f"task_status_logs.task_id = '{task_id}'" in timeline_sql
     assert (
-        "ORDER BY task_status_logs.created_at, task_status_logs.status_log_id"
-        in timeline_sql
+        "ORDER BY task_status_logs.task_version, task_status_logs.created_at, "
+        "task_status_logs.status_log_id" in timeline_sql
     )
 
     assert repository.list_by_task_id_paginated(task_id, limit=20, offset=10) == []
     paginated_sql = _executed_sql(session)
+    assert (
+        "ORDER BY task_status_logs.task_version, task_status_logs.created_at, "
+        "task_status_logs.status_log_id" in paginated_sql
+    )
     assert "LIMIT 20 OFFSET 10" in paginated_sql
 
     session.execute.return_value.scalar_one.return_value = 7
@@ -317,7 +321,8 @@ def test_status_log_repository_is_append_only_and_orders_timeline_stably() -> No
     assert repository.get_latest_for_task(task_id) is None
     latest_sql = _executed_sql(session)
     assert (
-        "ORDER BY task_status_logs.created_at DESC, "
+        "ORDER BY task_status_logs.task_version DESC, "
+        "task_status_logs.created_at DESC, "
         "task_status_logs.status_log_id DESC" in latest_sql
     )
     assert "LIMIT 1" in latest_sql

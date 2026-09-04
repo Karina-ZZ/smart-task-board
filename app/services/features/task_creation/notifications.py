@@ -4,12 +4,14 @@ Responsibilities: create exactly one pending-accept in-app notification for curr
 Does not own: task visibility, acceptance, or later lifecycle notifications.
 Plan task: WECHAT-MP-06 / FR-07.
 """
+
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models import Notification, Task
 from app.services.errors import BusinessValidationError
+
 
 def add_pending_accept_notification(
     session: Session, task: Task, *, created_at: datetime

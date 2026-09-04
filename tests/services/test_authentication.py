@@ -8,8 +8,8 @@ import pytest
 
 from app.core.config import Settings
 from app.models import RefreshToken, User
-from app.services import authentication as authentication_module
 from app.services import PermissionDeniedError
+from app.services import authentication as authentication_module
 from app.services.authentication import AuthenticationService
 
 NOW = datetime(2026, 8, 21, 9, 0, tzinfo=UTC)

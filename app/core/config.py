@@ -6,7 +6,6 @@ from typing import Literal
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BACKEND_ENV_FILE = REPOSITORY_ROOT / "secrets" / "backend.env"
 BACKEND_ENV_FILE_VARIABLE = "WANGXU_BACKEND_ENV_FILE"

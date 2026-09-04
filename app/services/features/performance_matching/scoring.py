@@ -17,7 +17,7 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Mapping, Sequence
 
 SCORE_QUANT = Decimal("0.01")

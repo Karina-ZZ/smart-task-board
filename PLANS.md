@@ -36,3 +36,12 @@ documentation, real PostgreSQL acceptance and the complete quality gate before c
 ## Feature 15 P0 override (2026-09-03)
 
 DEV-17 no longer implements historical workload-snapshot task details. The approved flow is: executive workload breakdown -> “查看该员工任务” -> existing task overview with employee-name display / `employeeNo` backend filter -> existing task detail. No new business table, field, or Alembic migration is part of Feature 15. See `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`.
+
+## DEV-18 Test10 release-gate finalization (2026-09-04)
+
+- Product scope: unchanged from Feature16/Test9.
+- Fixed deterministic `task_status_logs` ordering: `task_version` is the authoritative timeline key before timestamp/UUID tiebreakers.
+- Test10 candidate PostgreSQL gate requests 3 consecutive same-database passes; normal PG gate requires at least 2.
+- Explicit Web test dependency: `@testing-library/dom`.
+- Remaining formal gates: real Ruff 0 errors, PostgreSQL 28/28 consecutive passes under Python 3.12, clean `npm ci`, and real WeCom E2E when credentials/environment are available.
+- Status: release candidate; do not mark V1.1 final release until the formal gates pass.
