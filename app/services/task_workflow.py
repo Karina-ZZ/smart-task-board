@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import re
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -10,6 +9,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.core.report_cycle import REPORT_CYCLE_RE as _REPORT_CYCLE_RE
+from app.core.report_cycle import validate_report_cycle
 from app.db.unit_of_work import UnitOfWork
 from app.models import (
     Notification,
@@ -100,9 +101,6 @@ _STRUCTURAL_ID_FIELDS = {
     "participants": "participant_id",
     "node_participants": "node_participant_id",
 }
-_REPORT_CYCLE_RE = re.compile(
-    r"^weekly:(MON|TUE|WED|THU|FRI|SAT|SUN)@([01][0-9]|2[0-3]):[0-5][0-9]$"
-)
 
 
 def _aware_utc(value: datetime, field_name: str) -> datetime:
@@ -1941,6 +1939,11 @@ class TaskWorkflowService:
         now = _aware_utc(self._clock(), "clock")
         task_name = _required_text(command.task_name, "task_name")
         _required_text(command.operation_source, "operation_source")
+        # Also guard internal/AI callers that do not enter through HTTP schemas.
+        try:
+            validate_report_cycle(command.report_cycle)
+        except ValueError as exc:
+            raise BusinessValidationError(str(exc)) from exc
         self._validate_task_numbers(command)
         node_by_id = self._validate_draft_nodes(command)
         validate_dependency_graph(
@@ -2132,6 +2135,11 @@ class TaskWorkflowService:
                 value = changes.get(field)
                 if value:
                     self._require_user(uow, str(value))
+            if "report_cycle" in changes:
+                try:
+                    validate_report_cycle(changes["report_cycle"])
+                except ValueError as exc:
+                    raise BusinessValidationError(str(exc)) from exc
             old_assignee = task.main_assignee_employee_no
             for key, value in changes.items():
                 setattr(task, key, value)

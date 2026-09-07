@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
+from app.core.report_cycle import validate_report_cycle
 from app.schemas.common import DecimalString, ParticipantConfirmStatus, StrictSchema, TaskStatus
 from app.schemas.task_change_request import TaskChangeRequestResponse
 from app.schemas.task_node import (
@@ -45,6 +46,7 @@ class CreateTaskRequest(StrictSchema):
     participants: tuple[TaskParticipantDraftRequest, ...] = ()
     extraction_record_ids: tuple[UUID, ...] = ()
 
+    _validate_cycle = field_validator("report_cycle")(validate_report_cycle)
     _validate_start = field_validator("start_time")(_require_aware)
     _validate_deadline = field_validator("deadline")(_require_aware)
 
@@ -79,6 +81,7 @@ class UpdateTaskDraftRequest(StrictSchema):
     report_cycle: str | None = None
     collaborator_employee_nos: tuple[NonBlankString, ...] | None = None
 
+    _validate_cycle = field_validator("report_cycle")(validate_report_cycle)
     _validate_start = field_validator("start_time")(_require_aware)
     _validate_deadline = field_validator("deadline")(_require_aware)
 

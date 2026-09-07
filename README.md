@@ -1,5 +1,17 @@
 # Smart Task Board
 
+## Test14 当前候选（2026-09-07）
+
+本次仅修复创建人发送后工作台的 `reassign_task` 响应契约、可选 `report_cycle` 入库校验和AI周期提示词，并增加脱敏诊断与专项测试。数据库模型/迁移、小程序、登录认证与其他业务实现保持原样。
+
+当前容器补充回归：非PG568项、小程序22项、JS50个和ChatService3项通过。容器只有Python3.13，未完成正式Python3.12、真实PG、完整Web与开发者工具API门禁；不能据此生产放行。下文历史进度和历史PASS不是Test14的新验收证据。
+
+- 执行与环境限制：`docs/TEST14_EXECUTION_REPORT.md`
+- 端口、各端打开及复验命令：`docs/TEST14_LOCAL_PORTS_AND_LOGIN_GUIDE.md`
+- 正式验收清单：`docs/TEST14_ACCEPTANCE_CHECKLIST.md`
+- 范围检查：`python scripts/verify-test14-scope.py`
+
+
 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
 
 
@@ -8,6 +20,8 @@
 Real WeCom credentials, Qwen/DashScope keys, database passwords and JWT secrets are not stored in source code. New setups should copy `config-examples/backend.env.example` and `config-examples/chatservice.env.example` into the ignored local `secrets/` directory. Production servers should keep the same files under `/etc/wangxu/`.
 
 Detailed replacement and rotation instructions: `docs/SECRETS_CONFIGURATION_GUIDE.md`.
+
+本地 Web 演示登录、5174/8001 与旧 5173/8000 的区别、正式企业微信打开方式，以及本轮 Web 登录/AI确认发送专项验收命令，统一见：`docs/LOCAL_PORTS_AND_LOGIN_GUIDE.md`。本地 Web prototype 演示使用独立 `config-examples/web-demo.env.example`，不得覆盖正式企业微信配置。 本轮专项修改与测试证据见：`docs/FEATURE_16_LOGIN_AI_GATE_HOTFIX_EXECUTION_REPORT.md`。
 
 ## 当前进度
 
@@ -24,70 +38,26 @@ Batch 1 已经实现基础原型身份、任务列表、统一 Inbox、Dashboard
 
 Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交形成不可变验收轮次；验收人按任务指定 reviewer 快照，未指定时回退创建人；支持通过、强制原因驳回、仅返工整体交付物、指定节点显式重开、多轮历史、API、Inbox、任务详情和响应式 UI。旧有 `pending_review` / `completed` 数据由迁移安全回填。本文档随 Wave 1 checkpoint 候选提交，checkpoint commit hash 尚未创建。
 
-## 功能开发进度（按 16 项规划）
+### Hotfix 累计进度（功能 16 / Test3 起，按 commit 时间倒序）
 
-> **进度计划来源**：项目当前 16 项功能计划源自 `docs/reference/` 中第二版核心逻辑与数据表结构文档的对应交付清单（功能 05、12、14 为高亮的当前重点）。
+| 阶段 | 状态 | 范围摘要 |
+| --- | --- | --- |
+| **Test14 任务执行-汇报循环 Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / Web / 微信 API 复验 | 修复创建人发送后工作台 `reassign_task` 响应契约、可选 `report_cycle` 入库校验、AI 周期提示词（`weekly`→`null`），新增脱敏诊断与专项测试。**数据库变更 0 / Alembic 新增迁移 0 / 小程序/云函数改动 0**。白名单 30 文件（13 改 + 17 新）。本环境：非PG 568 passed / 32 deselected、小程序 22/22、JS 50 文件、ChatService 3/3、TS transpile 84 文件 0 error；详见 `docs/TEST14_EXECUTION_REPORT.md` / `docs/TEST14_ACCEPTANCE_CHECKLIST.md` / `docs/TEST14_DIFF.txt` |
+| **Test13 Web 登录稳定启动 + AI 确认非硬门槛 Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / Web / 微信 API 复验 | 锁定候选包目录 + 5174/8001 端口、隔离 `verify-ai-send-e2e.py` 与 PG、删 `AI_GATE_REQUIRED` 硬阻断、登录成功按来源安全恢复原路由。**数据库变更 0**；详见 `docs/FEATURE_16_LOGIN_AI_GATE_HOTFIX_EXECUTION_REPORT.md` |
+| **功能 16 任务来源选填 + AI 追问覆盖修复 Hotfix（2026-09-07）** | 🔧 已提交，待 PG / 微信开发者工具放行 | 发送必填从 10→9（移除 `task_source`），小程序手工选人/AI 追问/受保护字段合并契约同步。**数据库变更 0**；详见 `docs/FEATURE_16_TASK_SOURCE_OPTIONAL_CLARIFICATION_HOTFIX_REPORT.md` |
+| **功能 16 Test11 最终技术门禁（2026-09-04）** | 🔧 已提交，待正式门禁放行 | 6 项 Ruff 收口（`collections.abc` 迁移 + import block 整理）；新增 `run_test11_release_gate.sh`（Py 3.12 + Ruff 0 + PG 同库 3 轮 + 100 并发 + Web 干净安装的正式技术门禁）。**零产品/表/字段/迁移/状态机/权限变化**；详见 `docs/FEATURE_16_TEST11_TECHNICAL_GATE_REPORT.md` |
+| **功能 16 发布候选 Test10（2026-09-04）** | 🔧 已提交，待真实环境放行 | F1 PG 第二轮失败根因修复（`TaskStatusLogRepository` 以 `task_version` 为第一权威排序键，消除同事务 `created_at` 共享时随机 UUID 翻转顺序的缺陷）；F2 PG 多轮门禁增强（`POSTGRES_GATE_PASSES` ≥2，Test10 候选固定 3）；F3 Ruff 收口；F4 Web 干净安装依赖合同（`@testing-library/dom ^10.4.1`）；详见 `docs/FEATURE_16_TEST10_RELEASE_CANDIDATE_REPORT.md` |
+| **功能 16 发布候选 Test9（2026-09-04）** | 🔧 已提交，待真实环境放行 | F1 归档搜索权限契约（employee scope 不扩大可见性）；F2 `available-actions.nodes` 改为稀疏动作投影；F3 business fixture 按 `task_id` 清理完整任务图（消 ReminderRule 残留 FK/teardown 污染）；F6 Ruff 统一整理 import block；PG 门禁增强为同库连续两轮全量 PG suite + 5×20 并发；详见 `docs/FEATURE_16_TEST9_RELEASE_CANDIDATE_REPORT.md` |
+| **功能 16 发布候选 Test8（2026-09-04）** | 🔧 已提交，待真实环境放行 | 收口 Test6 真实验收暴露的 6 项 PostgreSQL 债务（completed/archived 旧合同、task_archives FK 清理、V1.1 hours 泄漏、pending node 可用动作旧断言）与 202 项 Ruff 历史债务（import 规范排序、长行清零，>100 字符行=0）；详见 `docs/FEATURE_16_TEST8_RELEASE_CANDIDATE_REPORT.md` |
+| **功能 16 Test6 定点修复 / Test5 并行完善 / Test4 修复 / Test3 发布门禁（2026-09-03）** | 🔧 已提交，待真实环境放行 | Test6：修 `/available-actions` 500 + `DetachedInstanceError`；Test5：收敛 PG V1.1 集成测试夹具 + 加固 Outbox 并发防回流断言 + 真实企微 E2E 脚本；Test4：修 Test3 拦出的旧 PG V1.1 fixture 债务（F1-F7）+ Outbox 并发测试 + `/me` 旧断言 + `httpx2`→`httpx` 修正；Test3：发布门禁（硬门禁：Py 3.12 + 真实 PG 16 + 真实企微配置）；详见 `docs/FEATURE_16_TEST3/4/5/6_EXECUTION_REPORT.md` |
 
-**总体状态：功能 01 ～ 16 已全部完成并通过验收。**
-
-### 功能清单（依据用户规划第二版交付线）
-
-| # | 功能 | 范围要点 | 当前状态 |
-|---|---|---|---|
-| 01 | 员工任务工作台 | 小程序工程基础、第二版应用壳、底部导航、任务指标、四象限、需要支持、AI 创建入口、最近任务 | ✅ 完成 |
-| 02 | 任务概览 | 任务/节点模式、状态筛选、四象限筛选、临期筛选、自定义日期、空态、任务跳转 | ✅ 完成 |
-| 03 | 任务详情 | 基础信息、责任关系、任务目标、验收标准、节点、汇报、卡点、绩效、状态轨迹、操作记录 | ✅ 完成 |
-| 04 | 登录与权限 | 当前用户、任务关系、员工/高管权限、数据范围、无权访问、Token 与刷新 | ✅ 完成 |
-| 05 | AI 任务输入 ⚠️ | 文字输入、录音、语音转文字、AI 字段识别、缺失字段追问、失败重试；任务创建人关联绩效指标 | ✅ 完成 |
-| 06 | 创建人三步创建 | 描述任务 → 信息确认 → 确认发送；发送后进入待接受、不生成节点 | ✅ 完成 |
-| 07 | 接受后 AI 拆解 | 接受/退回、拆解中、拆解失败、重新拆解、成功生效、迟到结果失效 | ✅ 完成 |
-| 08 | 节点执行 | 节点展开、依赖校验、开始、更新、完成、节点负责人和协同人权限 | ✅ 完成 |
-| 09 | 进度与卡点 | 当前进度、阶段成果、卡点开关、卡点说明、备注、问题处理和关闭 | ✅ 完成 |
-| 10 | 任务生命周期 | 变更申请、更换承办人、撤回、取消、合并、关闭、原因弹窗和通知 | ✅ 完成 |
-| 11 | 完成申请与验收 | 全部节点完成校验、多轮验收、退回修改、指定节点重开、通过后自动归档 | ✅ 完成 |
-| 12 | 智能计算 ⚠️ | 绩效关联、四象限、剩余工时、负荷、冲突和服务端计算口径 | ✅ 完成 |
-| 13 | 通知与我的 | 任务通知、提醒、系统消息、个人资料、任务关系统计和待办数量 | ✅ 完成 |
-| 14 | 高管任务看板 ⚠️ | 团队指标、状态分布、风险、负荷热力图、卡点和绩效态势 | ✅ 完成 |
-| 15 | 员工负荷任务下钻 | 负荷构成 → 员工任务明细 → 单任务详情，落实第二处修改 | ✅ 完成 |
-| 16 | 全链路发布验收 | 企业微信自建应用登录（wecom 模式 + 删 LoginService）、密钥 secrets/ 安全配置、发布门禁 release-gate 测试 | ✅ 完成 |
-
-**后端覆盖矩阵**：功能 01～16 对应的后端 Wave 1～10 在 `FEATURE_COVERAGE.md` 中全部标注 COMPLETE。Alembic 单一 head 为 `b1c2d3e4f5a6`。
-
-> 功能 16 交付包含：企业微信认证 `app/services/wecom_authentication.py` + `app/integrations/wecom`；后端 `auth_mode` 增加 `wecom`；新增 `POST /api/v1/auth/wecom/login` 换票接口；删除 `LoginService` 云函数；密钥移入 `secrets/backend.env` 与 `secrets/chatservice.env`（`.gitignore` 屏蔽）；新增发布门禁测试 `tests/test_start_dev_secret_contract.py`、`tests/integrations/test_wecom_client.py`、`tests/services/test_wecom_authentication.py`。Test5 再收敛 PostgreSQL V1.1 集成夹具并加固 Outbox 并发防回流断言，新增 `scripts/run_test5_release_gate.sh`、`scripts/run_wecom_real_e2e.py`、`tests/test_test5_release_gate_contract.py`、`tests/integration/v11_postgresql_helpers.py` 与 `docs/FEATURE_16_REAL_WECOM_E2E.md`（真实企业微信身份 E2E 执行清单）。Test6 定点修复两个真实产品缺陷（见上表 `/available-actions` 500 与 `DetachedInstanceError`），新增 `scripts/run_test6_release_gate.sh` 与 `docs/FEATURE_16_TEST6_EXECUTION_REPORT.md`。Test7 优化“AI 识别/追问 → 任务创建页字段自动回填”链路（可体验快照，先行交付）：`app/ai/prompts/task_intake.md` 与 `cloud-functions/ChatService/prompts/task_intake.md` 新增强制规则（人员字段只允许解析用户**明确提到**的人，禁止按岗位/部门/技能/负荷/直属关系推荐）；`cloud-functions/ChatService/tests/test_task_intake.py` 新增 Prompt 契约测试；`wechat-miniprogram/pages/create-details/index.js` 手工选人后清理对应 AI missing/low-confidence 状态；`wechat-miniprogram/utils/api.js` mock 模式支持明确人员语句自动回填；`wechat-miniprogram/tests/ai-field-hydration.test.js` 新增字段回填用例；详见 `docs/FEATURE_16_TEST7_AI_FIELD_HYDRATION_REPORT.md`。Test8 为发布候选：以 Test7 为基线，收口 Test6 真实验收暴露的 6 项 PostgreSQL 债务（completed/archived 旧合同、task_archives 外键清理、V1.1 hours 泄漏、pending node 可用动作旧断言）与 202 项 Ruff 历史债务（import 规范排序、长行清零，>100 字符行=0）；新增 `scripts/run_test8_release_gate.sh` 与 `tests/test_test8_release_candidate_contract.py`；详见 `docs/FEATURE_16_TEST8_RELEASE_CANDIDATE_REPORT.md`。Test9 吸收本地 Test8 真实门禁暴露的问题，只收口不改产品功能/状态机：F1 归档搜索权限契约保持 employee scope 不扩大业务任务可见性（PG 业务集成改由 executive + department scope 验证授权归档搜索）；F2 `available-actions.nodes` 改为稀疏动作投影（只返回 `allowed_actions` 非空的节点，完整节点事实由任务详情 DTO 提供）；F3 business 集成 fixture 改为按 `task_id` 清理完整任务图（彻底消除 ReminderRule 残留导致的 FK/teardown 污染与 F4/F5 顺序依赖）；F6 Ruff 统一整理 import block，4 个 `import app.models` 明确保留为 SQLAlchemy metadata 注册副作用并加 `noqa: F401`；PostgreSQL 门禁增强为同一已迁移数据库连续两轮全量 PG suite（第二轮专门证明无残留）；新增 `scripts/run_test9_release_gate.sh` 与 `tests/test_test9_release_candidate_contract.py`（防清理/权限/available-actions 契约回退）。详见 `docs/FEATURE_16_TEST9_RELEASE_CANDIDATE_REPORT.md`。Test10 以 Test9 为代码基线，**只修复 Test9 真实门禁暴露的工程质量问题，不新增产品功能/状态机/Outbox 并发算法/权限边界**：F1 PG 第二轮失败根因修复（`TaskStatusLogRepository` 全部以 `task_version` 为第一权威排序键，消除同事务 `created_at` 共享时随机 UUID 翻转 `completion_approved`/`task_archived` 顺序的缺陷，Repository 排序合同永久化、不允许退回 `created_at + UUID`）；F2 PG 多轮门禁增强（`scripts/run_postgresql_gate.sh` 新增 `POSTGRES_GATE_PASSES` ≥2；新增 `scripts/run_test10_release_gate.sh` 候选固定 `POSTGRES_GATE_PASSES=3`）；F3 Ruff 收口（`alembic/app/tests/cloud-functions/scripts` 重新分组 import block，按 Ruff/isort 排序，不改变 revision/down_revision 或业务逻辑）；F4 Web 干净安装依赖合同（`@testing-library/dom ^10.4.1` 显式加入 `web/package.json` `devDependencies` 与 `web/package-lock.json`，避免依赖间接 peer dependency）；新增 `tests/test_test10_release_candidate_contract.py` 防回归。详见 `docs/FEATURE_16_TEST10_RELEASE_CANDIDATE_REPORT.md`。Test11 为最终技术门禁收口：仅修复 Test10 本地报告的 6 个 Ruff 问题（`collections.abc` 导入迁移 + import block 整理，AST 对比无函数体变化），新增 `scripts/run_test11_release_gate.sh`（Python 3.12 + Ruff 0 + PG 同库 3 轮 + 100 并发 + Web 干净安装的正式技术门禁，技术门禁与真实 WeCom E2E 分离）与 `tests/test_test11_release_candidate_contract.py` 冻结合同；详见 `docs/FEATURE_16_TEST11_TECHNICAL_GATE_REPORT.md`。**Test11-WebLogin-Hotfix（2026-09-07）**：Web `/login` 路由收口，**零后端认证/数据库/小程序/云函数/Feature 01～16 改动**——原 `/login` 仍指向 DEV-02 占位 `RoutePlaceholders.LoginRoute`，本次切到真实 `LoginPage`；登录成功后按来源安全恢复原路由（`/tasks?status=pending_accept`、query/hash 均保留），外部或不安全返回地址回退 `/workbench`，已登录访问 `/login` 直入安全目标且不再请求演示用户列表。白名单差异恰 6 个 web 文件（`added 0 / removed 0 / changed 6 / WHITELIST_DIFF_PASS`）；详见 `docs/FEATURE_16_WEB_LOGIN_ROUTE_HOTFIX_REPORT.md`。
-
-### 测试进度
-
-> **以下为本机独立复核的实测结果**（复核日期 2026-09-03，基于功能 16 代码）：在 macOS 上用受管 Python 3.13 虚拟环境安装依赖后真实执行，非抄录交付包文档。
-
-| 质量门 | 实测结果 | 说明 |
-|---|---|---|
-| 后端全量 pytest（非 PostgreSQL） | ✅ `510 passed, 28 deselected` | 28 项 deselected 均为 PostgreSQL opt-in 集成测试 |
-| 微信小程序功能 01～16 | ✅ `19 / 19` 组 PASS | `wechat-miniprogram/` 与 `wechat-miniprogram-standalone/` 均跑通 |
-| 微信全部 JS 语法检查 | ✅ PASS | 全量 `.js` 执行 `node --check` |
-| React 前端 ESLint | ✅ PASS | 无错误输出 |
-| React 前端测试 | ✅ `18 test files / 109 tests passed` | vitest `--run` |
-| React 前端构建 | ✅ PASS | `tsc --noEmit && vite build` |
-| 功能 16 企业微信/安全配置测试 | ✅ 已实现并提交 | wecom_client、wecom_authentication、secret_contract 等随包交付 |
-| `ruff check` | ⚠️ `220` 个告警 | 全部为风格类，F821 真实缺陷已清零 |
-| 功能 16 发布门禁 Test3（`scripts/run_test3_release_gate.sh`） | 🚧 BLOCKED（预期） | 硬门禁：缺 Python 3.12 / PostgreSQL 16 / 真实企微配置即阻断；本次非PG `477 passed, 2 failed`（2 失败为旧 PG fixture 债务被门禁正确拦截）、微信 `20/20 PASS`；详见 `docs/FEATURE_16_TEST3_EXECUTION_REPORT.md` |
-| 功能 16 修复 Test4（`scripts/run_test4_release_gate.sh`） | 🔧 修复已提交，待真实环境复验 | 修 Test3 门禁拦出的旧 PG V1.1 fixture 债务（F1-F7）、Outbox 并发测试（F8）、`/me` 旧断言（F9）；`httpx2`→`httpx` 依赖修正；ruff F401/F841/B033/E701/E702。本环境非PG `482 passed, 28 deselected`、微信 `20/20 PASS`；真实 PG / Py3.12 / Ruff / 企微仍待复验（不伪造 PASS）；详见 `docs/FEATURE_16_TEST4_EXECUTION_REPORT.md` |
-| 功能 16 并行完善 Test5（`scripts/run_test5_release_gate.sh`） | 🔧 已提交，待真实环境复验 | 收敛 PostgreSQL V1.1 集成测试夹具（`tests/integration/v11_postgresql_helpers.py` + `tests/test_postgresql_v11_fixture_contract.py` 防回流）、加固 Outbox 并发防回流断言（`send_status==sent`、`retry_count==0`、第二轮 `send_pending()` 返回空）；新增真实企业微信身份 smoke/E2E 脚本 `scripts/run_wecom_real_e2e.py` 与 `docs/FEATURE_16_REAL_WECOM_E2E.md`（不打印 Secret/Token）。`app/` 业务源码无修改。本环境：compileall PASS、非PG `485 passed, 28 deselected`、Test5+V1.1 发布合同 `8 passed`、微信 `20/20 PASS`、JS `node --check` `48 文件 PASS`、Test5 shell gate 语法 PASS；真实 PG 28/28 / 5×20 并发 / Ruff 0 error / 真实企微 E2E 仍待复验（不伪造 PASS）；详见 `docs/FEATURE_16_TEST5_PARALLEL_IMPROVEMENT_REPORT.md` |
-| 功能 16 定点修复 Test6（`scripts/run_test6_release_gate.sh`） | 🔧 已提交，待真实环境复验 | 关闭 Outbox 并发项（以本地真实 PG 5×20 共 100/100 为准，不改产品发送逻辑）；修复 PG `_command()` 解包（测试改收单个 `CreateTaskDraftCommand`）；补 `from dataclasses import replace` 修 F821；新增 V1.1 client hours 静态门禁（business-capability PG fixture 禁止 `hours/estimated_hours/actual_hours`）。**真实产品缺陷修复**：① `TaskDecompositionService.get_latest()` 在只读 UoW 退出前 `session.expunge(record)`，修复路由序列化触发 `DetachedInstanceError`；② `AvailableActionsResponse` 补 `priority_quadrant/importance_score/urgency_score/remaining_hours/sort_rank`，修复 `/available-actions` 合法结果被响应模型校验转成 500。本环境：定点回归 `46 passed`、非PG `488 passed, 28 deselected`、微信 `20/20 PASS`、JS `node --check` PASS、compileall PASS；真实 PG 28/28 / Ruff 0 error / 真实企微 E2E 仍待本地 Test6 实跑复验（不伪造 PASS）；详见 `docs/FEATURE_16_TEST6_EXECUTION_REPORT.md` |
-| 功能 16 AI 字段回填优化 Test7（可体验快照） | ✅ 已提交，可体验 | 仅优化“AI 识别/追问 → 创建页字段自动回填”链路，未改任务发送/接受/拆解/执行/通知/验收/看板/企微登录等后续规则。Prompt 新增强制规则：人员字段只允许解析用户**明确提到**的人，禁止按岗位/部门/技能/负荷/直属关系推荐；未提人员保持 null/[] 并追问或手工选择；同名歧义不猜。小程序 mock 模式支持明确人员语句自动回填、多轮追问合并上一轮草稿、手工选人后清理对应 AI missing/low-confidence 状态。本环境：ChatService `test_task_intake.py` PASS、小程序 `21/21 PASS`、新增 `ai-field-hydration.test.js` PASS、JS `node --check` PASS、`compileall` PASS；后端全量 pytest 在本容器因缺 `psycopg` 于收集阶段被环境依赖阻塞（非产品失败/通过，沿用 Test6 非PG `488 passed`），真实 PG / Ruff / 真实企微 E2E 仍待本地实跑复验；详见 `docs/FEATURE_16_TEST7_AI_FIELD_HYDRATION_REPORT.md |
-| 功能 16 发布候选 Test8 | 🔧 已提交，待真实环境放行 | 不新增产品功能。收口 Test6 真实验收暴露的 6 项 PostgreSQL 债务：① completed/archived 旧测试合同改为断言 `archived` 并检查 `completion_approved`/`task_archived` 日志；② 4 个 PG 测试清理流程删除 tasks 前先删 TaskArchive（消 teardown FK 失败与 pending notification 残留）；③ `TaskIntakeService.create_draft_from_extraction()` 显式 `estimated_hours=None`（V1.1 创建阶段客户端/AI 不可写 hours 规则不变）；④ pending node 可用动作旧断言按正式节点动作合同更新（未开始且依赖满足仅 `start_node`）。Ruff 历史债务：全仓 import 规范排序、长行拆分，`app/tests/alembic/cloud-functions/scripts` 中 >100 字符 Python 行=0，新增 Test8 静态合同持续检查。本环境：compileall PASS、非PG `495 passed`、定点回归 `76 passed`、Test8+V1.1 静态合同 `16 passed`、ChatService task-intake PASS、小程序 `21/21 PASS`、Python >100 字符行 `0`、JS `node --check` PASS；真实 PG 28/28 / Outbox 5×20=100/100 / Ruff 0 error / Web 全绿 / 真实企微 E2E 仍待本地 Test8 实跑放行（不伪造 PASS）；详见 `docs/FEATURE_16_TEST8_RELEASE_CANDIDATE_REPORT.md` |
-| 功能 16 发布候选 Test9 | 🔧 已提交，待真实环境放行 | 吸收 Test8 本地真实门禁暴露的问题，只收口不改产品功能/状态机/Outbox 并发算法/普通员工权限。F1 归档搜索权限契约保持 employee scope 不扩大业务任务可见性（PG 业务集成改由 `executive` + `department` scope 验证授权归档搜索）；F2 `available-actions.nodes` 改为稀疏动作投影（只返回 `allowed_actions` 非空的节点，完整节点事实由任务详情 DTO 提供，React 现有 Map 查询兼容）；F3 business 集成 fixture 改为按 `task_id` 清理完整任务图（notifications→reminder_rules→…→task_nodes→tasks 顺序覆盖），消除 ReminderRule 残留导致的 FK/teardown 污染与 F4/F5 顺序依赖；F4/F5 产品逻辑（`FOR UPDATE SKIP LOCKED`、task_version 自增、notification 唯一约束）不动，待 F3 修复后由 PG 全量连续两轮验证；F6 Ruff 统一整理 import block，`datetime.UTC` 等按 Ruff/isort 排序，4 个 `import app.models` 保留并加 `# noqa: F401`，ChatService `E402` 上移模块顶部。PostgreSQL 门禁增强为同一已迁移库连续两轮全量 PG suite（第二轮专门证明无残留）+ 5×20 并发；新增 `scripts/run_test9_release_gate.sh` 与 `tests/test_test9_release_candidate_contract.py`。本环境：compileall PASS、非PG `500 passed, 28 deselected`、Test9+Test8 静态合同 PASS、迁移/依赖定点 `40 passed`、小程序 `21/21 PASS`、JS `node --check` PASS、ChatService task_intake/auth/config PASS、shell `bash -n` PASS、Python >100 字符行 `0`、Web/微信源码与 Test8 完全无差异；真实 PG 28/28×2 / Outbox 5×20=100/100 / Ruff 0 error / Web 全绿 / 真实企微 E2E 仍待本地 Test9 实跑放行（不伪造 PASS）；详见 `docs/FEATURE_16_TEST9_RELEASE_CANDIDATE_REPORT.md` |
-| 功能 16 发布候选 Test10 | 🔧 已提交，待真实环境放行 | 以 Test9 为代码基线，**只修复 Test9 真实门禁暴露的工程质量问题，不新增产品功能/状态机/Outbox 并发算法/权限边界**。F1 **PG 第二轮失败根因修复**：`TaskStatusLogRepository.list_by_task_id()` / `list_by_task_id_paginated()` / `get_latest_for_task()` 全部以 `task_version` 为第一权威排序键（`completed_approved` 与 `task_archived` 共享同事务 `created_at` 时不再被随机 UUID 翻转 12→13 顺序），Repository 排序合同永久化（不允许退回 `created_at + UUID`）；F2 **PG 多轮门禁增强**：`scripts/run_postgresql_gate.sh` 新增 `POSTGRES_GATE_PASSES`（默认 2，必须 ≥2）；新增 `scripts/run_test10_release_gate.sh`（Test10 候选固定 `POSTGRES_GATE_PASSES=3`）；F3 **Ruff 收口**：`alembic/app/tests/cloud-functions/scripts` 重新分组 import block，按 Ruff/isort 排序，不改变 revision/down_revision 或业务逻辑；F4 **Web 干净安装依赖合同**：`@testing-library/dom ^10.4.1` 显式加入 `web/package.json` `devDependencies` 与 `web/package-lock.json`，避免依赖间接 peer dependency。新增 `tests/test_test10_release_candidate_contract.py` 防回归。本环境：compileall PASS、非PG `504 passed, 28 deselected`、Test10/Repository 定点合同 PASS、ChatService task_intake/auth/config PASS、小程序 `21/21 PASS`、JS `node --check` PASS、Web `package-lock` 离线一致性 PASS、`bash -n` Test10/PG gate PASS；真实 PG 28/28×3 / Ruff 0 error / Python 3.12 正式 gate / Web 干净 `npm ci` / 真实企微 E2E 仍待本地 Test10 实跑放行（不伪造 PASS），候选 ZIP 反向验收与工作树结果一致；详见 `docs/FEATURE_16_TEST10_RELEASE_CANDIDATE_REPORT.md` |
-| 功能 16 Test11 最终技术门禁 | 🔧 已提交，待正式门禁放行 | 发布工程收口，**零产品功能/表/字段/迁移/状态机/权限/Outbox 算法变化**。仅修复 Test10 本地报告的 6 个 Ruff 问题（`app/integrations/wecom/client.py` 的 `Callable`、`app/services/features/performance_matching/scoring.py` 的 `Iterable/Mapping/Sequence` 改从 `collections.abc` 导入；`business_capabilities.py`/`task_workflow.py`/`cloud-functions/ChatService/services/task_intake.py`/`tests/migrations/test_alembic_metadata.py` import block 按 Ruff/isort 整理），AST 语义对比确认无函数体/业务规则变化；新增最终技术门禁 `scripts/run_test11_release_gate.sh`（强制 Python 3.12 + `pip check` + 真实 `ruff check .` 无 auto-fix + compileall + Test8/9/10/11 合同 + 空 PG16 迁移单 head `c2d3e4f5a6b7` + 同库连续 3 轮 PG + 5×20=100 并发 + 非 PG 全量 + 小程序 + Web 干净 `npm ci` + ChatService）与 `tests/test_test11_release_candidate_contract.py` 冻结合同。本环境：compileall PASS、受影响模块定点 `84 passed`、ChatService `3/3`、合同 `19 passed`、非PG `508 passed, 28 deselected`、小程序 `21/21`、JS PASS、>100 字符行 `0`、gate 按设计 fail-closed（`Python 3.12 is required`）；Ruff 0 / PG 28/28×3 / 100/100 / Python 3.12 正式 gate / Web 干净安装 / 真实企微 E2E 仍待正式环境放行（不伪造 PASS），`V1.1 TECHNICAL RELEASE READY` 仅在上述全绿后升级；详见 `docs/FEATURE_16_TEST11_TECHNICAL_GATE_REPORT.md` 与 `docs/DEV-18_Test11_执行与反向验收报告.md` |
-| RELEASE-01 生产部署工程 | 🔧 部署工程就绪，待预发/生产实跑 | 只新增部署与运维基础，**零业务代码改动**（`app/`、`alembic/versions/`、`wechat-miniprogram/pages|utils/`、`web/src/`、`tests/` 受保护；叠加到 Test11 基线后受保护目录零改动）。新增 `deploy/`：`Dockerfile.backend`、`Dockerfile.chatservice`、`docker-compose.production.yml`（backend/chatservice/nginx/postgres 四服务，PG 仅内部网络不发布宿主机端口）、`nginx/wangxu.conf.template`（仅 HTTP→HTTPS 跳转与 HTTPS 反代）、`env/*.production.example`（强制 `APP_ENV=production`/`AUTH_MODE=wecom`/`CHAT_REQUIRE_AUTH=true`，全部占位符无真实密钥）、`systemd/*.service`、`scripts/`（preflight/deploy-compose/health-check/backup/restore/rollback/validate，恢复默认拒绝破坏性恢复、回滚不自动 downgrade）；新增 `docs/deployment/` 五篇上线交接文档 + 验收记录。本环境验证：9 个 deploy 脚本 `bash -n` PASS、Compose YAML 解析 PASS（四服务齐全、PG 无宿主机端口）、env 模板强制项 PASS；Docker 真实生产部署 / 企业微信真实 E2E / Qwen 公网调用 / 真实通知仍待公司预发环境执行（不伪造 PASS）。注意：交付方原始基线为 Test8 包，本仓库已将 deploy 工程叠加到 Test11 最新代码（`PROTECTED_SOURCE_BASELINE.sha256` 为交付方对 Test8 树的验收快照，仅作 RELEASE-01 验收存档）；详见 `docs/deployment/RELEASE_01_ACCEPTANCE.md`、`docs/deployment/01-PRODUCTION_DEPLOYMENT_GUIDE.md` 与 `docs/RELEASE_01_DEPLOYMENT_ENGINEERING_REPORT.md` |
-| Test11 Web 登录路由 Hotfix | 🔧 已提交，待 Web 正式门禁放行 | Web `/login` 路由收口，**零后端/数据库/小程序/云函数改动**。原 `/login` 指向 DEV-02 占位 `RoutePlaceholders.LoginRoute`（用户实际看到开发占位文案），本次切到真实 `LoginPage`：`web/src/app/router.tsx` 不再导入 `LoginRoute`、`/login` 改渲染 `<LoginPage />`；`LoginPage` 读取 `location.state.source`，复用 `readReturnSourceState()/resolveReturnTarget()`——直接登录默认 `/workbench`，从 `/tasks`、任务详情或带 query 内部路由跳转登录则成功后恢复原路由（含 query/hash），外部或不安全返回地址回退 `/workbench`；已登录访问 `/login` 直入安全目标且不再请求演示用户列表。白名单差异恰 6 文件（`router.tsx`、`LoginPage.tsx` + `router.test.tsx`/`LoginPage.test.tsx` + e2e `dev-06`/`dev-07`），`added 0 / removed 0 / changed 6 / WHITELIST_DIFF_PASS`；`app/`、`alembic/`、`wechat-miniprogram/`、`cloud-functions/` 与 Test11 基线完全一致。本环境：TS transpile 81 文件 0 error、Hotfix 合同 17/17 PASS、trailing whitespace 0、旧占位断言 0 残留、非PG `508 passed`/小程序 `21/21` 不变；ESLint/Vitest/build/Playwright DEV-06·07 正式 Web 门禁待本地 npm 环境执行（不伪造 PASS）；详见 `docs/FEATURE_16_WEB_LOGIN_ROUTE_HOTFIX_REPORT.md` |
-| **功能 16 任务来源选填 + AI 追问覆盖修复 Hotfix（2026-09-07）** | 🔧 已提交，待 PG/微信开发者工具放行 | 在功能 16 Tech 收口 + RELEASE-01 部署工程之上叠加；**零 alembic 迁移 / 零状态机 / 零权限边界 / 零绩效负荷提醒算法 / 零 web 改动**，数据库结构变更 `0`、Alembic 新增迁移 `0`；`app/models/task.py` 与 `app/schemas/task.py` 原本即允许 `task_source` 为空。本 Hotfix 报告声称范围共 10 处白名单改动（`added 1 / removed 0 / changed 9 / WHITELIST_DIFF_PASS`），本次实际同步 9 处差异 + 1 处新增测试，与之完全一致。后端 1：`app/services/task_workflow.py` 的 `_validate_send_ready_task()` 从发送必填集合（10→9）移除 `task_source`，其余 9 项必填 + 日期/hours/节点/依赖门禁完全不变；后端测试 1：`tests/services/test_task_workflow.py` 同步；文档 1：`docs/DEVELOPMENT_PLAN_V1.1.md` 增加 "功能16 P0 补充｜任务来源选填 + AI 追问覆盖修复" 段记录本次 P0 冲突裁决；微信小程序 6：`pages/create/index.js` 不再默认把任务来源设为 "AI 任务助手"，`pages/create-details/index.js` 删除 `needsClarification` 独立硬阻断 + 发送前只校验 9 项真实必填 + AI 追问前传入当前草稿 + 回填后保留用户已确认字段（用户最新填写 > 本轮 AI 未解决字段补充 > 上一轮 AI 值）+ 用户编辑/选择字段时同步消解对应 AI 缺失/低置信提示，`pages/create-details/index.wxml` 任务来源去掉必填标记并加选填示例，`pages/create-confirm/index.wxml` 空任务来源显示 "未填写"，`utils/api.js` 创建任务 payload 允许 `taskSource=null` 并支持当前草稿 + 受保护字段合并的 clarification API，`utils/store.js` mock 草稿/发送合同同步允许任务来源为空；测试新增 1：`wechat-miniprogram/tests/task-creation-clarification-hotfix.test.js`，更新 `tests/ai-field-hydration.test.js`。专项六项全 PASS（任务来源为空后端确认发送 / 其他真实必填缺失仍阻断 / AI 问题未回答但 9 项完整可进入确认发送 / 空来源 mock 发送 / 用户手填名称/描述/目标/来源/截止时间后再 AI 追问仍保留 / AI 仍可补充未解决汇报对象）。**数据表结构第五版（Test11 部署交接）**：新增 `docs/reference/03-第五版-智能任务看板数据表结构-显式ID版-Test11部署交接.pdf` 与同名 .docx（与 `docs/` 根目录及 `docs/reference/` 下第四版并列保留；本版作为 Test11 部署交接唯一引用的数据表结构版本）。本环境：py_compile PASS、JS `node --check` PASS、累计非 PG `510 passed / 28 deselected`、小程序 `22/22 PASS`、JS 50 文件 PASS、Alembic head `c2d3e4f5a6b7` 不变；真实 PG 28/28 + 微信开发者工具设备级验收待有 Docker/微信开发者工具的环境执行（不伪造 PASS），此次无数据库结构变更且无非 PG 回归；详见 `docs/FEATURE_16_TASK_SOURCE_OPTIONAL_CLARIFICATION_HOTFIX_REPORT.md` |
-| **Test13 Web 登录稳定启动 + AI 确认非硬门槛 Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / Web / 微信 API 模式复验 | 在功能 16 TaskSourceOptional Hotfix 之上叠加，**零 app/ / alembic/ / cloud-functions/ 改动，数据库变更 `0`、Alembic 新增迁移 `0`**；`app/services/task_workflow.py` 发送必填 9 项与 `tests/services/test_task_workflow.py` 合同保持不变。Web 登录稳定启动 4：`scripts/start-web-demo.sh` 锁定当前候选包目录、默认 `5174 + 8001`、端口已被占用直接停止（防误连 2026-09-04 旧 5173 Vite 进程）、真实请求 FastAPI `/health/ready` 与 `/api/v1/auth/prototype-users`、不迁移不 seed 不清库，配套 `config-examples/web-demo.env.example`（独立 prototype 演示模板、强制 `AUTH_MODE=prototype`、禁止覆盖正式 wecom 配置）、`web/e2e/dev-18-real-login.spec.ts`（`STB_REAL_E2E=1` 真实前后端登录、不使用 `page.route(...fulfill)`、默认 system Chrome channel）、`web/src/pages/LoginPage.tsx` 增加网络失败"登录服务不可用"提示与重试（`ApiError` 仍展示后端安全业务错误）、`web/src/app/router.test.tsx` 改回 `findByLabelText` 异步等待；Web 测试 `LoginPage.test.tsx` 同步。AI 确认非硬门槛 5：`wechat-miniprogram/pages/create-details/index.wxml` AI 卡片文案明确"可回答 AI 继续整理也可直接补齐；必填信息完整后即可进入发送确认"，`pages/create-details/index.js` `next()` 改为显式流程只调用现有 9 项 `validate()` 与真实 `saveDraft()`，不读取 `needsClarification` 作为发送门槛，`tests/task-creation-clarification-hotfix.test.js` 新增 `needsClarification=true` + AI 问题仍保留 + 9 项完整时直接进入 `/pages/create-confirm/index` 的页面级合同；`tests/integration/test_core_workflow_api_postgresql.py` 真实 PG 核心工作流的创建 payload 改为 `task_source=null`（下一次执行原 28 项 PG 门禁时同步验证选填来源贯穿创建→提交确认→发送主链路）；`scripts/verify-ai-send-e2e.py` 新增真实 HTTP 专项验证（prototype 登录→创建 `task_source=null` 草稿→提交确认→confirm-and-send→重读任务，预期待接受且创建阶段无节点；不迁移不 seed 不清理数据库，必须对隔离测试库运行）。端口与登录打开方式 1：`docs/LOCAL_PORTS_AND_LOGIN_GUIDE.md` 正式区分 Web 本地演示 `127.0.0.1:5174/login`、FastAPI 本地 `127.0.0.1:8001`、微信小程序 mock（无浏览器端口）、微信小程序 API 联调（测试副本 + 隔离 FastAPI）、正式企业微信（应用入口，无 5174/8001），并写明如何用 `lsof` 核对 5173/5174 对应进程的真实工作目录（防"端口=版本"误判）。白名单核对：受保护目录 `app/` / `alembic/` / `cloud-functions/` 与上一轮 `0bf5de1` 完全一致；本轮仅触动 `wechat-miniprogram/pages/create-details/` + `wechat-miniprogram/tests/`、`web/src/pages/LoginPage.tsx` + `web/src/app/router.test.tsx` + `web/src/pages/LoginPage.test.tsx` + `web/e2e/`、`tests/integration/test_core_workflow_api_postgresql.py`（仅测试代码 payload）、新增 `scripts/` 3 个 + `config-examples/` 1 个 + `docs/` 2 个报告 md。本环境：py_compile PASS、JS `node --check` PASS、累计非 PG `510 passed / 28 deselected`、小程序 `22/22` 不变、JS 50 文件 PASS、`bash -n` start-web-demo.sh / run-login-ai-hotfix-checks.sh PASS、TS transpile 4 个 web 文件 0 error；真实 PG 28/28 + Web `npm ci/lint/Vitest/build/Playwright dev-18` + `verify-ai-send-e2e.py` 隔离 PG + 微信开发者工具 API 模式"不回答 AI→补齐 9 项→真实发送→待接受" 仍待用户本地/CI 环境执行（不伪造 PASS）；详见 `docs/FEATURE_16_LOGIN_AI_GATE_HOTFIX_EXECUTION_REPORT.md` 与 `docs/LOCAL_PORTS_AND_LOGIN_GUIDE.md` |
+> 详细范围 + 本地实测结果 + 待真实环境复验项，均在各 Test 对应报告 `docs/FEATURE_16_TEST*_EXECUTION_REPORT.md` / `docs/TEST14_*_*.md` 中。下文历史 PASS 数据均非 Test14 的新验收证据。
 
 ## 微信小程序累计交付状态
 
 当前用户侧累计交付线位于 `wechat-miniprogram/`，功能 01～04 已按第二版前端页面结构和 PRD V1.1 逐项实现：工作台、任务概览、任务详情、登录与权限。功能 04 不新增第二版原型之外的登录业务页，而是在小程序启动和 API 网关层接入服务端会话，避免破坏既有页面结构。
 
-登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。企业微信自建应用登录已在功能 16 实现（后端 `auth_mode=wecom` + `POST /api/v1/auth/wecom/login` 换票接口，前端已切换企业微信登录），企业微信 CorpId/AgentId/Secret 由本地 `secrets/backend.env` 提供，绝不进入源码或 GitHub。
+登录与权限当前具备：受控开发登录、`GET /me` 当前用户/部门/角色/授权范围投影、access/refresh token 保存与旋转、401 自动恢复、登出撤销、任务关系投影、员工/高管/管理员数据范围校验。生产环境不允许身份切换或重置演示数据；管理员系统身份也不自动成为任意业务任务的超级用户。真实企业微信凭证换票仍需要部署环境提供企业应用配置后接入现有 Auth/Identity Service。
 
 ## 当前已实现能力
 
@@ -319,7 +289,7 @@ npm.cmd run test -- --run
 npm.cmd run build
 ```
 
-当前 Wave 1 checkpoint 候选的完整质量门为：后端全量 `306 passed`，其中真实 PostgreSQL 16 集成测试 `20 passed`；前端 `10 test files / 28 tests passed`。Ruff、`pip check`、`pip-audit`、SQLAlchemy mapper、Alembic check 与 downgrade/upgrade、ESLint、TypeScript（随构建执行）和 Vite build 均已通过。OpenAPI 当前包含 `35` 条 API 路径、`38` 个 operations；测试后 PostgreSQL 业务数据残留为零。当前迁移 head 为 `c31f8e7a4d02`，Metadata 为13张业务表。
+历史 Wave 1 checkpoint 当时的质量门为：后端全量 `306 passed`，其中真实 PostgreSQL 16 集成测试 `20 passed`；前端 `10 test files / 28 tests passed`。Ruff、`pip check`、`pip-audit`、SQLAlchemy mapper、Alembic check 与 downgrade/upgrade、ESLint、TypeScript（随构建执行）和 Vite build 均已通过。OpenAPI 当前包含 `35` 条 API 路径、`38` 个 operations；测试后 PostgreSQL 业务数据残留为零。当前迁移 head 为 `c31f8e7a4d02`，Metadata 为13张业务表。
 
 上述 Wave 1 门禁只证明完成验收与返工核心闭环。完成提醒与外部通知仍延期至 Wave 6，完成对绩效关联的影响延期至 Wave 4，负荷/看板统计重算延期至 Wave 5，完成后归档快照、检索与复用延期至 Wave 7。
 
@@ -346,7 +316,10 @@ npm.cmd run build
 
 Batch 1、Batch 2A、Batch 2B 和 Wave 1 功能与验收均已完成。下一步是在安全复核后创建 Wave 1 本地 checkpoint，再进入 Wave 2：不可变任务变更申请，以及取消、撤回、合并、关闭和允许场景下的恢复。不会在 Wave 1 checkpoint 中虚报 Wave 4～7 的完成下游能力。
 
-## 当前未实现
+## 历史 Wave 1 未实现清单（已过时）
+
+以下条目只保留为早期开发记录；Feature 13～16 与企业微信认证等后续实现已覆盖其中多项，不得作为当前能力判断依据。
+
 
 - 正式生产登录认证、企业统一身份或企业微信认证。
 - 完整 JWT 刷新、撤销和登出机制，以及正式 RBAC 和组织范围权限。
@@ -361,10 +334,8 @@ Batch 1、Batch 2A、Batch 2B 和 Wave 1 功能与验收均已完成。下一步
 
 项目仅以 `docs/` 中以下两份文档为当前有效需求，不得修改或删除：
 
-- `第二版-智能任务看板核心逻辑与用户使用流程节点.docx`
-- `第四版-智能任务看板数据表结构文档-显式ID版.docx`
-
-功能验收通过标准见 `docs/ACCEPTANCE_STANDARDS.md`（单功能硬性条件、提交前全量回归、严禁条款、功能 12 算法口径锁死）。
+- `第二版-智能任务看板核心逻辑与用户使用流程节点(1).docx`
+- `第四版-智能任务看板数据表结构文档-显式ID版(1).docx`
 
 ## Feature 05 cloud-function AI intake
 
@@ -383,3 +354,18 @@ Feature 14 is implemented against `docs/FEATURE_14_EXECUTIVE_DASHBOARD_RULES.md`
 Feature 15 follows the user-confirmed P0 scope in `docs/FEATURE_15_EXECUTIVE_EMPLOYEE_TASK_FILTER_RULES.md`. The workload breakdown sheet now has a real “查看该员工任务” action that reuses the existing task overview. The task overview displays an employee-name filter but sends only `employeeNo` to the backend, combines it with status/quadrant/date filters, revalidates explicit executive department scope, and opens the existing task detail page. The old standalone `pages/workload-tasks` fake page was removed from production registration. Feature 15 adds no business table, field, or Alembic migration.
 
 The same change also fixes the real `TaskBoardQueryService.available_actions()` undefined-`priority` 500 defect and adds direct service regression coverage. Current executable gates after Feature 15: backend non-PostgreSQL `460 passed, 28 deselected`; WeChat feature01-15 `19` groups PASS; JS syntax and Python compileall PASS. Real PostgreSQL, React dependency gates, Ruff, and WeChat Developer Tools are unavailable in this container and are not claimed as passed. See `docs/FEATURE_14_ACCEPTANCE.md`.
+
+## Feature16 / DEV-18 Test10 release candidate
+
+Test10 only closes Test9 release-gate debt; it does not add a product feature. The main code change makes task status-log timelines deterministic by ordering first on `task_version`, so same-timestamp `completion_approved` / `task_archived` records cannot be reversed by random UUID order. It also makes `@testing-library/dom` an explicit Web dev dependency and refreshes import ordering for the remaining Ruff I001 debt.
+
+Automated PostgreSQL validation is now repeatable through `scripts/run_postgresql_gate.sh`; the general gate defaults to two same-database passes and the Test10 candidate gate requests three passes. See `FEATURE_16_TEST10_RELEASE_CANDIDATE_REPORT.md` for executed evidence and remaining environment gates.
+
+
+## Feature16 / DEV-18 Test11 final technical gate
+
+Test11 does not add product behavior or schema changes. It closes the six remaining Ruff findings from the user's Test10 run, keeps the Test10 task-status-log ordering fix frozen, and separates technical release readiness from real WeCom production E2E.
+
+Current source facts: Alembic has `10` migration files with single head `c2d3e4f5a6b7`; the user's Test10 runtime inspection reported `100` OpenAPI paths / `106` operations. Test10 local evidence reached backend non-PostgreSQL `504/504`, PostgreSQL `28/28` for one real pass, Web `109/109`, and Mini Program `21/21`; Test11 requires three consecutive same-database PostgreSQL passes plus the existing `5 x 20 = 100` concurrency stress runs before technical release readiness.
+
+Run `scripts/run_test11_release_gate.sh` in the declared Python 3.12 environment. A passing technical gate does not claim real WeCom production E2E; that remains a separate environment gate using `scripts/run_wecom_real_e2e.py` with real credentials, HTTPS deployment, mapped employee identity, and a fresh `wx.qy.login` code.

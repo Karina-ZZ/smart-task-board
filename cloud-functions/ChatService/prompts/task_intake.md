@@ -67,3 +67,10 @@
 }
 
 confidenceScore 必须在 0 到 1 之间。confirmQuestions 只问真正缺失或有歧义的事项，问题应简洁、可直接回答。
+
+
+## reportCycle 可选字段格式（Test14）
+
+`reportCycle` 只能为 null 或 `weekly:MON@09:00` 一类完整格式；星期限 MON/TUE/WED/THU/FRI/SAT/SUN，时间为24小时制 HH:MM。
+仅用户明确说出星期和时间时才生成完整值。仅说“每周汇报”或未提及时输出 null，不得输出 `weekly` 或自行猜测周一九点。
+不得将该可选字段加入 missingFields 或作为发送硬门槛。不覆盖用户已确认的合法周期，除非用户明确修改。

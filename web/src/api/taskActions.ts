@@ -21,6 +21,8 @@ export type TaskLifecycleAction = Exclude<
   | "approve_change_request"
   | "reject_change_request"
   | "cancel_change_request"
+  // Reassignment needs an assignee and reason; it is not a version-only action.
+  | "reassign_task"
 >;
 
 const actionPaths: Record<TaskLifecycleAction, string> = {
@@ -45,6 +47,7 @@ export const actionLabels: Record<AllowedAction, string> = {
   cancel_change_request: "取消变更申请",
   cancel_task: "取消任务",
   withdraw_task: "撤回任务",
+  reassign_task: "更换承办人",
   merge_task: "合并任务",
   close_task: "关闭任务",
   archive_task: "归档任务",

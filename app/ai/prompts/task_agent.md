@@ -223,7 +223,7 @@ Step 12 自检输出结果
 | `estimatedHours` | `tasks.estimated_hours` | 是 | 否 | 有依据才填写；无依据可为空或给低置信建议 |
 | `deliverable` | `tasks.deliverable` | 是 | 否 | 尽量提取可验收交付物；识别不到可为空 |
 | `isUrgent` | `tasks.is_urgent` | 是 | 否 | 出现紧急、马上、今天、临时等建议为 true；否则可为 false |
-| `reportCycle` | `tasks.report_cycle` | 是 | 否 | 明确出现汇报周期才填写；否则可为空或建议 weekly |
+| `reportCycle` | `tasks.report_cycle` | 是 | 否 | 仅在用户明确星期和时间时输出 weekly:MON@09:00 等完整格式；未说明或仅说“每周”时为 null，不得猜测日期和时间 |
 
 关键规则：
 
@@ -267,7 +267,7 @@ Step 12 自检输出结果
     "taskWeight": 3,
     "deliverable": "门店上线方案、数据核验清单、发布准备清单",
     "isUrgent": false,
-    "reportCycle": "weekly"
+    "reportCycle": null
   }
 }
 ```

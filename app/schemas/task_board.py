@@ -41,6 +41,7 @@ type AllowedAction = Literal[
     "cancel_change_request",
     "cancel_task",
     "withdraw_task",
+    "reassign_task",
     "merge_task",
     "close_task",
     "archive_task",

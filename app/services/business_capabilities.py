@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.report_cycle import is_valid_report_cycle
 from app.models import (
     AIExtractionRecord,
     Department,
@@ -1265,6 +1266,10 @@ class TaskIntakeService:
                 raise EntityNotFoundError("linked task was not found")
             return task
         payload = self._normalize_extraction_payload(extraction.extracted_json)
+        # Legacy AI suggestions are not user facts. Explicit corrections are merged later
+        # and still validated by the workflow; never invent a weekday or time.
+        if not is_valid_report_cycle(payload.get("report_cycle")):
+            payload["report_cycle"] = None
         payload.update(self._normalize_extraction_payload(corrections or {}))
         missing = [
             field
@@ -1680,7 +1685,10 @@ class TaskIntakeService:
         payload.pop("estimated_hours", None)
         payload.pop("nodes", None)
         payload.pop("dependencies", None)
-        missing = self._field_list(extracted.get("missing_fields"))
+        missing = [
+            field for field in self._field_list(extracted.get("missing_fields"))
+            if field not in {"report_cycle", "reportCycle"}
+        ]
         low_confidence = self._field_list(extracted.get("low_confidence_fields"))
         for field in ("estimated_hours", "nodes", "dependencies"):
             if field == "estimated_hours":
@@ -1691,6 +1699,9 @@ class TaskIntakeService:
         self._validate_extracted_people(payload, missing, low_confidence)
         self._validate_extracted_dates(payload, missing, low_confidence)
         self._validate_task_weight(payload, missing, low_confidence)
+        if not is_valid_report_cycle(payload.get("report_cycle")):
+            payload["report_cycle"] = None
+            low_confidence.append("report_cycle")
         questions = self._field_list(extracted.get("confirm_questions"), limit=10)
         return {
             "extracted_json": payload,

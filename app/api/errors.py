@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
+from app.core.error_diagnostics import log_server_failure
 from app.services.errors import (
     AuthenticationFailedError,
     BusinessValidationError,
@@ -131,6 +132,7 @@ async def integrity_error_handler(
 ) -> JSONResponse:
     if _integrity_sqlstate(exc) == "23505":
         return _response(409, "resource_conflict", "Resource already exists")
+    log_server_failure(_request, exc)
     return _response(500, "internal_server_error", "Internal server error")
 
 
@@ -138,6 +140,7 @@ async def unexpected_error_handler(
     _request: Request,
     _exc: Exception,
 ) -> JSONResponse:
+    log_server_failure(_request, _exc)
     return _response(500, "internal_server_error", "Internal server error")
 
 

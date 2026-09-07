@@ -66,6 +66,7 @@ export const actionLabels: Record<AllowedAction, string> = {
   reject_change_request: "拒绝变更",
   cancel_change_request: "取消变更",
   cancel_task: "取消任务",
+  reassign_task: "更换承办人",
   withdraw_task: "撤回任务",
   merge_task: "合并任务",
   close_task: "关闭任务",

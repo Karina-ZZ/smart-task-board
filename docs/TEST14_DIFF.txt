@@ -1,0 +1,587 @@
+Test14 vs Test13 - approved scope audit
+
+Baseline ZIP SHA-256: 5bf6644bc757d0ba3d8a1fe19cd607ff68aaf94a27a97502aea1b68f841b5b62
+Baseline file count: 523
+Removed files: 0
+Outside-whitelist changes: 0
+Protected unrelated functions: 229 / unchanged
+
+CHANGED EXISTING FILES:
+  README.md
+  app/ai/prompts/task_agent.md
+  app/ai/prompts/task_intake.md
+  app/api/errors.py
+  app/schemas/task.py
+  app/schemas/task_board.py
+  app/services/business_capabilities.py
+  app/services/task_workflow.py
+  cloud-functions/ChatService/prompts/task_intake.md
+  scripts/verify-ai-send-e2e.py
+  web/src/api/taskActions.ts
+  web/src/api/types.ts
+  web/src/features/task-detail/format.ts
+
+ADDED FILES (includes this diff report):
+  app/core/error_diagnostics.py
+  app/core/report_cycle.py
+  config-examples/test14-web.env.example
+  docs/TEST14_ACCEPTANCE_CHECKLIST.md
+  docs/TEST14_BASELINE_MANIFEST.json
+  docs/TEST14_DIFF.txt
+  docs/TEST14_EXECUTION_REPORT.md
+  docs/TEST14_LOCAL_PORTS_AND_LOGIN_GUIDE.md
+  scripts/run_test14_live_gate.sh
+  scripts/run_test14_technical_gate.sh
+  scripts/verify-test14-scope.py
+  tests/api/test_test14_contracts.py
+  tests/api/test_test14_diagnostics.py
+  tests/integration/test_test14_regressions_postgresql.py
+  tests/services/test_test14_report_cycle.py
+  web/e2e/dev-19-test14-sent-task-workbench.spec.ts
+  web/src/api/test14-contracts.test.ts
+
+FROZEN CONTENT CHECKS:
+  app/models/: 29 baseline files, all byte-identical
+  alembic/: 12 baseline files, all byte-identical
+  wechat-miniprogram/: 118 baseline files, all byte-identical
+  app/services/features/: 18 baseline files, all byte-identical
+  app/repositories/: 17 baseline files, all byte-identical
+  web/src/auth/: 4 baseline files, all byte-identical
+  app/services/task_board_query.py: byte-identical
+  app/core/config.py: byte-identical
+  web/src/pages/LoginPage.tsx: byte-identical
+  web/src/app/router.tsx: byte-identical
+  pyproject.toml: byte-identical
+  web/package.json: byte-identical
+  web/package-lock.json: byte-identical
+  scripts/run_postgresql_gate.sh: byte-identical
+
+Database: no connection to user databases; no migration/model changes.
+This is a source-scope check, NOT a production non-regression guarantee.
+
+UNIFIED DIFF OF CHANGED EXISTING FILES:
+
+--- Test13/README.md
++++ Test14/README.md
+@@ -1,4 +1,16 @@
+ # Smart Task Board
++
++## Test14 当前候选（2026-09-07）
++
++本次仅修复创建人发送后工作台的 `reassign_task` 响应契约、可选 `report_cycle` 入库校验和AI周期提示词，并增加脱敏诊断与专项测试。数据库模型/迁移、小程序、登录认证与其他业务实现保持原样。
++
++当前容器补充回归：非PG568项、小程序22项、JS50个和ChatService3项通过。容器只有Python3.13，未完成正式Python3.12、真实PG、完整Web与开发者工具API门禁；不能据此生产放行。下文历史进度和历史PASS不是Test14的新验收证据。
++
++- 执行与环境限制：`docs/TEST14_EXECUTION_REPORT.md`
++- 端口、各端打开及复验命令：`docs/TEST14_LOCAL_PORTS_AND_LOGIN_GUIDE.md`
++- 正式验收清单：`docs/TEST14_ACCEPTANCE_CHECKLIST.md`
++- 范围检查：`python scripts/verify-test14-scope.py`
++
+ 
+ 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
+ 
+
+--- Test13/app/ai/prompts/task_agent.md
++++ Test14/app/ai/prompts/task_agent.md
+@@ -223,7 +223,7 @@
+ | `estimatedHours` | `tasks.estimated_hours` | 是 | 否 | 有依据才填写；无依据可为空或给低置信建议 |
+ | `deliverable` | `tasks.deliverable` | 是 | 否 | 尽量提取可验收交付物；识别不到可为空 |
+ | `isUrgent` | `tasks.is_urgent` | 是 | 否 | 出现紧急、马上、今天、临时等建议为 true；否则可为 false |
+-| `reportCycle` | `tasks.report_cycle` | 是 | 否 | 明确出现汇报周期才填写；否则可为空或建议 weekly |
++| `reportCycle` | `tasks.report_cycle` | 是 | 否 | 仅在用户明确星期和时间时输出 weekly:MON@09:00 等完整格式；未说明或仅说“每周”时为 null，不得猜测日期和时间 |
+ 
+ 关键规则：
+ 
+@@ -267,7 +267,7 @@
+     "taskWeight": 3,
+     "deliverable": "门店上线方案、数据核验清单、发布准备清单",
+     "isUrgent": false,
+-    "reportCycle": "weekly"
++    "reportCycle": null
+   }
+ }
+ ```
+
+--- Test13/app/ai/prompts/task_intake.md
++++ Test14/app/ai/prompts/task_intake.md
+@@ -67,3 +67,10 @@
+ }
+ 
+ confidenceScore 必须在 0 到 1 之间。confirmQuestions 只问真正缺失或有歧义的事项，问题应简洁、可直接回答。
++
++
++## reportCycle 可选字段格式（Test14）
++
++`reportCycle` 只能为 null 或 `weekly:MON@09:00` 一类完整格式；星期限 MON/TUE/WED/THU/FRI/SAT/SUN，时间为24小时制 HH:MM。
++仅用户明确说出星期和时间时才生成完整值。仅说“每周汇报”或未提及时输出 null，不得输出 `weekly` 或自行猜测周一九点。
++不得将该可选字段加入 missingFields 或作为发送硬门槛。不覆盖用户已确认的合法周期，除非用户明确修改。
+
+--- Test13/app/api/errors.py
++++ Test14/app/api/errors.py
+@@ -6,6 +6,7 @@
+ from fastapi.responses import JSONResponse
+ from sqlalchemy.exc import IntegrityError
+ 
++from app.core.error_diagnostics import log_server_failure
+ from app.services.errors import (
+     AuthenticationFailedError,
+     BusinessValidationError,
+@@ -131,6 +132,7 @@
+ ) -> JSONResponse:
+     if _integrity_sqlstate(exc) == "23505":
+         return _response(409, "resource_conflict", "Resource already exists")
++    log_server_failure(_request, exc)
+     return _response(500, "internal_server_error", "Internal server error")
+ 
+ 
+@@ -138,6 +140,7 @@
+     _request: Request,
+     _exc: Exception,
+ ) -> JSONResponse:
++    log_server_failure(_request, _exc)
+     return _response(500, "internal_server_error", "Internal server error")
+ 
+ 
+
+--- Test13/app/schemas/task.py
++++ Test14/app/schemas/task.py
+@@ -4,6 +4,7 @@
+ 
+ from pydantic import Field, StringConstraints, field_validator, model_validator
+ 
++from app.core.report_cycle import validate_report_cycle
+ from app.schemas.common import DecimalString, ParticipantConfirmStatus, StrictSchema, TaskStatus
+ from app.schemas.task_change_request import TaskChangeRequestResponse
+ from app.schemas.task_node import (
+@@ -45,6 +46,7 @@
+     participants: tuple[TaskParticipantDraftRequest, ...] = ()
+     extraction_record_ids: tuple[UUID, ...] = ()
+ 
++    _validate_cycle = field_validator("report_cycle")(validate_report_cycle)
+     _validate_start = field_validator("start_time")(_require_aware)
+     _validate_deadline = field_validator("deadline")(_require_aware)
+ 
+@@ -79,6 +81,7 @@
+     report_cycle: str | None = None
+     collaborator_employee_nos: tuple[NonBlankString, ...] | None = None
+ 
++    _validate_cycle = field_validator("report_cycle")(validate_report_cycle)
+     _validate_start = field_validator("start_time")(_require_aware)
+     _validate_deadline = field_validator("deadline")(_require_aware)
+ 
+
+--- Test13/app/schemas/task_board.py
++++ Test14/app/schemas/task_board.py
+@@ -41,6 +41,7 @@
+     "cancel_change_request",
+     "cancel_task",
+     "withdraw_task",
++    "reassign_task",
+     "merge_task",
+     "close_task",
+     "archive_task",
+
+--- Test13/app/services/business_capabilities.py
++++ Test14/app/services/business_capabilities.py
+@@ -13,6 +13,7 @@
+ from sqlalchemy import and_, exists, func, or_, select
+ from sqlalchemy.orm import Session
+ 
++from app.core.report_cycle import is_valid_report_cycle
+ from app.models import (
+     AIExtractionRecord,
+     Department,
+@@ -1265,6 +1266,10 @@
+                 raise EntityNotFoundError("linked task was not found")
+             return task
+         payload = self._normalize_extraction_payload(extraction.extracted_json)
++        # Legacy AI suggestions are not user facts. Explicit corrections are merged later
++        # and still validated by the workflow; never invent a weekday or time.
++        if not is_valid_report_cycle(payload.get("report_cycle")):
++            payload["report_cycle"] = None
+         payload.update(self._normalize_extraction_payload(corrections or {}))
+         missing = [
+             field
+@@ -1680,7 +1685,10 @@
+         payload.pop("estimated_hours", None)
+         payload.pop("nodes", None)
+         payload.pop("dependencies", None)
+-        missing = self._field_list(extracted.get("missing_fields"))
++        missing = [
++            field for field in self._field_list(extracted.get("missing_fields"))
++            if field not in {"report_cycle", "reportCycle"}
++        ]
+         low_confidence = self._field_list(extracted.get("low_confidence_fields"))
+         for field in ("estimated_hours", "nodes", "dependencies"):
+             if field == "estimated_hours":
+@@ -1691,6 +1699,9 @@
+         self._validate_extracted_people(payload, missing, low_confidence)
+         self._validate_extracted_dates(payload, missing, low_confidence)
+         self._validate_task_weight(payload, missing, low_confidence)
++        if not is_valid_report_cycle(payload.get("report_cycle")):
++            payload["report_cycle"] = None
++            low_confidence.append("report_cycle")
+         questions = self._field_list(extracted.get("confirm_questions"), limit=10)
+         return {
+             "extracted_json": payload,
+
+--- Test13/app/services/task_workflow.py
++++ Test14/app/services/task_workflow.py
+@@ -1,7 +1,6 @@
+ from __future__ import annotations
+ 
+ import copy
+-import re
+ from collections.abc import Callable, Mapping, Sequence
+ from datetime import UTC, datetime
+ from decimal import Decimal
+@@ -10,6 +9,8 @@
+ from sqlalchemy import select
+ from sqlalchemy.exc import IntegrityError
+ 
++from app.core.report_cycle import REPORT_CYCLE_RE as _REPORT_CYCLE_RE
++from app.core.report_cycle import validate_report_cycle
+ from app.db.unit_of_work import UnitOfWork
+ from app.models import (
+     Notification,
+@@ -100,9 +101,6 @@
+     "participants": "participant_id",
+     "node_participants": "node_participant_id",
+ }
+-_REPORT_CYCLE_RE = re.compile(
+-    r"^weekly:(MON|TUE|WED|THU|FRI|SAT|SUN)@([01][0-9]|2[0-3]):[0-5][0-9]$"
+-)
+ 
+ 
+ def _aware_utc(value: datetime, field_name: str) -> datetime:
+@@ -1941,6 +1939,11 @@
+         now = _aware_utc(self._clock(), "clock")
+         task_name = _required_text(command.task_name, "task_name")
+         _required_text(command.operation_source, "operation_source")
++        # Also guard internal/AI callers that do not enter through HTTP schemas.
++        try:
++            validate_report_cycle(command.report_cycle)
++        except ValueError as exc:
++            raise BusinessValidationError(str(exc)) from exc
+         self._validate_task_numbers(command)
+         node_by_id = self._validate_draft_nodes(command)
+         validate_dependency_graph(
+@@ -2132,6 +2135,11 @@
+                 value = changes.get(field)
+                 if value:
+                     self._require_user(uow, str(value))
++            if "report_cycle" in changes:
++                try:
++                    validate_report_cycle(changes["report_cycle"])
++                except ValueError as exc:
++                    raise BusinessValidationError(str(exc)) from exc
+             old_assignee = task.main_assignee_employee_no
+             for key, value in changes.items():
+                 setattr(task, key, value)
+
+--- Test13/cloud-functions/ChatService/prompts/task_intake.md
++++ Test14/cloud-functions/ChatService/prompts/task_intake.md
+@@ -67,3 +67,10 @@
+ }
+ 
+ confidenceScore 必须在 0 到 1 之间。confirmQuestions 只问真正缺失或有歧义的事项，问题应简洁、可直接回答。
++
++
++## reportCycle 可选字段格式（Test14）
++
++`reportCycle` 只能为 null 或 `weekly:MON@09:00` 一类完整格式；星期限 MON/TUE/WED/THU/FRI/SAT/SUN，时间为24小时制 HH:MM。
++仅用户明确说出星期和时间时才生成完整值。仅说“每周汇报”或未提及时输出 null，不得输出 `weekly` 或自行猜测周一九点。
++不得将该可选字段加入 missingFields 或作为发送硬门槛。不覆盖用户已确认的合法周期，除非用户明确修改。
+
+--- Test13/scripts/verify-ai-send-e2e.py
++++ Test14/scripts/verify-ai-send-e2e.py
+@@ -1,15 +1,10 @@
+ #!/usr/bin/env python3
++"""Test14: real HTTP F1/F2 verification on an explicitly isolated local backend.
++
++Login -> empty-source draft -> send -> dashboard/list/detail/actions; validates
++null/legal/illegal report cycles. No HTTP mocks, migrations, cleanup or AI call.
++This is NOT a mini-program UI or real-Qwen acceptance test.
+ """
+-Feature: real HTTP verification for task send without answering AI clarification.
+-Responsibilities:
+-- Login through the isolated Web prototype auth endpoint.
+-- Create a complete task draft with task_source omitted/null.
+-- Submit and confirm-send through the real FastAPI process.
+-- Fetch the task detail and assert pending_acceptance/pending_accept semantics.
+-Does not own: UI automation, database provisioning, migrations, or test-data seeding.
+-Hotfix: Feature16 Login + AI Clarification Gate verification.
+-"""
+-
+ from __future__ import annotations
+ 
+ import json
+@@ -17,7 +12,9 @@
+ import sys
+ import urllib.error
+ import urllib.request
+-from datetime import datetime, timedelta, timezone
++from datetime import UTC, datetime, timedelta
++from urllib.parse import urlparse
++from uuid import uuid4
+ 
+ BASE_URL = os.getenv("STB_E2E_API_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
+ CREATOR = os.getenv("STB_E2E_CREATOR", "E-CREATOR")
+@@ -26,96 +23,121 @@
+ REVIEWER = os.getenv("STB_E2E_REVIEWER", "E-REVIEWER")
+ 
+ 
+-def request_json(
+-    path: str,
+-    method: str = "GET",
+-    body: dict | None = None,
+-    token: str | None = None,
+-    headers: dict[str, str] | None = None,
+-):
++def require_isolated_target() -> None:
++    parsed = urlparse(BASE_URL)
++    if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}
++            or parsed.username or parsed.password or parsed.path or parsed.query):
++        raise RuntimeError("This write probe only supports a local isolated HTTP backend")
++    if os.getenv("STB_TEST14_ALLOW_TEST_WRITES") != "1":
++        raise RuntimeError(
++            "Set STB_TEST14_ALLOW_TEST_WRITES=1 only after verifying the backend uses "
++            "an isolated disposable database (not an existing demo or production database)"
++        )
++
++
++def request_json(path, method="GET", body=None, token=None, headers=None):
+     payload = None if body is None else json.dumps(body).encode("utf-8")
+     request_headers = {"Content-Type": "application/json"}
+     if token:
+         request_headers["Authorization"] = f"Bearer {token}"
+-    if headers:
+-        request_headers.update(headers)
++    request_headers.update(headers or {})
+     req = urllib.request.Request(
+-        f"{BASE_URL}{path}", data=payload, method=method, headers=request_headers
++        f"{BASE_URL}{path}", data=payload, method=method, headers=request_headers,
+     )
++    # Loopback requests must not be routed through a corporate/system proxy.
++    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+     try:
+-        with urllib.request.urlopen(req, timeout=15) as response:
+-            data = response.read().decode("utf-8")
+-            return response.status, json.loads(data) if data else None
++        response = opener.open(req, timeout=15)
+     except urllib.error.HTTPError as exc:
+-        text = exc.read().decode("utf-8", errors="replace")
+-        raise RuntimeError(f"{method} {path} -> HTTP {exc.code}: {text[:600]}") from exc
++        response = exc
++    with response:
++        content = response.read().decode("utf-8")
++        return response.code, json.loads(content) if content else None
++
++
++def checked(path, method="GET", body=None, token=None, expected=200, headers=None):
++    status, result = request_json(path, method, body, token, headers)
++    if status != expected:
++        code = (result or {}).get("error", {}).get("code", "unexpected_response")
++        # Do not print credentials, arbitrary response bodies, or token-bearing objects.
++        raise AssertionError(f"{method} {path}: expected {expected}, got {status} ({code})")
++    return result
++
++
++def draft_payload(cycle):
++    now = datetime.now(UTC).replace(microsecond=0)
++    task_id = str(uuid4())
++    return {
++        "task_id": task_id, "task_name": f"Test14-{task_id[:8]}",
++        "task_description": "Test14 complete fields without submitting AI clarification",
++        "task_goal": "Send and return to creator workbench without a 500",
++        "task_source": None,
++        "main_assignee_employee_no": ASSIGNEE, "report_to_employee_no": REPORTER,
++        "reviewer_employee_no": REVIEWER, "start_time": now.isoformat(),
++        "deadline": (now + timedelta(days=2)).isoformat(), "task_weight": 3,
++        "report_cycle": cycle, "participants": [], "extraction_record_ids": [],
++    }
++
++
++def assert_reads(token, task_id):
++    for path, field in [("/api/v1/dashboard/summary", "recent_tasks"),
++                        ("/api/v1/tasks?relation=created", "items")]:
++        response = checked(path, token=token)
++        matching = [row for row in response[field] if row["task_id"] == task_id]
++        assert len(matching) == 1, "Sent task was silently dropped from the response"
++        assert "reassign_task" in matching[0]["allowed_actions"]
++    actions = checked(f"/api/v1/tasks/{task_id}/available-actions", token=token)
++    assert "reassign_task" in actions["allowed_actions"]
++    checked("/api/v1/tasks/inbox", token=token)
++
++
++def send_scenario(token, cycle):
++    payload = draft_payload(cycle)
++    created = checked("/api/v1/tasks", "POST", payload, token, 201)
++    task_id = created["task_id"]
++    detail_path = f"/api/v1/tasks/{task_id}"
++    for invalid in ("weekly", "\u6bcf\u5468", "weekly:MON@24:00"):
++        checked(f"{detail_path}/draft", "PATCH", {
++            "expected_task_version": created["task_version"], "report_cycle": invalid,
++            "task_name": "MUST NOT BE SAVED",
++        }, token, 422)
++        detail = checked(detail_path, token=token)
++        assert detail["report_cycle"] == cycle
++        assert detail["task_version"] == created["task_version"]
++        assert detail["task_name"] == payload["task_name"]
++    submitted = checked(f"{detail_path}/actions/submit-for-confirmation", "POST",
++                        {"expected_task_version": created["task_version"]}, token)
++    body = {"expected_task_version": submitted["task_version"]}
++    headers = {"Idempotency-Key": f"test14-send-{task_id}"}
++    sent = checked(f"{detail_path}/actions/confirm-and-send", "POST", body, token, headers=headers)
++    repeated = checked(f"{detail_path}/actions/confirm-and-send", "POST", body, token,
++                       headers=headers)
++    assert sent == repeated
++    assert sent["status"] in {"pending_acceptance", "pending_accept"}
++    detail = checked(detail_path, token=token)
++    assert detail["task_source"] is None and detail["report_cycle"] == cycle
++    assert not detail["nodes"]
++    assert_reads(token, task_id)
++    return {"task_id": task_id, "status": detail["status"], "report_cycle": cycle}
+ 
+ 
+ def main() -> int:
+-    status, login = request_json(
+-        "/api/v1/auth/prototype-login", "POST", {"employee_no": CREATOR}
+-    )
+-    assert status == 200
++    require_isolated_target()
++    login = checked("/api/v1/auth/login", "POST", {"employee_no": CREATOR})
+     token = login["access_token"]
+-
+-    now = datetime.now(timezone(timedelta(hours=8))).replace(microsecond=0)
+-    payload = {
+-        "task_name": "E2E-AI追问非硬门槛",
+-        "task_description": "验证AI仍有提示时，完整任务字段可以正常确认发送。",
+-        "task_goal": "真实HTTP链路进入待接受状态",
+-        "task_source": None,
+-        "main_assignee_employee_no": ASSIGNEE,
+-        "report_to_employee_no": REPORTER,
+-        "reviewer_employee_no": REVIEWER,
+-        "start_time": now.isoformat(),
+-        "deadline": (now + timedelta(days=2)).isoformat(),
+-        "task_weight": 3,
+-        "report_cycle": "每周",
+-        "participants": [],
+-        "extraction_record_ids": [],
+-    }
+-    status, created = request_json("/api/v1/tasks", "POST", payload, token)
+-    assert status == 201, created
+-    task_id = created["task_id"]
+-    version = created["task_version"]
+-    assert created["status"] == "draft"
+-
+-    status, submitted = request_json(
+-        f"/api/v1/tasks/{task_id}/actions/submit-for-confirmation",
+-        "POST",
+-        {"expected_task_version": version},
+-        token,
+-    )
+-    assert status == 200, submitted
+-    assert submitted["status"] in {"pending_confirmation", "pending_confirm"}
+-
+-    status, sent = request_json(
+-        f"/api/v1/tasks/{task_id}/actions/confirm-and-send",
+-        "POST",
+-        {"expected_task_version": submitted["task_version"]},
+-        token,
+-        {"Idempotency-Key": f"e2e-no-clarification-{task_id}-{submitted['task_version']}"},
+-    )
+-    assert status == 200, sent
+-    assert sent["status"] in {"pending_acceptance", "pending_accept"}, sent
+-
+-    status, detail = request_json(f"/api/v1/tasks/{task_id}", token=token)
+-    assert status == 200
+-    assert detail["task_id"] == task_id
+-    assert detail["task_source"] is None
+-    assert detail["status"] in {"pending_acceptance", "pending_accept"}
+-    assert not detail.get("nodes"), "creator send must not generate nodes"
+-
+-    print("AI_SEND_REAL_HTTP_E2E_PASS")
+-    print(f"task_id={task_id}")
+-    print(f"status={detail['status']}")
+-    print("task_source=null")
++    assert checked("/api/v1/me", token=token)["employee_no"] == CREATOR
++    for invalid in ("weekly", "\u6bcf\u5468"):
++        checked("/api/v1/tasks", "POST", draft_payload(invalid), token, 422)
++    results = [send_scenario(token, cycle) for cycle in (None, "weekly:MON@09:00")]
++    print("TEST14_REAL_HTTP_PASS")
++    print("AI_SEND_REAL_HTTP_E2E_PASS (HTTP only; UI/real AI not tested by this script)")
++    print(json.dumps({"tasks": results}, ensure_ascii=True))
+     return 0
+ 
+ 
+ if __name__ == "__main__":
+     try:
+         raise SystemExit(main())
+-    except Exception as exc:  # pragma: no cover - standalone verification utility
+-        print(f"AI_SEND_REAL_HTTP_E2E_FAIL: {exc}", file=sys.stderr)
+-        raise
++    except Exception as exc:
++        print(f"TEST14_REAL_HTTP_FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
++        raise SystemExit(1) from None
+
+--- Test13/web/src/api/taskActions.ts
++++ Test14/web/src/api/taskActions.ts
+@@ -21,6 +21,8 @@
+   | "approve_change_request"
+   | "reject_change_request"
+   | "cancel_change_request"
++  // Reassignment needs an assignee and reason; it is not a version-only action.
++  | "reassign_task"
+ >;
+ 
+ const actionPaths: Record<TaskLifecycleAction, string> = {
+@@ -45,6 +47,7 @@
+   cancel_change_request: "取消变更申请",
+   cancel_task: "取消任务",
+   withdraw_task: "撤回任务",
++  reassign_task: "更换承办人",
+   merge_task: "合并任务",
+   close_task: "关闭任务",
+   archive_task: "归档任务",
+
+--- Test13/web/src/api/types.ts
++++ Test14/web/src/api/types.ts
+@@ -39,6 +39,7 @@
+   | "cancel_change_request"
+   | "cancel_task"
+   | "withdraw_task"
++  | "reassign_task"
+   | "merge_task"
+   | "close_task"
+   | "archive_task"
+
+--- Test13/web/src/features/task-detail/format.ts
++++ Test14/web/src/features/task-detail/format.ts
+@@ -66,6 +66,7 @@
+   reject_change_request: "拒绝变更",
+   cancel_change_request: "取消变更",
+   cancel_task: "取消任务",
++  reassign_task: "更换承办人",
+   withdraw_task: "撤回任务",
+   merge_task: "合并任务",
+   close_task: "关闭任务",
+
+
+SHA-256 OF NEW FILES (this file excluded to avoid self-reference):
+730189a70ecfcbf52d4b3dfcce031402aaa288eeca0a7abb0804e9da2a05e52d  app/core/error_diagnostics.py
+65514685a617ac855f9d767b2f377e572bef02cd8a9a870e1f4ef7a6fc97ec19  app/core/report_cycle.py
+72e6ae147f27f012c27a2d587b3e1b2e3fcae467bffd697ba7bc071164b819bb  config-examples/test14-web.env.example
+a7c28f39612db4bf35af2583eb94a29d837892ce330ad1fadaeea7b35716c048  docs/TEST14_ACCEPTANCE_CHECKLIST.md
+e4b7ae8e43b3b61ca2c0928c2a5fad3653e5a6412d0cc7e2a7be2d1879c4def7  docs/TEST14_BASELINE_MANIFEST.json
+ffe314333243796857adfda7968f2e861c40db74bf3cf76ad23c37e578c8c5bc  docs/TEST14_EXECUTION_REPORT.md
+9135acd8b4a5947e0cd3b019f1647e0e029729c1fcde6220f762bca819adf1a0  docs/TEST14_LOCAL_PORTS_AND_LOGIN_GUIDE.md
+dc3de1fdd8a043fc83a11874ba005c9c76f095bb853334e00edb1ba82a1002a5  scripts/run_test14_live_gate.sh
+a806747e581608734a941f9073b49d58264b6f2a52fdd0fd7e6c22290f5ad4da  scripts/run_test14_technical_gate.sh
+fc2a0d5b92f86319bdc23af2e275731052ee055d879cf38736ebafaa8eee77ab  scripts/verify-test14-scope.py
+e38a78bad9fa70f8df902fc652f2643c0e517a5cfb62754d1419f14d83ba688f  tests/api/test_test14_contracts.py
+ab12565e3f030f86c450e1563a72633185ca45cef5d8909c98129bdd83809bab  tests/api/test_test14_diagnostics.py
+d28b7a371d7752949719105d24c7fdb926c95993446e71731088829554beeeae  tests/integration/test_test14_regressions_postgresql.py
+c32679e900e02ce0c5920165306a2b4e08ff8bc9876f5d4cd5635b34cfd0c338  tests/services/test_test14_report_cycle.py
+c81d848ecf27a442b42718f3ff7c02fe79c5bacf19001e00a34e1b4d06fd30cd  web/e2e/dev-19-test14-sent-task-workbench.spec.ts
+3ee892e040ce99ddfbe23fd7292a9d9ab1dd836cef7e5c3a42398461f6ce708f  web/src/api/test14-contracts.test.ts
