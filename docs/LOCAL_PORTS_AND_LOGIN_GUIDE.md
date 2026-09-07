@@ -1,6 +1,6 @@
 # 旺序AI任务中枢｜本地端口与登录打开方式说明
 
-> 适用版本：Test13 WebLogin + AI Gate Hotfix + TaskSourceOptional 候选包  
+> 适用版本：Test11 WebLogin Hotfix + TaskSourceOptional/Clarification Hotfix 后续候选包  
 > 日期：2026-09-07  
 > 目的：明确“本地 Web 演示登录”“本地 API”“微信小程序联调”“正式企业微信入口”的区别，避免再次打开旧目录中的 5173 服务而误判版本。
 

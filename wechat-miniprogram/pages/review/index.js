@@ -25,7 +25,29 @@ Page({
       .catch((error) => this.setData({ loading: false, error: error.message || "验收信息加载失败" }));
   },
   back() { wx.navigateBack(); },
-  approve() { wx.showModal({ title: "验收通过", content: "通过后任务将在同一流程中完成并自动归档，不生成归档快照。", confirmText: "通过并归档", success: (result) => { if (result.confirm) this.decide(true, ""); } }); },
+  approve() {
+    if (this.data.deciding || this.approveModalOpen) return;
+    // Test16 modal fix: confirmation text must fit the native four-character limit.
+    this.approveModalOpen = true;
+    const modalFailed = () => {
+      this.approveModalOpen = false;
+      wx.showToast({ title: "确认窗口打开失败，请重试", icon: "none" });
+    };
+    try {
+      wx.showModal({
+        title: "验收通过",
+        content: "通过后任务将在同一流程中完成并自动归档，不生成归档快照。",
+        confirmText: "确认通过",
+        success: (result) => {
+          if (result.confirm && !this.data.deciding) this.decide(true, "");
+        },
+        fail: modalFailed,
+        complete: () => { this.approveModalOpen = false; },
+      });
+    } catch {
+      modalFailed();
+    }
+  },
   reject() { wx.showModal({ title: "退回修改", editable: true, placeholderText: "请填写验收不通过原因", confirmText: "确认退回", success: (result) => { if (!result.confirm) return; const reason = (result.content || "").trim(); if (!reason) { wx.showToast({ title: "退回原因必填", icon: "none" }); return; } this.decide(false, reason); } }); },
   decide(approved, reason) { const reviewId = this.data.review.completionReviewId || this.data.review.reviewId; this.setData({ deciding: true }); api.reviewTask(this.data.taskId, this.data.task.taskVersion, reviewId, approved, reason).then(() => { wx.showToast({ title: approved ? "已通过并归档" : "已退回修改", icon: "success" }); setTimeout(() => router.replace("/pages/task-detail/index", { taskId: this.data.taskId }), 450); }).catch((error) => { this.setData({ deciding: false }); wx.showToast({ title: error.message, icon: "none" }); }); },
 });

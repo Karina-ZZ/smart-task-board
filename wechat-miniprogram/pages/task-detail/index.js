@@ -202,22 +202,34 @@ Page({
 
   acceptTask() {
     const task = this.data.task;
-    if (!task || this.data.actionSubmitting) return;
-    wx.showModal({
-      title: "接受任务",
-      content: "接受后系统将立即启动AI拆解。拆解成功前任务不会生效。",
-      confirmText: "接受并拆解",
-      success: (result) => {
-        if (!result.confirm) return;
-        this.setData({ actionSubmitting: true });
-        api.acceptTask(this.data.taskId, task.taskVersion)
-          .then(() => router.replace("/pages/decomposition/index", { taskId: this.data.taskId }))
-          .catch((error) => {
-            this.setData({ actionSubmitting: false });
-            wx.showToast({ title: error.message || "接受任务失败", icon: "none" });
-          });
-      },
-    });
+    if (!task || this.data.actionSubmitting || this.acceptModalOpen) return;
+    // Test16 modal fix: lock only this dialog, not task state or authorization.
+    this.acceptModalOpen = true;
+    const modalFailed = () => {
+      this.acceptModalOpen = false;
+      wx.showToast({ title: "确认窗口打开失败，请重试", icon: "none" });
+    };
+    try {
+      wx.showModal({
+        title: "接受任务",
+        content: "接受后系统将立即启动AI拆解。拆解成功前任务不会生效。",
+        confirmText: "确认接受",
+        success: (result) => {
+          if (!result.confirm || this.data.actionSubmitting) return;
+          this.setData({ actionSubmitting: true });
+          api.acceptTask(this.data.taskId, task.taskVersion)
+            .then(() => router.replace("/pages/decomposition/index", { taskId: this.data.taskId }))
+            .catch((error) => {
+              this.setData({ actionSubmitting: false });
+              wx.showToast({ title: error.message || "接受任务失败", icon: "none" });
+            });
+        },
+        fail: modalFailed,
+        complete: () => { this.acceptModalOpen = false; },
+      });
+    } catch {
+      modalFailed();
+    }
   },
 
   returnTask() {

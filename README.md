@@ -369,3 +369,42 @@ Test11 does not add product behavior or schema changes. It closes the six remain
 Current source facts: Alembic has `10` migration files with single head `c2d3e4f5a6b7`; the user's Test10 runtime inspection reported `100` OpenAPI paths / `106` operations. Test10 local evidence reached backend non-PostgreSQL `504/504`, PostgreSQL `28/28` for one real pass, Web `109/109`, and Mini Program `21/21`; Test11 requires three consecutive same-database PostgreSQL passes plus the existing `5 x 20 = 100` concurrency stress runs before technical release readiness.
 
 Run `scripts/run_test11_release_gate.sh` in the declared Python 3.12 environment. A passing technical gate does not claim real WeCom production E2E; that remains a separate environment gate using `scripts/run_wecom_real_e2e.py` with real credentials, HTTPS deployment, mapped employee identity, and a fresh `wx.qy.login` code.
+
+## 当前项目阶段总结（2026-09-07 Test16 Performance-Link Hotfix 后）
+
+> 涵盖功能 01～16 的整体阶段判断。完整版见 [docs/FEATURE_16_PROGRESS_REPORT.md](docs/FEATURE_16_PROGRESS_REPORT.md)。
+
+### 五阶段视图
+
+| 阶段 | 状态 |
+| --- | --- |
+| ① 产品和数据设计 | ✅ 完成 |
+| ② 核心业务功能开发 | ✅ 基本完成 |
+| ③ 功能 13～15 高级能力 | ✅ 完成 |
+| ④ Test16 真实使用问题修复 | █████████░ 约 90%～95% |
+| ⑤ 正式服务器部署 + 企业微信上线 | ░░░░░░░░░░ 尚未正式完成 |
+
+### 已经完成的核心能力（功能 01～16 累计）
+
+工作台 / 任务概览 / 任务详情、登录与权限、AI 文字录入与多轮追问、创建确认发送、任务来源选填、用户手填不被 AI 追问覆盖、承办人接受退回、接受后 AI 自动拆解、AI 拆解节点依赖、协办节点承接、节点执行与进度更新、任务级进度汇报与卡点、任务变更 / 更换承办人 / 撤回、完成申请 / 验收 / 自动归档、绩效指标匹配与人工确认、优先级 / 负荷 / 冲突计算、通知提醒与节点临期提醒、高管基础看板、高管按员工查看任务、企业微信登录接口与身份映射基础、Web 登录页接入真实路由。
+
+### 当前累计测试结果
+
+- 后端非 PostgreSQL：**602 passed / 41 deselected**
+- 微信小程序：**25 / 25 个测试文件 PASS**
+- 微信 JS（`node --check`）：**54 files / 0 failed**
+- Python `compileall`：**PASS**
+- ChatService：**3 / 3 PASS**
+- Test10 已实地跑过：真实 PostgreSQL 28/28 × 1、Web 109/109 PASS、lint PASS、build PASS、小程序 21/21 PASS
+
+### 仍需完成的正式环境门禁
+
+1. Test16 新增 PostgreSQL 验收测试（确认绩效关联 → 发送 → 重读详情仍保留）—— 当前环境**未跑真实 PG**
+2. PostgreSQL 多轮稳定性验证：Test11 要求 28/28 × **连续 3 轮** 同一数据库全部 PASS
+3. Outbox 并发压力：**5 场景 × 20 次 = 100/100 PASS**
+4. 微信开发者工具 API 模式全链路人工验收（创建 → 发送 → 接受 → AI 拆解 → 节点执行 → 汇报 → 完成 → 验收 → 归档）
+5. 真实企业微信 E2E（需公司 CorpID / AgentID / Secret / 正式 HTTPS 域名 / 真实员工 mapping）
+
+### 一句话结论
+
+> 旺序 AI 任务中枢的主要产品功能已经开发完成（功能 01～15 及 16 的集成能力都已进入累计源码），目前处在 Test16 最后的稳定性修复 + 正式环境验收 + 上线准备阶段；最近已经修完接受任务弹窗、Web 登录、任务来源选填、AI 字段覆盖和绩效关联显示等实际问题。下一步不应继续增加新功能，而应**以 Test16 为唯一基线**完成 PG 多轮测试、Outbox 并发测试、微信开发者工具全链路测试和真实企业微信登录验证，通过后即可进入公司正式服务器部署 + 企业微信上线阶段。

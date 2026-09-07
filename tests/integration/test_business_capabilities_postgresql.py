@@ -51,6 +51,7 @@ from app.services.business_capabilities import (
     SystemParameterService,
     TaskIntakeService,
 )
+from app.services.task_query import TaskQueryService
 from app.services.task_workflow import TaskWorkflowService
 from tests.integration.v11_postgresql_helpers import send_accept_and_decompose_v11
 
@@ -345,6 +346,99 @@ def _current_task_version(session_factory: sessionmaker[Session], task_id: UUID)
         task = session.get(Task, task_id)
         assert task is not None
         return task.task_version
+
+
+def test_confirmed_performance_relation_survives_send_and_detail_reload_postgresql(
+    business_session_factory: sessionmaker[Session],
+    records: CreatedRecords,
+) -> None:
+    """A creator-confirmed KPI is an independent business fact and must survive send."""
+    refs = _create_references(business_session_factory, records)
+    clock = StepClock()
+    task_id = uuid4()
+    task = Task(
+        task_id=task_id,
+        task_name="Performance relation persistence",
+        task_description="Confirm KPI before task send",
+        task_goal="Keep the KPI visible after send and detail reload",
+        task_source=None,
+        creator_employee_no=refs.creator,
+        main_assignee_employee_no=refs.assignee,
+        report_to_employee_no=refs.reviewer,
+        reviewer_employee_no=refs.reviewer,
+        department_id=refs.department_id,
+        status="draft",
+        start_time=clock.current,
+        deadline=clock.current + timedelta(days=2),
+        task_weight=4,
+        task_version=1,
+        created_at=clock.current,
+        updated_at=clock.current,
+    )
+    participant = TaskParticipant(
+        task_id=task_id,
+        employee_no=refs.assignee,
+        participant_role="assignee",
+        is_primary=True,
+    )
+    with business_session_factory() as session:
+        session.add_all([task, participant])
+        session.commit()
+    records.task_ids.add(task_id)
+
+    with business_session_factory() as session:
+        metric_service = PerformanceMetricService(session, clock=clock)
+        metric = metric_service.create_metric(
+            refs.admin,
+            {
+                "metric_type": "KPI",
+                "metric_name": "Performance relation KPI",
+                "business_unit": "Business Integration",
+                "definition_formula": "confirmed task / planned task",
+                "status": "active",
+            },
+        )
+        records.metric_ids.add(metric.metric_id)
+        matches = metric_service.suggest_matches(
+            refs.creator,
+            task_id,
+            limit=10,
+            expected_task_version=1,
+        )
+        records.match_ids.update(item.performance_match_id for item in matches)
+        selected = next(item for item in matches if item.metric_id == metric.metric_id)
+        confirmed = metric_service.confirm_match(
+            refs.creator,
+            task_id,
+            selected.performance_match_id,
+            expected_task_version=1,
+        )
+        assert confirmed.is_confirmed is True
+
+    with business_session_factory() as session:
+        before_send = TaskQueryService(session).get_task_detail(task_id, refs.creator)
+        assert len(before_send["performance_matches"]) == 1
+        assert before_send["performance_matches"][0]["metric_id"] == metric.metric_id
+        assert before_send["performance_matches"][0]["is_confirmed"] is True
+
+    workflow = TaskWorkflowService(_uow_factory(business_session_factory), clock=clock)
+    submitted = workflow.submit_for_confirmation(task_id, refs.creator, 1, "postgresql-test")
+    sent = workflow.confirm_and_send(
+        task_id,
+        refs.creator,
+        submitted.task_version,
+        "postgresql-test",
+        idempotency_key=f"performance-send-{task_id}",
+    )
+    assert sent.status == "pending_acceptance"
+
+    with business_session_factory() as session:
+        after_send = TaskQueryService(session).get_task_detail(task_id, refs.creator)
+        assert after_send["status"] == "pending_acceptance"
+        assert len(after_send["performance_matches"]) == 1
+        assert after_send["performance_matches"][0]["metric_id"] == metric.metric_id
+        assert after_send["performance_matches"][0]["metric_name"] == metric.metric_name
+        assert after_send["performance_matches"][0]["is_confirmed"] is True
 
 
 def test_full_business_capability_flow_with_real_postgresql(

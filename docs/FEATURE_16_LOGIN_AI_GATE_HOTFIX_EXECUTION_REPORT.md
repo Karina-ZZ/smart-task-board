@@ -1,7 +1,6 @@
-# Test13｜功能16专项修复执行报告｜Web登录稳定启动 + AI确认非硬门槛
+# 功能16专项修复执行报告｜Web登录稳定启动 + AI确认非硬门槛
 
 > 执行日期：2026-09-07  
-> 候选版本：`Test13-WebLogin-AIGate-Hotfix-TaskSourceOptional-smart-task-board-feature16-release-candidate.zip`  
 > 修改基线：`Test11-WebLogin-Hotfix-TaskSourceOptional-smart-task-board-feature16-release-candidate.zip`  
 > 基线 SHA-256：`7d743aaff0772386f0cc06d5aa48169a83bb1738c4c65844c74241047fd36e40`  
 > 目标：解决“打开旧5173实例导致Web登录看似未修复”的重复误判，并强化“AI需要你确认不是独立发送门槛”的页面与测试合同。  

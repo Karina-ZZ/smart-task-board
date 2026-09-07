@@ -161,6 +161,28 @@ function taskRelations(state, employeeNo, task) {
   return [...new Set(relations)];
 }
 
+function confirmedPerformanceMatches(state, task) {
+  if (!task.performanceMetricId && (!task.performanceMetric || task.performanceMetric === "不关联绩效")) return [];
+  const metric = (state.performanceMetrics || []).find((item) => (
+    item.metricId === task.performanceMetricId || item.metricName === task.performanceMetric
+  ));
+  if (!metric) return [];
+  const metricIndex = Math.max(0, (state.performanceMetrics || []).findIndex((item) => item.metricId === metric.metricId));
+  return [{
+    performanceMatchId: `${task.taskId}-${metric.metricId}`,
+    taskId: task.taskId,
+    metricId: metric.metricId,
+    metricName: metric.metricName,
+    metricType: metric.metricType,
+    period: metric.period,
+    businessUnit: metric.businessUnit,
+    totalScore: String(Math.max(55, 92 - metricIndex * 13)),
+    matchLevel: metricIndex === 0 ? "strong" : "weak",
+    matchReason: metric.matchReason,
+    isConfirmed: true,
+  }];
+}
+
 function enrichTask(state, task) {
   const assignee = userByNo(state, task.mainAssigneeEmployeeNo);
   const creator = userByNo(state, task.creatorEmployeeNo);
@@ -171,7 +193,7 @@ function enrichTask(state, task) {
   const logs = state.logs.filter((log) => log.taskId === task.taskId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const review = state.reviews.filter((item) => item.taskId === task.taskId).sort((a, b) => b.roundNo - a.roundNo)[0] || null;
   const changeRequests = (state.changeRequests || []).filter((item) => item.taskId === task.taskId).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  return { ...task, assigneeName: assignee?.name || "待分配", creatorName: creator?.name || "-", reviewerName: reviewer?.name || "-", reportToName: userByNo(state, task.reportToEmployeeNo)?.name || "-", collaboratorNames: (task.collaboratorEmployeeNos || []).map((no) => userByNo(state, no)?.name).filter(Boolean), nodes: taskNodes, reports, issues, logs, review, changeRequests, currentUserRelations: taskRelations(state, state.currentEmployeeNo, task), isOverdue: !!task.deadline && new Date(task.deadline).getTime() < Date.now() && !["archived", "cancelled", "withdrawn", "closed"].includes(task.status), allowedActions: actionsFor(state, task, taskNodes, review) };
+  return { ...task, assigneeName: assignee?.name || "待分配", creatorName: creator?.name || "-", reviewerName: reviewer?.name || "-", reportToName: userByNo(state, task.reportToEmployeeNo)?.name || "-", collaboratorNames: (task.collaboratorEmployeeNos || []).map((no) => userByNo(state, no)?.name).filter(Boolean), nodes: taskNodes, reports, issues, logs, review, changeRequests, performanceMatches: confirmedPerformanceMatches(state, task), currentUserRelations: taskRelations(state, state.currentEmployeeNo, task), isOverdue: !!task.deadline && new Date(task.deadline).getTime() < Date.now() && !["archived", "cancelled", "withdrawn", "closed"].includes(task.status), allowedActions: actionsFor(state, task, taskNodes, review) };
 }
 
 function actionsFor(state, task, taskNodes, review) {

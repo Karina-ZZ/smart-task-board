@@ -1,7 +1,16 @@
-# 旺序AI任务中枢｜Test14 端口区分与各端打开方式
+# 旺序AI任务中枢｜Test15 端口区分与各端打开方式
 
-> 本文适用于Test14。端口不是版本号，也不表示“正式”。必须一起核对代码目录、进程、配置和数据库。  
-> Test14累计包解压目录：smart-task-board-test14。本文不替换企业微信正式配置。
+> **Test15版本说明**：本次仅统一交付名称、解压目录和说明文档，不新增业务修改。
+> 业务代码、测试脚本、配置模板、数据库模型和迁移均与Test14最后交付一致。
+> 脚本、环境变量和库名示例中的 `test14` / `TEST14` 为保留的兼容标识，不要全局替换为Test15。
+> 以前的测试结果属于Test14历史证据；Test15本次仅执行打包一致性和原修改范围检查，未重跑功能测试。
+> **正式环境验收状态不变：仍为候选版本，未获生产放行。**
+
+> 累计源码内 `docs/TEST14_*.md` 文件名为保持现有范围校验不变而保留；对外同步提供 `TEST15_*.md` 文档。
+
+
+> 本文适用于Test15。端口不是版本号，也不表示“正式”。必须一起核对代码目录、进程、配置和数据库。  
+> Test15累计包解压目录：smart-task-board-test15。本文不替换企业微信正式配置。
 
 ## 1. 分别从哪里打开
 
@@ -13,7 +22,7 @@
 | 小程序API联调 | 微信开发者工具导入专项联调副本 | config.js的apiBaseUrl指向隔离测试后端 | 必须确认mode=api；不能失败后以mock结果算通过 |
 | 正式企业微信 | 员工从企业微信配置的应用入口进入 | 公司部署并配置的HTTPS入口 | 真实WeCom身份；最终域名和入口本次未验收 |
 
-5173/8000是旧默认端口，不代表正式服务。Test13报告已出现打开旧目录Vite而误判版本的情况。5174/8001也可能被旧进程占用：不能只看地址判断Test14已生效。
+5173/8000是旧默认端口，不代表正式服务。Test13报告已出现打开旧目录Vite而误判版本的情况。5174/8001也可能被旧进程占用：不能只看地址判断Test15已生效。
 
 5432、46479、46480是可能的PostgreSQL端口，不是登录页面。58805、9420等开发者工具自动化端口也不是用户登录入口。
 
@@ -36,9 +45,9 @@
 先准备项目原要求的Python3.12虚拟环境、原锁文件依赖，以及上述独立联调库。不要在仓库secrets/backend.env写prototype配置，也不要覆盖公司WeCom配置。
 
 ```bash
-cd smart-task-board-test14
-cp config-examples/test14-web.env.example /tmp/stb-test14-web.env
-chmod 600 /tmp/stb-test14-web.env
+cd smart-task-board-test15
+cp config-examples/test14-web.env.example /tmp/stb-test15-web.env
+chmod 600 /tmp/stb-test15-web.env
 ```
 
 在仓库外文件中填写新的测试数据库连接和随机JWT密钥，核对：
@@ -55,15 +64,15 @@ CORS_ALLOWED_ORIGINS=http://127.0.0.1:5174,http://localhost:5174
 仅当确认目标确为新建的smart_task_board_test14_test时，才执行初始化。以下不是日常启动步骤：
 
 ```bash
-WANGXU_BACKEND_ENV_FILE=/tmp/stb-test14-web.env \
+WANGXU_BACKEND_ENV_FILE=/tmp/stb-test15-web.env \
   .venv/bin/python -m alembic upgrade head
 
-WANGXU_BACKEND_ENV_FILE=/tmp/stb-test14-web.env PYTHONPATH=. \
+WANGXU_BACKEND_ENV_FILE=/tmp/stb-test15-web.env PYTHONPATH=. \
   .venv/bin/python scripts/seed_demo_data.py \
   --confirm-database-name smart_task_board_test14_test --dry-run
 
 # 审核dry-run及连接目标后，显式应用测试员工数据：
-WANGXU_BACKEND_ENV_FILE=/tmp/stb-test14-web.env PYTHONPATH=. \
+WANGXU_BACKEND_ENV_FILE=/tmp/stb-test15-web.env PYTHONPATH=. \
   .venv/bin/python scripts/seed_demo_data.py \
   --confirm-database-name smart_task_board_test14_test --apply
 ```
@@ -71,7 +80,7 @@ WANGXU_BACKEND_ENV_FILE=/tmp/stb-test14-web.env PYTHONPATH=. \
 在没有遗留AUTH_MODE/DATABASE_URL覆盖值的新终端中启动：
 
 ```bash
-WANGXU_WEB_DEMO_ENV_FILE=/tmp/stb-test14-web.env \
+WANGXU_WEB_DEMO_ENV_FILE=/tmp/stb-test15-web.env \
   bash scripts/start-web-demo.sh
 ```
 
@@ -93,7 +102,7 @@ lsof -nP -iTCP:8001 -sTCP:LISTEN
 lsof -a -p <上一步取得的PID> -d cwd
 ```
 
-两个进程目录必须属于本次smart-task-board-test14。占用未知时停止，不直接kill未知进程。不要运行脚本自动复用旧服务。
+两个进程目录必须属于本次smart-task-board-test15。占用未知时停止，不直接kill未知进程。不要运行脚本自动复用旧服务。
 
 本机就绪检查按报告经验绕过代理：
 

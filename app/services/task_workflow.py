@@ -1577,6 +1577,9 @@ class TaskWorkflowService:
                 task_id=task_id,
             )
             if cached is not None:
+                # Read-only replay: session.get loaded Task's scalar columns.
+                # Keep the Task return contract, but detach before rollback expires it.
+                uow.session.expunge(cached)
                 return cached
             task = _lock_task(uow, task_id, expected_task_version)
             self._require_change_decider(task, actor_employee_no)
@@ -1841,6 +1844,9 @@ class TaskWorkflowService:
                 task_id=task_id,
             )
             if cached is not None:
+                # Read-only replay: session.get loaded Task's scalar columns.
+                # Keep the Task return contract, but detach before rollback expires it.
+                uow.session.expunge(cached)
                 return cached
             task = _lock_task(uow, task_id, expected_task_version)
             if task.status not in from_statuses:
@@ -2304,6 +2310,9 @@ class TaskWorkflowService:
                 task_id=task_id,
             )
             if cached is not None:
+                # Read-only replay: session.get loaded Task's scalar columns.
+                # Keep the Task return contract, but detach before rollback expires it.
+                uow.session.expunge(cached)
                 return cached
             task = _lock_task(uow, task_id, expected_task_version)
             _require_state(task, TASK_PENDING_CONFIRMATION)
