@@ -162,6 +162,17 @@ describe("LoginPage", () => {
     expect(screen.queryByLabelText("演示用户")).not.toBeInTheDocument();
   });
 
+  it("explains when the prototype user service cannot be reached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    renderLogin({ login: vi.fn() });
+
+    expect(await screen.findByText("登录服务不可用")).toBeInTheDocument();
+    expect(
+      screen.getByText(/无法连接登录服务。请确认当前候选包的 Web 与 FastAPI/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
   it("normalizes unknown login errors without exposing their contents", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(users)));
     const login = vi.fn().mockRejectedValue({ token: "secret-token", database: "internal" });

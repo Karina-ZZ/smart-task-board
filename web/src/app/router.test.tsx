@@ -283,7 +283,7 @@ describe("DEV-02 target router", () => {
       await screen.findByRole("heading", { name: "选择演示身份" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/仅用于隔离开发和演示/)).toBeInTheDocument();
-    expect(screen.getByLabelText("演示用户")).toBeInTheDocument();
+    expect(await screen.findByLabelText("演示用户")).toBeInTheDocument();
     expect(screen.queryByText(/DEV-02/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
   });

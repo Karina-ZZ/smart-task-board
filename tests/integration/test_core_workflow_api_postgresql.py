@@ -326,7 +326,7 @@ def _create_payload(refs: ApiReferences) -> dict[str, object]:
         "task_name": "Phase 5 API Core Workflow",
         "task_description": "Exercise the complete PostgreSQL API workflow.",
         "task_goal": "Verify lifecycle, permissions, nodes, completion, and audit.",
-        "task_source": "postgresql-integration",
+        "task_source": None,
         "main_assignee_employee_no": refs.assignee,
         "report_to_employee_no": refs.reporter,
         "report_to_level": "manager",

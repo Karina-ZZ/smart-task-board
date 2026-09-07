@@ -122,5 +122,12 @@ Page({
     const matchId=event.currentTarget.dataset.match; const match=this.data.metricMatches.find((m)=>m.performanceMatchId===matchId); if(!match)return;
     api.confirmPerformanceMatch(this.data.draft.taskId, matchId, this.data.draft.taskVersion).then(()=>{this.setData({"draft.performanceMetricId":match.metricId,"draft.performanceMetric":match.metricName,metricSheet:false});return api.saveCreationDraft(this.data.draft);}).then(()=>wx.showToast({title:"绩效指标已确认",icon:"success"})).catch((e)=>this.fail(e,"绩效确认失败"));
   },
-  next(){const draft=this.normalizedDraft();if(!this.validate(draft))return;this.saveDraft(false).then(()=>router.go("/pages/create-confirm/index")).catch(()=>{});},
+  next() {
+    const draft = this.normalizedDraft();
+    // AI clarification is advisory. Sending readiness depends only on the confirmed task fields.
+    if (!this.validate(draft)) return;
+    this.saveDraft(false)
+      .then(() => router.go("/pages/create-confirm/index"))
+      .catch(() => {});
+  },
 });

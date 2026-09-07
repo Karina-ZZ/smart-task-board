@@ -5,7 +5,7 @@
   <view class="card source-card"><view class="source-head"><text class="strong">✦ 原始任务描述</text><button class="text-btn" bindtap="editSource">返回修改</button></view><text class="source-text">{{draft.rawText || draft.taskDescription}}</text></view>
   <view class="ai-note"><text>✦</text><view><text class="strong">AI已识别以下字段</text><text class="muted small">请核对并补齐，发送前不会生成任何节点</text><text wx:if="{{confidenceLabel}}" class="ai-confidence">{{confidenceLabel}}</text></view></view>
   <view wx:if="{{needsClarification}}" class="card clarification-card">
-    <view class="clarification-head"><view><text class="section-title">AI需要你确认</text><text class="muted small">回答后仅重新整理任务级字段</text></view><text class="question-count">{{aiQuestions.length}}项</text></view>
+    <view class="clarification-head"><view><text class="section-title">AI需要你确认</text><text class="muted small">可回答AI继续整理，也可直接在下方补齐；必填信息完整后即可进入发送确认</text></view><text class="question-count">{{aiQuestions.length}}项</text></view>
     <view wx:for="{{aiQuestions}}" wx:key="index" class="question-row"><text class="question-no">{{index + 1}}</text><text class="question-text">{{item}}</text></view>
     <textarea class="textarea clarification-input" value="{{clarificationText}}" bindinput="inputClarification" maxlength="1000" placeholder="补充AI需要确认的信息" />
     <button class="btn btn-secondary clarify-button" disabled="{{clarifying}}" bindtap="clarify">{{clarifying ? 'AI整理中…' : '提交回答，让AI继续整理'}}</button>

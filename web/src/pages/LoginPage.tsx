@@ -13,7 +13,7 @@ import { ApiError } from "../api/client";
 import { listPrototypeUsers } from "../api/endpoints";
 import { readReturnSourceState, resolveReturnTarget } from "../app/return-state";
 import { useAuth } from "../auth/useAuth";
-import { EmptyState, ErrorState, LoadingState } from "../components/Feedback";
+import { EmptyState, LoadingState } from "../components/Feedback";
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -64,7 +64,17 @@ export function LoginPage() {
           仅用于隔离开发和演示，不是正式企业登录。会话令牌只保存在当前标签页。
         </div>
         {users.isLoading && <LoadingState label="正在加载演示用户…" />}
-        {users.isError && <ErrorState error={users.error} retry={() => void users.refetch()} />}
+        {users.isError && (
+          <div className="state-card error-state" role="alert">
+            <strong>登录服务不可用</strong>
+            <p>
+              {users.error instanceof ApiError
+                ? users.error.message
+                : "无法连接登录服务。请确认当前候选包的 Web 与 FastAPI 已按本地联调文档启动。"}
+            </p>
+            <button className="button secondary" onClick={() => void users.refetch()}>重试</button>
+          </div>
+        )}
         {users.data?.length === 0 && <EmptyState title="暂无演示用户" detail="请先由管理员准备隔离演示数据。" />}
         {users.data && users.data.length > 0 && (
           <form onSubmit={submit} className="stack-form">

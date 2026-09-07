@@ -43,6 +43,11 @@ const missingGoal = { ...completeDraft, taskGoal: "" };
 assert.equal(pageDefinition.validate.call(validationContext, missingGoal), false);
 assert.equal(pageError, "请补齐所有必填信息");
 
+const router = require("../utils/router");
+const originalRouterGo = router.go;
+let savedDraft = null;
+let nextRoute = null;
+
 // UI contract: source is visibly optional and confirmation page handles an empty value.
 const detailsWxml = fs.readFileSync(path.join(root, "pages/create-details/index.wxml"), "utf8");
 const confirmWxml = fs.readFileSync(path.join(root, "pages/create-confirm/index.wxml"), "utf8");
@@ -170,6 +175,22 @@ const currentDraft = {
 };
 
 (async () => {
+  // Full page-next contract: unanswered AI questions are advisory once the nine required
+  // task fields are complete. This exercises next() rather than validate() alone.
+  router.go = (route) => { nextRoute = route; };
+  const nextContext = {
+    data: { needsClarification: true },
+    normalizedDraft() { return { ...completeDraft, confirmQuestions: ["向谁汇报？"] }; },
+    validate(draft) { return pageDefinition.validate.call(validationContext, draft); },
+    saveDraft() { savedDraft = this.normalizedDraft(); return Promise.resolve(savedDraft); },
+  };
+  pageDefinition.next.call(nextContext);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(savedDraft, "next() must persist the current completed draft");
+  assert.deepEqual(savedDraft.confirmQuestions, ["向谁汇报？"], "AI questions may remain advisory");
+  assert.equal(nextRoute, "/pages/create-confirm/index");
+  router.go = originalRouterGo;
+
   const clarified = await api.clarifyTaskDraft(
     "向林雨欣汇报",
     currentDraft,
