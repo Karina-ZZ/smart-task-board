@@ -59,17 +59,6 @@ export interface PrototypeUser {
   role_type: string;
 }
 
-export interface TaskCreationPerson {
-  employee_no: string;
-  name: string;
-  department_id: string | null;
-  department_name: string | null;
-  position: string | null;
-  org_level: string | null;
-  workload_score: string | null;
-  workload_level: string | null;
-}
-
 export interface LoginResponse {
   access_token: string;
   token_type: "bearer";
@@ -90,16 +79,6 @@ export interface AuthTokenResponse {
   token_type: "bearer";
   expires_in: number;
   refresh_token: string;
-}
-
-export interface WeComLoginResponse extends AuthTokenResponse {
-  current_user: CurrentUser;
-}
-
-export interface AiTokenResponse {
-  token: string;
-  token_type: "bearer";
-  expires_in: number;
 }
 
 export interface CurrentUserScope {
@@ -145,8 +124,6 @@ export interface TaskSummary {
   days_until_deadline: number | null;
   created_at: string;
   updated_at: string;
-  progress_percent?: number;
-  priority_quadrant?: string | null;
 }
 
 export interface TaskOverviewNode {
@@ -215,7 +192,6 @@ export interface DashboardSummary {
   in_progress_count: number;
   pending_acceptance_count: number;
   today_task_count: number;
-  due_within_3_days_count: number;
   due_within_7_days_count: number;
   overdue_count: number;
   report_due_count: number;
@@ -225,10 +201,6 @@ export interface DashboardSummary {
   unread_notification_count: number;
   open_conflict_count: number;
   due_window_days: number;
-  on_time_completion_rate: number;
-  on_time_completion_count: number;
-  completion_sample_count: number;
-  completion_rate_period_days: number;
   recent_tasks: TaskSummary[];
   latest_workload: Record<string, unknown> | null;
   priority_items: Array<Record<string, unknown>>;
@@ -558,9 +530,6 @@ export interface TaskNode {
   completed_at: string | null;
   tools_or_materials: string | null;
   planned_start_time: string | null;
-  assignment_status?: "not_required" | "pending" | "accepted" | "rejected" | null;
-  assignment_responded_at?: string | null;
-  assignment_reject_reason?: string | null;
 }
 
 export interface TaskDetail {
@@ -613,7 +582,6 @@ export interface TaskDetail {
   confirmed_at?: string | null;
   sent_at?: string | null;
   accepted_at?: string | null;
-  effective_at?: string | null;
   completed_at?: string | null;
   archived_at?: string | null;
   ai_extraction_records?: Array<Record<string, unknown>>;
@@ -832,87 +800,9 @@ export interface NotificationItem {
   title: string;
   content: string;
   send_status: string;
-  wecom_message_id?: string | null;
-  fail_reason?: string | null;
-  retry_count?: number;
-  retry_next_at?: string | null;
-  sent_at?: string | null;
   read_at: string | null;
-  dedupe_key?: string;
   created_at: string;
-  notification_type: "task" | "reminder" | "system" | string;
-  node_id: string | null;
-  target_type: "node_assignment" | "task_acceptance" | "decomposition" | "report" | "review" | "task_detail" | string | null;
-  action_required: boolean;
-  can_open: boolean;
-  unavailable_reason: string | null;
   [key: string]: unknown;
-}
-
-export interface TaskDecomposition {
-  decomposition_id: string;
-  task_id: string;
-  triggered_by_employee_no: string;
-  trigger_type: string;
-  status: "pending" | "running" | "succeeded" | "failed" | "invalidated" | string;
-  task_version: number;
-  model_name: string | null;
-  model_version: string | null;
-  prompt_version: string;
-  node_count: number;
-  error_code: string | null;
-  error_message: string | null;
-  retry_count: number;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-}
-
-export interface ExecutiveDepartment {
-  department_id: string;
-  department_name: string;
-  department_type: string;
-  parent_department_id: string | null;
-}
-
-export interface ExecutiveOverview {
-  scope: { selected_department_id: string | null; departments: ExecutiveDepartment[] };
-  period: { type: "week" | "month"; start: string; end: string; previous_start: string; previous_end: string };
-  metrics: {
-    active_tasks: { count: number; previous_count: number; change_rate: number | null; change_direction: string };
-    on_time_rate: { completed_count: number; on_time_count: number; rate: number | null; previous_rate: number | null; change_percentage_points: number | null };
-    kpi_links: { linked_task_count: number; linked_metric_count: number };
-    overall_progress: { rate: number | null; task_count: number; data_quality_issue_count: number };
-  };
-  quadrants: {
-    important_urgent: number;
-    important_not_urgent: number;
-    not_important_urgent: number;
-    not_important_not_urgent: number;
-    unscored_count: number;
-  };
-  workload_heatmap: {
-    days: Array<{ date: string; label: string }>;
-    members: Array<{
-      employee_no: string; name: string; department_id: string | null;
-      cells: Array<{
-        date: string; snapshot_id: string | null; workload_score: number | null; workload_level: string | null;
-        remaining_hours_sum?: number | null; available_hours?: number | null; active_task_count?: number | null; urgent_task_count?: number | null;
-        blocked_task_count?: number | null; overdue_task_count?: number | null; hours_pressure?: number | null; weight_pressure?: number | null;
-        count_pressure?: number | null; urgent_pressure?: number | null; blocked_overdue_pressure?: number | null; calculated_at?: string | null;
-      }>;
-    }>;
-  };
-}
-
-export interface ExecutiveMember { employee_no: string; name: string; department_id: string | null }
-
-export interface ExecutiveTaskPage {
-  items: Array<{
-    task_id: string; task_no: string | null; task_name: string; status: string; deadline: string | null; is_urgent: boolean; task_weight: number | null;
-    task_version: number; progress_percent: number; assignee_name: string | null; is_overdue: boolean; created_at: string; updated_at: string;
-  }>;
-  page: number; page_size: number; limit: number; offset: number; total: number; status_counts: Record<string, number>;
 }
 
 export interface ArchivePayload {

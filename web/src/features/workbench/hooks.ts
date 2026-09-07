@@ -1,17 +1,17 @@
 /**
- * Feature: Test16-equivalent Workbench data hook.
- * Responsibilities: bind the permission-scoped dashboard projection to React Query.
- * Does not own: client-side authorization or business calculations.
- * Plan task: H5-MIGRATION-01.
+ * Feature: V1.1 workbench data hook.
+ * Responsibilities: bind Workbench URL filters to React Query loading, error, and retry states.
+ * Does not own: router contracts, business calculations, or backend authorization.
+ * Plan task: DEV-03.
  */
 
 import { useQuery } from "@tanstack/react-query";
 
-import { loadWorkbenchData } from "./api";
+import { loadWorkbenchData, type WorkbenchFilters } from "./api";
 
-export function useWorkbenchData() {
+export function useWorkbenchData(filters: WorkbenchFilters) {
   return useQuery({
-    queryKey: ["workbench"],
-    queryFn: loadWorkbenchData,
+    queryKey: ["workbench", filters],
+    queryFn: () => loadWorkbenchData(filters),
   });
 }

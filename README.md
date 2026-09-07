@@ -1,17 +1,15 @@
 # Smart Task Board
 
-## 最新累计候选：H5 网页第一版（2026-09-07）
+## 最新累计候选：Test16 Performance-Link Hotfix（2026-09-07）
 
-> 本仓库最新累计基线已切到 **H5 网页第一版（Test16 全功能迁移至企业微信自建应用 React H5）** —— 在 Test16 Performance-Link Hotfix、Test14（任务执行-汇报循环 Hotfix）、Test13（Web 登录稳定启动 + AI 确认非硬门槛）、功能 16 任务来源选填 + AI 追问覆盖修复、Test11/10/9/8/6 累计修复之上，**本次把 Test16 13 个生产页面（工作台 / 任务概览 / 任务详情 / 创建三页 / AI 拆解 / 进度汇报 / 提交完成 / 任务验收 / 通知中心 / 我的 / 高管看板与员工任务下钻）按等价职责迁移至企业微信自建应用 React H5**，H5 生产身份走网页 OAuth + `/cgi-bin/auth/getuserinfo`，`userid → users.wecom_user_id → employee_no → JWT` 复用原身份体系；生产 `AUTH_MODE=wecom` 时改用 `WeComApplicationMessageProvider` 调用 `/cgi-bin/message/send`。**PostgreSQL 业务表 / 字段 / Alembic / 任务状态机 / AI 拆解业务规则 / 节点承接与提醒 / 绩效优先级负荷冲突计算 / 高管 KPI 公式 / Test16 微信小程序生产代码：均未改动**。
+> 本仓库最新累计基线已切到 **Test16 Performance-Link Hotfix** —— 在 Test14（任务执行-汇报循环 Hotfix）、Test13（Web 登录稳定启动 + AI 确认非硬门槛）、功能 16 任务来源选填 + AI 追问覆盖修复、Test11/10/9/8/6 累计修复之上，**本次最新修复「任务详情中绩效关联显示丢失」**——详情 DTO 之前只读 `task.performanceMetric*`，而创建阶段的 mock 写到了 `task.performanceMetricId`，两套数据未正确投影，导致已选 KPI 的任务在详情页显示「未关联绩效」。本次在 `wechat-miniprogram/utils/store.js` 新增 `confirmedPerformanceMatches()` 把两套数据合并为统一 `performanceMatches[]` DTO，**数据库 0 改动 / Alembic 0 / 后端 `app/` 0 改动 / 状态机 0 改动 / 权限边界 0 改动**。
 
-- 📊 完整项目阶段总结：[`## 当前项目阶段总结（2026-09-07 H5 网页第一版 后）`](#当前项目阶段总结-2026-09-07-h5-网页第一版-后)（见下方目录）
+- 📊 完整项目阶段总结：[`## 当前项目阶段总结（2026-09-07 Test16 Performance-Link Hotfix 后）`](#当前项目阶段总结-2026-09-07-test16-performance-link-hotfix-后)（见下方目录）
 - 📄 详细阶段进度报告：[`docs/FEATURE_16_PROGRESS_REPORT.md`](./docs/FEATURE_16_PROGRESS_REPORT.md)
-- 🌐 本次 H5 网页执行报告：[`docs/H5_WEB_V1_EXECUTION_REPORT.md`](./docs/H5_WEB_V1_EXECUTION_REPORT.md)
-- 📋 H5 迁移矩阵 + 逐页联调：[`docs/H5_WEB_V1_MIGRATION_MATRIX.md`](./docs/H5_WEB_V1_MIGRATION_MATRIX.md) / [`docs/H5_WEB_V1_PAGE_INTEGRATION_REPORT.md`](./docs/H5_WEB_V1_PAGE_INTEGRATION_REPORT.md)
-- 🚀 企业微信 H5 部署：[`docs/WECOM_H5_DEPLOYMENT.md`](./docs/WECOM_H5_DEPLOYMENT.md)
-- ⚠️ H5 类型门禁快照：[`docs/H5_WEB_V1_TSC_FINDINGS.txt`](./docs/H5_WEB_V1_TSC_FINDINGS.txt)
+- 🔧 本次 Test16 执行报告：[`docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md`](./docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md)
+- ✅ 本次 Test16 验收清单：[`docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md`](./docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md)
 
-> 历史 Test16 Performance-Link Hotfix 候选内容保留在 Git 历史中（commit `bd7400b`），已不再作为本仓库的最新基线。
+> 历史 Test14 当前候选内容保留在 Git 历史中（commit `53b3dc5`），已不再作为本仓库的最新基线。
 
 智能任务看板使用 FastAPI、PostgreSQL 和 React 实现任务创建、结构化拆解、参与人协作、状态流转、节点执行、完成验收与返工。后端业务规则通过 JSON REST API 提供，前端提供适配桌面和移动设备的任务看板界面。
 
@@ -43,8 +41,7 @@ Wave 1 的完成验收与返工现已实现并通过总质量门：每次提交�
 
 | 阶段 | 状态 | 范围摘要 |
 | --- | --- | --- |
-| **H5 网页第一版（2026-09-07）** | 🌐 最新累计候选，已提交，待真实 PG / npm ci / 真机浏览器验收 | Test16 13 个生产页面（工作台 / 任务概览 / 任务详情 / 创建三页 / AI 拆解 / 进度汇报 / 提交完成 / 任务验收 / 通知中心 / 我的 / 高管看板与员工任务下钻）按等价职责迁移至企业微信自建应用 React H5；H5 生产身份走网页 OAuth + `/cgi-bin/auth/getuserinfo`，`userid → users.wecom_user_id → employee_no → JWT` 复用原身份体系；`AUTH_MODE=wecom` 时改用 `WeComApplicationMessageProvider` 调用 `/cgi-bin/message/send`。**PostgreSQL 业务表 0 改动 / Alembic 0 / 任务状态机 0 / AI 拆解业务规则 0 / 节点承接提醒 0 / 绩效/负荷/优先级/冲突算法 0 / 高管 KPI 与总体进度公式 0 / Test16 微信小程序生产代码 0**。本环境：非PG `617 passed / 41 deselected`、H5 静态迁移合同 + 企微客户端/认证定点 `24 passed`、Test16 微信小程序 `25/25`、Python compileall PASS、JS `node --check` PASS、React/TypeScript 语法转译 `103 files / 0 errors`；tsc `--noEmit` 发现 42 条类型层错误（已写入 [`docs/H5_WEB_V1_TSC_FINDINGS.txt`](./docs/H5_WEB_V1_TSC_FINDINGS.txt)，本次未修复）。详见 [`docs/H5_WEB_V1_EXECUTION_REPORT.md`](./docs/H5_WEB_V1_EXECUTION_REPORT.md) / [`docs/H5_WEB_V1_MIGRATION_MATRIX.md`](./docs/H5_WEB_V1_MIGRATION_MATRIX.md) / [`docs/H5_WEB_V1_PAGE_INTEGRATION_REPORT.md`](./docs/H5_WEB_V1_PAGE_INTEGRATION_REPORT.md) / [`docs/WECOM_H5_DEPLOYMENT.md`](./docs/WECOM_H5_DEPLOYMENT.md) |
-| **Test16 Performance-Link Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / 微信开发者工具 API 复验 | 任务详情 DTO 把 mock `task.performanceMetricId / task.performanceMetric` 投影到统一 `performanceMatches[]`,已确认 KPI 的任务详情不再误显「未关联绩效」。新增 `wechat-miniprogram/utils/store.js: confirmedPerformanceMatches()` + `tests/integration/test_business_capabilities_postgresql.py: test_confirmed_performance_relation_survives_send_and_detail_reload_postgresql` + `wechat-miniprogram/tests/performance-link-persistence.test.js`(5 用例)。**数据库变更 0 / Alembic 迁移 0 / 后端 `app/` 改动 0 / 状态机 0 / 权限 0**。详见 [`docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md`](./docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md) / [`docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md`](./docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md) |
+| **Test16 Performance-Link Hotfix（2026-09-07）** | 🔧 最新累计候选，已提交，待真实 PG / 微信开发者工具 API 复验 | 任务详情 DTO 把 mock `task.performanceMetricId / task.performanceMetric` 投影到统一 `performanceMatches[]`,已确认 KPI 的任务详情不再误显「未关联绩效」。新增 `wechat-miniprogram/utils/store.js: confirmedPerformanceMatches()` + `tests/integration/test_business_capabilities_postgresql.py: test_confirmed_performance_relation_survives_send_and_detail_reload_postgresql` + `wechat-miniprogram/tests/performance-link-persistence.test.js`(5 用例)。**数据库变更 0 / Alembic 迁移 0 / 后端 `app/` 改动 0 / 状态机 0 / 权限 0**。详见 [`docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md`](./docs/TEST16_PERFORMANCE_LINK_HOTFIX_EXECUTION_REPORT.md) / [`docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md`](./docs/TEST16_PERFORMANCE_LINK_ACCEPTANCE_CHECKLIST.md) |
 | **Test14 任务执行-汇报循环 Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / Web / 微信 API 复验 | 修复创建人发送后工作台 `reassign_task` 响应契约、可选 `report_cycle` 入库校验、AI 周期提示词（`weekly`→`null`），新增脱敏诊断与专项测试。**数据库变更 0 / Alembic 新增迁移 0 / 小程序/云函数改动 0**。白名单 30 文件（13 改 + 17 新）。本环境：非PG 568 passed / 32 deselected、小程序 22/22、JS 50 文件、ChatService 3/3、TS transpile 84 文件 0 error；详见 `docs/TEST14_EXECUTION_REPORT.md` / `docs/TEST14_ACCEPTANCE_CHECKLIST.md` / `docs/TEST14_DIFF.txt` |
 | **Test13 Web 登录稳定启动 + AI 确认非硬门槛 Hotfix（2026-09-07）** | 🔧 已提交，待真实 PG / Web / 微信 API 复验 | 锁定候选包目录 + 5174/8001 端口、隔离 `verify-ai-send-e2e.py` 与 PG、删 `AI_GATE_REQUIRED` 硬阻断、登录成功按来源安全恢复原路由。**数据库变更 0**；详见 `docs/FEATURE_16_LOGIN_AI_GATE_HOTFIX_EXECUTION_REPORT.md` |
 | **功能 16 任务来源选填 + AI 追问覆盖修复 Hotfix（2026-09-07）** | 🔧 已提交，待 PG / 微信开发者工具放行 | 发送必填从 10→9（移除 `task_source`），小程序手工选人/AI 追问/受保护字段合并契约同步。**数据库变更 0**；详见 `docs/FEATURE_16_TASK_SOURCE_OPTIONAL_CLARIFICATION_HOTFIX_REPORT.md` |
@@ -373,7 +370,7 @@ Current source facts: Alembic has `10` migration files with single head `c2d3e4f
 
 Run `scripts/run_test11_release_gate.sh` in the declared Python 3.12 environment. A passing technical gate does not claim real WeCom production E2E; that remains a separate environment gate using `scripts/run_wecom_real_e2e.py` with real credentials, HTTPS deployment, mapped employee identity, and a fresh `wx.qy.login` code.
 
-## 当前项目阶段总结（2026-09-07 H5 网页第一版 后）
+## 当前项目阶段总结（2026-09-07 Test16 Performance-Link Hotfix 后）
 
 > 涵盖功能 01～16 的整体阶段判断。完整版见 [docs/FEATURE_16_PROGRESS_REPORT.md](docs/FEATURE_16_PROGRESS_REPORT.md)。
 

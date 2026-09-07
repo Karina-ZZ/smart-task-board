@@ -5,16 +5,6 @@ Does not own: business authorization, task permissions, or session persistence.
 Plan task: DEV-18 / WeCom authentication baseline.
 """
 
-from app.integrations.wecom.client import (
-    WeComClient,
-    WeComSessionIdentity,
-    WeComUpstreamError,
-)
-from app.integrations.wecom.message_provider import WeComApplicationMessageProvider
+from app.integrations.wecom.client import WeComClient, WeComSessionIdentity, WeComUpstreamError
 
-__all__ = [
-    "WeComApplicationMessageProvider",
-    "WeComClient",
-    "WeComSessionIdentity",
-    "WeComUpstreamError",
-]
+__all__ = ["WeComClient", "WeComSessionIdentity", "WeComUpstreamError"]

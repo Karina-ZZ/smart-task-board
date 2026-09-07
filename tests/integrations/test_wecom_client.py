@@ -31,12 +31,14 @@ def test_code_to_session_uses_server_side_token_and_returns_only_identity() -> N
             assert query["corpid"] == ["ww-corp-001"]
             assert query["corpsecret"] == ["wecom-secret"]
             return {"errcode": 0, "access_token": "ACCESS-1", "expires_in": 7200}
-        assert parsed.path.endswith("/auth/getuserinfo")
+        assert parsed.path.endswith("/miniprogram/jscode2session")
         assert query["access_token"] == ["ACCESS-1"]
-        assert query["code"] == ["WECOM-CODE"]
+        assert query["js_code"] == ["WECOM-CODE"]
         return {
             "errcode": 0,
             "userid": "zhangsan",
+            "corpid": "ww-corp-001",
+            "session_key": "must-not-escape-client",
         }
 
     client = WeComClient(_settings(), json_get=fake_get)
@@ -44,7 +46,7 @@ def test_code_to_session_uses_server_side_token_and_returns_only_identity() -> N
 
     assert result == WeComSessionIdentity(user_id="zhangsan", corp_id="ww-corp-001")
     assert len(calls) == 2
-    assert result.corp_id == "ww-corp-001"
+    assert "session_key" not in result.__dict__
 
 
 def test_access_token_is_cached_across_multiple_login_codes() -> None:
@@ -55,7 +57,7 @@ def test_access_token_is_cached_across_multiple_login_codes() -> None:
         if "/gettoken?" in url:
             token_calls += 1
             return {"errcode": 0, "access_token": "ACCESS-CACHED", "expires_in": 7200}
-        return {"errcode": 0, "userid": "zhangsan"}
+        return {"errcode": 0, "userid": "zhangsan", "corpid": "ww-corp-001"}
 
     client = WeComClient(_settings(), json_get=fake_get)
     client.code_to_session("CODE-1")
@@ -76,7 +78,7 @@ def test_invalid_access_token_is_refreshed_once_before_code_exchange_retries() -
         session_calls += 1
         if session_calls == 1:
             return {"errcode": 42001, "errmsg": "access_token expired"}
-        return {"errcode": 0, "userid": "zhangsan"}
+        return {"errcode": 0, "userid": "zhangsan", "corpid": "ww-corp-001"}
 
     result = WeComClient(_settings(), json_get=fake_get).code_to_session("CODE-1")
 
@@ -96,31 +98,3 @@ def test_rejected_login_code_is_sanitized_as_upstream_error() -> None:
 
     assert exc_info.value.errcode == 40029
     assert "provider details" not in str(exc_info.value)
-
-
-def test_send_application_message_uses_self_built_app_agent_and_h5_link() -> None:
-    posts: list[tuple[str, dict[str, object]]] = []
-
-    def fake_get(url: str, _timeout: float) -> dict[str, object]:
-        assert "/gettoken?" in url
-        return {"errcode": 0, "access_token": "ACCESS-MSG", "expires_in": 7200}
-
-    def fake_post(url: str, payload: dict[str, object], _timeout: float) -> dict[str, object]:
-        posts.append((url, payload))
-        return {"errcode": 0, "errmsg": "ok", "msgid": "MSG-1"}
-
-    client = WeComClient(_settings(), json_get=fake_get, json_post=fake_post)
-    message_id = client.send_application_message(
-        "zhangsan",
-        "待接受任务",
-        "新品上市推广",
-        web_url="https://task.example.com/notifications",
-    )
-
-    assert message_id == "MSG-1"
-    assert len(posts) == 1
-    assert "/cgi-bin/message/send?" in posts[0][0]
-    assert posts[0][1]["touser"] == "zhangsan"
-    assert posts[0][1]["agentid"] == 1000002
-    assert posts[0][1]["msgtype"] == "textcard"
-    assert posts[0][1]["textcard"]["url"] == "https://task.example.com/notifications"

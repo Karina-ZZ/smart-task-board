@@ -1,7 +1,7 @@
 /**
  * Feature: DEV-07 AI task intake.
  * Responsibilities: collect text/voice task descriptions, request backend field extraction, show clarification and retry states.
- * Does not own: task sending, node decomposition, lifecycle actions, or AI provider secrets. The H5 confirmation panel creates the formal draft from confirmed fields.
+ * Does not own: formal task creation, sending, node decomposition, lifecycle actions, or AI provider secrets.
  * Plan task: DEV-07.
  */
 
@@ -17,9 +17,7 @@ import {
 } from "../../api/endpoints";
 import type { TaskIntakeResponse, TaskInputType } from "../../api/types";
 import { useAuth } from "../../auth/useAuth";
-import { transcribeBrowserRecording } from "../../integrations/chat-service";
 import { Badge, Button, Card, ErrorState, Skeleton, TopBar, Typography } from "../../shared/components";
-import { TaskCreateDetailsPanel } from "./TaskCreateDetailsPanel";
 import "./TaskIntakePage.css";
 
 const DRAFT_KEY = "smarttaskboard.dev07.intake-draft";
@@ -137,16 +135,8 @@ export function TaskIntakePage() {
   const [clarificationText, setClarificationText] = useState("");
   const [notice, setNotice] = useState("");
   const [voiceError, setVoiceError] = useState("");
-  const [voiceState, setVoiceState] = useState<"idle" | "listening" | "transcribing">("idle");
+  const [voiceState, setVoiceState] = useState<"idle" | "listening">("idle");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => () => {
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-    recorderRef.current = null;
-  }, []);
 
   useEffect(() => {
     writeDraft({ rawText, inputId, intake });
@@ -226,16 +216,11 @@ export function TaskIntakePage() {
     submitMutation.mutate();
   }
 
-  function stopMediaStream() {
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-  }
-
-  function startSpeechRecognitionFallback() {
+  function startVoice() {
+    setVoiceError("");
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setVoiceState("idle");
-      setVoiceError("当前企业微信环境不支持录音，请改用文字输入。");
+      setVoiceError("当前浏览器不支持语音输入，已切换为文字输入。");
       textareaRef.current?.focus();
       return;
     }
@@ -248,14 +233,16 @@ export function TaskIntakePage() {
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         transcript += event.results[index][0]?.transcript || "";
       }
-      if (transcript.trim()) {
-        setSourceType("voice");
-        setRawText(transcript.trim());
-      }
+      setSourceType("voice");
+      setRawText(transcript.trim());
     };
     recognition.onerror = (event) => {
       setVoiceState("idle");
-      setVoiceError(event.error === "not-allowed" ? "未获得麦克风权限，请改用文字输入。" : "语音转写失败，请改用文字输入。");
+      setVoiceError(
+        event.error === "not-allowed"
+          ? "未获得麦克风权限，已切换为文字输入。"
+          : "语音转写失败，已切换为文字输入。",
+      );
       textareaRef.current?.focus();
     };
     recognition.onend = () => setVoiceState("idle");
@@ -264,65 +251,7 @@ export function TaskIntakePage() {
       recognition.start();
     } catch {
       setVoiceState("idle");
-      setVoiceError("语音服务暂不可用，请改用文字输入。");
-      textareaRef.current?.focus();
-    }
-  }
-
-  async function startVoice() {
-    setVoiceError("");
-    if (voiceState === "listening" && recorderRef.current) {
-      recorderRef.current.stop();
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      startSpeechRecognitionFallback();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      const chunks: BlobPart[] = [];
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunks.push(event.data);
-      };
-      recorder.onerror = () => {
-        recorderRef.current = null;
-        stopMediaStream();
-        setVoiceState("idle");
-        setVoiceError("录音失败，请改用文字输入。");
-      };
-      recorder.onstop = async () => {
-        recorderRef.current = null;
-        stopMediaStream();
-        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        if (!blob.size) {
-          setVoiceState("idle");
-          setVoiceError("没有录到有效语音，请重新录入。");
-          return;
-        }
-        try {
-          setVoiceState("transcribing");
-          const text = await transcribeBrowserRecording(blob);
-          setSourceType("voice");
-          setRawText(text);
-          setVoiceState("idle");
-        } catch (error) {
-          setVoiceState("idle");
-          setVoiceError(error instanceof Error ? error.message : "语音转写失败，请改用文字输入。");
-          textareaRef.current?.focus();
-        }
-      };
-      setVoiceState("listening");
-      recorder.start();
-    } catch (error) {
-      setVoiceState("idle");
-      const message = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError")
-        ? "未获得麦克风权限，请在企业微信中允许后重试。"
-        : "录音服务暂不可用，请改用文字输入。";
-      setVoiceError(message);
+      setVoiceError("语音服务暂不可用，已切换为文字输入。");
       textareaRef.current?.focus();
     }
   }
@@ -360,8 +289,8 @@ export function TaskIntakePage() {
           {showSlowHint && <div className="stb-task-intake-alert" role="status">识别耗时较长，后台完成后可刷新结果。</div>}
           <div className="stb-task-intake-actions">
             <Button type="submit" loading={submitMutation.isPending}>识别字段</Button>
-            <Button type="button" variant="secondary" onClick={startVoice} disabled={voiceState === "transcribing"} aria-label={voiceState === "listening" ? "停止录音" : "语音输入"}>
-              {voiceState === "listening" ? "停止录音" : voiceState === "transcribing" ? "正在转写" : "语音输入"}
+            <Button type="button" variant="secondary" onClick={startVoice} disabled={voiceState === "listening"} aria-label={voiceState === "listening" ? "正在语音输入" : "语音输入"}>
+              {voiceState === "listening" ? "正在听写" : "语音输入"}
             </Button>
             <Button type="button" variant="ghost" loading={retryMutation.isPending} onClick={() => retryMutation.mutate()}>
               重试识别
@@ -433,8 +362,6 @@ export function TaskIntakePage() {
           </form>
         </Card>
       )}
-
-      {intake && <TaskCreateDetailsPanel intake={intake} />}
 
       {(extractionQuery.isError || submitMutation.isError || retryMutation.isError || clarifyMutation.isError) && (
         <ErrorState

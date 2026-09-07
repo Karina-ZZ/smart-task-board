@@ -305,5 +305,3 @@
     overflow: visible;
   }
 }
-.stb-task-overview-executive{display:flex;justify-content:space-between;gap:12px;align-items:center}.stb-task-overview-executive__actions{display:flex;gap:8px;flex-wrap:wrap}.stb-task-overview-member-list{display:grid;gap:8px}.stb-task-overview-member-list button{border:1px solid #e7edf6;background:#fff;border-radius:12px;padding:11px;text-align:left;display:flex;justify-content:space-between;gap:12px}.stb-task-overview-member-list span{color:#72809a;font-size:12px}@media(max-width:420px){.stb-task-overview-executive{align-items:flex-start;flex-direction:column}}
-.stb-task-filter__group{display:grid;gap:7px}.stb-task-filter__group>b{font-size:13px}.stb-task-filter__group>small{color:#72809a;font-size:11px}.stb-task-filter__choices{display:flex;flex-wrap:wrap;gap:7px}.stb-task-filter__choices button{min-height:36px;padding:0 12px;border:1px solid #e7edf6;border-radius:999px;background:#f5f7fb;color:#68758b}.stb-task-filter__choices button.is-active{border-color:#1769ff;color:#fff;background:#1769ff}.stb-task-overview-card .stb-progress{margin-top:2px}

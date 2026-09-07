@@ -295,45 +295,34 @@
   gap: var(--stb-space-2);
 }
 
-.stb-bottom-nav-wrap {
+.stb-bottom-nav {
   position: fixed;
   z-index: var(--stb-z-bottom-nav);
-  right: 0;
   bottom: 0;
-  left: 0;
-  padding: 0 max(9px, var(--stb-safe-right)) var(--stb-safe-bottom) max(9px, var(--stb-safe-left));
-  pointer-events: none;
-}
-
-.stb-bottom-nav {
+  left: 50%;
   display: flex;
-  width: min(calc(100vw - 18px), calc(var(--stb-mobile-max-width) - 18px));
-  min-height: 64px;
-  align-items: flex-end;
-  justify-content: space-around;
-  margin: 0 auto 7px;
-  padding: 5px 6px;
-  border: 1px solid rgba(231, 237, 246, 0.92);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 26px rgba(20, 49, 96, 0.18);
+  width: min(100vw, var(--stb-mobile-max-width));
+  min-height: calc(70px + var(--stb-safe-bottom));
+  transform: translateX(-50%);
+  border-top: 1px solid var(--stb-color-line);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 7px max(12px, var(--stb-safe-left)) var(--stb-safe-bottom) max(12px, var(--stb-safe-right));
   backdrop-filter: blur(18px);
-  pointer-events: auto;
 }
 
 .stb-bottom-nav__item {
   position: relative;
   display: flex;
   flex: 1 1 0;
-  min-width: 43px;
-  min-height: 50px;
+  min-width: var(--stb-touch-target);
+  min-height: var(--stb-touch-target);
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   border: 0;
   background: transparent;
-  color: #72809a;
+  color: #69758d;
   font: inherit;
   font-size: var(--stb-font-size-caption);
   text-decoration: none;
@@ -344,39 +333,14 @@
   font-weight: var(--stb-font-weight-heavy);
 }
 
-.stb-bottom-nav__icon-wrap {
-  position: relative;
-  display: inline-grid;
-  min-width: 28px;
-  min-height: 28px;
-  place-items: center;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.stb-bottom-nav__home-circle {
-  border-radius: 50%;
-}
-
-.stb-bottom-nav__item--home-active .stb-bottom-nav__home-circle {
-  color: #fff;
-  background: linear-gradient(135deg, #1769ff, #4b8cff);
-  box-shadow: 0 4px 10px rgba(23, 105, 255, 0.3);
-}
-
-.stb-bottom-nav__badge {
+.stb-bottom-nav__item--active::before {
   position: absolute;
-  top: -5px;
-  right: -11px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
-  border-radius: 999px;
-  background: #ff4358;
-  color: #fff;
-  font-size: 9px;
-  line-height: 15px;
-  text-align: center;
+  top: -8px;
+  width: 31px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--stb-color-blue);
+  content: "";
 }
 
 .stb-overlay {

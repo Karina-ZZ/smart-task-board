@@ -1,7 +1,7 @@
 /**
  * Feature: V1.1 task detail page.
- * Responsibilities: render the formal task detail, five modules, real server-authorized execution controls, return state, and node anchors.
- * Does not own: authorization/state rules or mutation semantics; controls call existing backend services.
+ * Responsibilities: render the formal read-only task detail, five modules, permission projection, return state, and node anchors.
+ * Does not own: task mutations, AI decomposition, node execution, or lifecycle state changes.
  * Plan task: DEV-05.
  */
 
@@ -18,12 +18,13 @@ import {
   OperationLogsSection,
   PeopleSection,
   PerformanceSection,
+  PermissionActions,
   ProgressSection,
+  ReadOnlyBanner,
   TaskSummaryCard,
   TimelineSection,
 } from "./TaskDetailParts";
 import { detailModules, type DetailModuleId } from "./format";
-import { NodeExecutionControls, TaskExecutionControls } from "./TaskExecutionControls";
 import "./TaskDetailPage.css";
 
 const scrollKeyPrefix = "smarttaskboard.task-detail.scroll.";
@@ -50,7 +51,6 @@ export function TaskDetailPage() {
   const location = useLocation();
   const [activeModule, setActiveModule] = useState<DetailModuleId>("overview");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [logOpen, setLogOpen] = useState(false);
   const { goBack, target } = useReturnNavigation("/tasks");
   const query = useTaskDetailBundle(taskId);
 
@@ -121,6 +121,7 @@ export function TaskDetailPage() {
         <Typography variant="caption" as="p">返回目标：{target}</Typography>
         <Button variant="secondary" aria-label="更多操作" onClick={() => setMoreOpen(true)}>更多</Button>
       </div>
+      <ReadOnlyBanner>DEV-05 仅展示真实只读数据和权限投影；业务写操作会在后续阶段启用。</ReadOnlyBanner>
       <TaskSummaryCard task={task} latestReport={latestReport} />
       <nav className="stb-task-detail-tabs" aria-label="任务详情模块" role="tablist">
         {detailModules.map((item) => (
@@ -137,21 +138,25 @@ export function TaskDetailPage() {
         ))}
       </nav>
       <TimelineSection logs={logs} />
+      <OperationLogsSection logs={task.operation_logs ?? []} />
       <BasicInfoSection task={task} nodeCount={task.nodes.length} />
       <PeopleSection task={task} />
-      <NodesSection task={task} renderNodeActions={(node) => <NodeExecutionControls task={task} actions={actions} node={node} onRefresh={() => query.refetch()} />} />
+      <NodesSection task={task} />
       <ProgressSection reports={reports} issues={issues} />
       <PerformanceSection matches={task.performance_matches ?? []} />
-      <TaskExecutionControls
-        task={task}
-        actions={actions}
-        onRefresh={() => query.refetch()}
-        onOpenLogs={() => setLogOpen(true)}
-        moreOpen={moreOpen}
-        onCloseMore={() => setMoreOpen(false)}
-      />
-      <Sheet open={logOpen} title="操作记录" onClose={() => setLogOpen(false)}>
-        <OperationLogsSection logs={task.operation_logs ?? []} />
+      <PermissionActions task={task} actions={actions.allowed_actions} />
+      <Sheet open={moreOpen} title="更多任务操作" onClose={() => setMoreOpen(false)}>
+        <div className="stb-task-detail-more">
+          <p>任务编号：{task.task_no ?? task.task_id}</p>
+          <p>权限来源：/api/v1/tasks/{task.task_id}/available-actions</p>
+          {actions.allowed_actions.length === 0 ? (
+            <Button variant="secondary" disabled>当前无可执行操作</Button>
+          ) : (
+            actions.allowed_actions.map((action) => (
+              <Button key={action} variant="secondary" disabled>{action}（后续阶段启用）</Button>
+            ))
+          )}
+        </div>
       </Sheet>
     </section>
   );

@@ -5,7 +5,7 @@
  * Plan task: DEV-04.
  */
 
-import { listExecutiveTasks, listTasks } from "../../api/endpoints";
+import { listTasks } from "../../api/endpoints";
 import type { PaginatedTaskOverview, TaskOverviewNode, TaskStatus, TaskSummary } from "../../api/types";
 
 export type OverviewMode = "tasks" | "nodes";
@@ -29,11 +29,6 @@ export interface TaskOverviewFilters {
   pageSize: number;
   sortBy: OverviewSort;
   sortOrder: OverviewSortOrder;
-  source: "" | "executive";
-  employeeNo: string;
-  employeeName: string;
-  departmentId: string;
-  period: "" | "week" | "month";
 }
 
 export interface TaskOverviewData extends Omit<PaginatedTaskOverview, "items"> {
@@ -117,11 +112,6 @@ export function parseTaskOverviewFilters(params: URLSearchParams): TaskOverviewF
     pageSize: Math.min(100, positiveInt(params.get("pageSize"), 20)),
     sortBy: oneOf(params.get("sortBy"), sortSet, "deadline"),
     sortOrder: oneOf(params.get("sortOrder"), new Set<OverviewSortOrder>(["asc", "desc"]), "asc"),
-    source: params.get("source") === "executive" ? "executive" : "",
-    employeeNo: params.get("employeeNo") ?? "",
-    employeeName: params.get("employeeName") ?? "",
-    departmentId: params.get("departmentId") ?? "",
-    period: oneOf(params.get("period"), new Set<"" | "week" | "month">(["", "week", "month"]), ""),
   };
 }
 
@@ -142,11 +132,6 @@ export function taskOverviewSearchParams(filters: TaskOverviewFilters): URLSearc
   if (filters.pageSize !== 20) params.set("pageSize", String(filters.pageSize));
   if (filters.sortBy !== "deadline") params.set("sortBy", filters.sortBy);
   if (filters.sortOrder !== "asc") params.set("sortOrder", filters.sortOrder);
-  if (filters.source) params.set("source", filters.source);
-  if (filters.employeeNo) params.set("employeeNo", filters.employeeNo);
-  if (filters.employeeName) params.set("employeeName", filters.employeeName);
-  if (filters.departmentId) params.set("departmentId", filters.departmentId);
-  if (filters.period) params.set("period", filters.period);
   return params;
 }
 
@@ -155,40 +140,23 @@ export function isNodeOverviewItem(item: TaskSummary | TaskOverviewNode): item i
 }
 
 export async function loadTaskOverview(filters: TaskOverviewFilters): Promise<TaskOverviewData> {
-  if (filters.source === "executive") {
-    const payload = await listExecutiveTasks({
-      departmentId: filters.departmentId,
-      employeeNo: filters.employeeNo,
-      status: filters.status === "pending_acceptance" ? "pending_accept" : filters.status,
-      quadrant: filters.quadrant,
-      nearDue: filters.nearDue,
-      datePreset: filters.datePreset,
-      startDate: filters.datePreset === "custom" ? filters.startDate : "",
-      endDate: filters.datePreset === "custom" ? filters.endDate : "",
-      search: filters.search.trim(),
-      page: filters.page,
-      pageSize: filters.pageSize,
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
-      period: filters.period,
-    });
-    return {
-      ...payload,
-      items: payload.items.map((item) => ({
-        task_id: item.task_id, task_no: item.task_no, task_name: item.task_name, status: item.status as TaskStatus, deadline: item.deadline,
-        is_urgent: item.is_urgent, task_weight: item.task_weight, task_version: item.task_version,
-        creator: { employee_no: "", name: "" },
-        main_assignee: item.assignee_name || filters.employeeNo ? { employee_no: filters.employeeNo, name: item.assignee_name || filters.employeeName || filters.employeeNo } : null,
-        current_user_relations: [], allowed_actions: [], is_overdue: item.is_overdue, days_until_deadline: null, created_at: item.created_at, updated_at: item.updated_at,
-        progress_percent: item.progress_percent,
-      })),
-      status_counts: payload.status_counts ?? {},
-    };
-  }
   const payload = await listTasks({
-    mode: filters.mode, status: filters.status, quadrant: filters.quadrant, support: filters.support, nearDue: filters.nearDue,
-    datePreset: filters.datePreset, startDate: filters.datePreset === "custom" ? filters.startDate : "", endDate: filters.datePreset === "custom" ? filters.endDate : "",
-    search: filters.search.trim(), page: filters.page, pageSize: filters.pageSize, sortBy: filters.sortBy, sortOrder: filters.sortOrder,
+    mode: filters.mode,
+    status: filters.status,
+    quadrant: filters.quadrant,
+    support: filters.support,
+    nearDue: filters.nearDue,
+    datePreset: filters.datePreset,
+    startDate: filters.datePreset === "custom" ? filters.startDate : "",
+    endDate: filters.datePreset === "custom" ? filters.endDate : "",
+    search: filters.search.trim(),
+    page: filters.page,
+    pageSize: filters.pageSize,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
   }) as PaginatedTaskOverview;
-  return { ...payload, status_counts: payload.status_counts ?? {} };
+  return {
+    ...payload,
+    status_counts: payload.status_counts ?? {},
+  };
 }

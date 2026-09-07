@@ -8,5 +8,3 @@
 export { TaskDetailPage } from "./TaskDetailPage";
 export { TaskReportPage } from "./TaskReportPage";
 export { TaskReviewPage } from "./TaskReviewPage";
-
-export { TaskCompletionPage } from "./TaskCompletionPage";

@@ -1,6 +1,6 @@
 """
-Feature: WeCom H5 OAuth authentication.
-Responsibilities: map a verified WeCom H5 OAuth member to an existing employee,
+Feature: WeCom Mini Program authentication.
+Responsibilities: map a verified WeCom member to an existing employee,
 and issue the existing app session.
 Does not own: user provisioning, role assignment, department synchronization, or task authorization.
 Plan task: DEV-18 / WeCom authentication baseline.
