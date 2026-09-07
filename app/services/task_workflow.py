@@ -279,12 +279,15 @@ def _validate_existing_graph(uow: UnitOfWork, task_id: UUID) -> list[TaskNode]:
 
 def _validate_send_ready_task(uow: UnitOfWork, task: Task) -> None:
     required = {
-        "task_name": task.task_name, "task_description": task.task_description,
-        "task_goal": task.task_goal, "task_source": task.task_source,
+        "task_name": task.task_name,
+        "task_description": task.task_description,
+        "task_goal": task.task_goal,
         "main_assignee_employee_no": task.main_assignee_employee_no,
         "report_to_employee_no": task.report_to_employee_no,
-        "reviewer_employee_no": task.reviewer_employee_no, "start_time": task.start_time,
-        "deadline": task.deadline, "task_weight": task.task_weight,
+        "reviewer_employee_no": task.reviewer_employee_no,
+        "start_time": task.start_time,
+        "deadline": task.deadline,
+        "task_weight": task.task_weight,
     }
     missing = [key for key, value in required.items() if value is None or value == ""]
     if missing:

@@ -425,7 +425,7 @@ function extractTaskDraft(text) {
       taskDescription: normalized,
       taskName: normalized.replace(/[，。,.]/g, " ").split(" ")[0].slice(0, 20),
       taskGoal: "按描述要求完成任务并提交验收",
-      taskSource: "AI任务助手",
+      taskSource: null,
       taskWeight: 3,
       reportCycle: "每周",
       ...people,
@@ -451,11 +451,24 @@ function extractTaskDraft(text) {
       .then((persisted) => saveCloudDraft(inputRecord, cloudResult, persisted, normalized)));
 }
 
-function clarifyTaskDraft(clarificationText) {
+function preserveDraftFields(aiDraft, currentDraft, protectedFields) {
+  const merged = { ...aiDraft };
+  for (const field of protectedFields || []) {
+    if (Object.prototype.hasOwnProperty.call(currentDraft, field)) {
+      merged[field] = currentDraft[field];
+    }
+  }
+  return merged;
+}
+
+function clarifyTaskDraft(clarificationText, currentDraft = null, protectedFields = []) {
   const answer = String(clarificationText || "").trim();
   if (!answer) return Promise.reject(new Error("请先回答AI追问"));
+  const draftPromise = currentDraft && typeof currentDraft === "object"
+    ? saveCreationDraft(currentDraft)
+    : creationDraft();
   if (useMock()) {
-    return creationDraft().then((draft) => {
+    return draftPromise.then((draft) => {
       const candidateUsers = store.read().users || [];
       const people = explicitPeopleFromText(answer, candidateUsers);
       const merged = {
@@ -467,30 +480,39 @@ function clarifyTaskDraft(clarificationText) {
       merged.missingFields = [...unresolvedPeopleFields(merged), ...(merged.deadline ? [] : ["deadline"])];
       merged.lowConfidenceFields = [];
       merged.confirmQuestions = merged.missingFields.length ? ["请继续补充尚未明确的信息，或直接在任务信息页选择。"] : [];
-      return saveCreationDraft(merged);
+      return saveCreationDraft(preserveDraftFields(merged, draft, protectedFields));
     });
   }
-  return Promise.all([creationDraft(), currentUser(), users()]).then(([draft, user, candidateUsers]) => {
-    if (!draft.inputId) throw new Error("缺少任务输入记录，请返回工作台重新识别");
-    return cloudAI.clarifyTaskFields({
-      input: {
-        inputId: draft.inputId,
-        inputType: "text",
-        rawText: draft.rawText || draft.taskDescription || "",
-        sourceChannel: "wechat_miniprogram",
-      },
-      previousExtraction: {
-        taskDraft: draft,
-        missingFields: draft.missingFields || [],
-        lowConfidenceFields: draft.lowConfidenceFields || [],
-        confirmQuestions: draft.confirmQuestions || [],
-        chatSessionId: draft.cloudChatSessionId || null,
-      },
-      clarificationAnswers: { clarificationText: answer },
-      ...cloudContext(user, candidateUsers),
-    }).then((cloudResult) => persistCloudExtraction(draft.inputId, cloudResult)
-      .then((persisted) => saveCloudDraft({ inputId: draft.inputId }, cloudResult, persisted, draft.rawText || draft.taskDescription || "")));
-  });
+  return draftPromise.then((draft) => Promise.all([currentUser(), users()])
+    .then(([user, candidateUsers]) => {
+      if (!draft.inputId) throw new Error("缺少任务输入记录，请返回工作台重新识别");
+      return cloudAI.clarifyTaskFields({
+        input: {
+          inputId: draft.inputId,
+          inputType: "text",
+          rawText: draft.rawText || draft.taskDescription || "",
+          sourceChannel: "wechat_miniprogram",
+        },
+        previousExtraction: {
+          taskDraft: draft,
+          missingFields: draft.missingFields || [],
+          lowConfidenceFields: draft.lowConfidenceFields || [],
+          confirmQuestions: draft.confirmQuestions || [],
+          chatSessionId: draft.cloudChatSessionId || null,
+        },
+        clarificationAnswers: { clarificationText: answer },
+        ...cloudContext(user, candidateUsers),
+      }).then((cloudResult) => persistCloudExtraction(draft.inputId, cloudResult)
+        .then((persisted) => saveCloudDraft(
+          { inputId: draft.inputId },
+          cloudResult,
+          persisted,
+          draft.rawText || draft.taskDescription || "",
+        ))
+        .then((aiDraft) => saveCreationDraft(
+          preserveDraftFields(aiDraft, draft, protectedFields),
+        )));
+    }));
 }
 
 function transcribeVoice(filePath) {
@@ -505,7 +527,7 @@ function normalizeReportCycle(value) {
 }
 function creationTaskPayload(draft) {
   return {
-    taskName: draft.taskName, taskDescription: draft.taskDescription || null, taskGoal: draft.taskGoal || null, taskSource: draft.taskSource || "AI任务助手",
+    taskName: draft.taskName, taskDescription: draft.taskDescription || null, taskGoal: draft.taskGoal || null, taskSource: draft.taskSource || null,
     mainAssigneeEmployeeNo: draft.mainAssigneeEmployeeNo || null, reportToEmployeeNo: draft.reportToEmployeeNo || null, reportToLevel: draft.reportToLevel || null, reviewerEmployeeNo: draft.reviewerEmployeeNo || null, departmentId: draft.departmentId || null,
     startTime: draft.startTime || null, deadline: draft.deadline || null, taskWeight: draft.taskWeight ? Number(draft.taskWeight) : null, deliverable: draft.deliverable || null, acceptanceCriteria: draft.acceptanceCriteria || null, isUrgent: Boolean(draft.isUrgent), reportCycle: normalizeReportCycle(draft.reportCycle),
     participants: (draft.collaboratorEmployeeNos || []).map((employeeNo) => ({ employeeNo, participantRole: "collaborator", isPrimary: false })),

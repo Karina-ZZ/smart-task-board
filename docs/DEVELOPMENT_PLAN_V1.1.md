@@ -64,6 +64,9 @@
 | 演示功能 | 切角色、重置、本地假数据 | 生产隐藏或删除；所有可见业务动作接真实后端 |
 | API命名 | 当前多为 snake_case | 存储/Python保持snake_case；JSON目标为camelCase，集中兼容旧调用 |
 | 状态名称 | `pending_confirmation`、`pending_acceptance` | 迁移到 `pending_confirm`、`pending_accept` 等PRD枚举 |
+| 任务来源 | 创建发送门禁将 `task_source` 作为硬必填并可能默认“AI任务助手” | P0：`task_source` 改为选填；录入渠道继续由 `source_channel` 承担；空来源不得阻止确认发送 |
+| AI待确认 | `needsClarification` 可独立阻断进入确认发送 | P0：AI追问仅辅助补齐信息；发送资格只由9项真实必填字段及既有日期/状态/权限门禁决定 |
+| AI追问回填 | 后续完整AI草稿可能覆盖用户已手工确认字段 | P0：用户最新明确填写/选择优先于非目标AI回填；AI仍可补充本轮未解决字段 |
 
 任何后续新冲突都追加到本表，不得覆盖既有裁决记录。
 

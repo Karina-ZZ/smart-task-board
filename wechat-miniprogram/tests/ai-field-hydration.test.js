@@ -29,6 +29,7 @@ const api = require("../utils/api");
   assert.equal(absent.mainAssigneeEmployeeNo, null);
   assert.equal(absent.reportToEmployeeNo, null);
   assert.equal(absent.reviewerEmployeeNo, null);
+  assert.equal(absent.taskSource, null, "optional task source must not be auto-filled as AI task assistant");
   assert.deepEqual(absent.collaboratorEmployeeNos, []);
   assert.ok(absent.missingFields.includes("mainAssigneeEmployeeNo"));
 

@@ -514,6 +514,32 @@ def test_confirm_task_plan_rejects_unscoped_node_owner() -> None:
     assert uow.commit.call_count == 0
 
 
+def test_confirm_send_allows_optional_task_source() -> None:
+    task = _task(status="pending_confirmation", version=2)
+    task.task_source = None
+    participant = _participant(task)
+    service, uow = _workflow_context(task, participant=participant)
+
+    result = service.confirm_and_send(task.task_id, "CREATOR", 2, "unit-test")
+
+    assert result.status == "pending_acceptance"
+    assert result.task_source is None
+    assert result.task_version == 3
+    uow.commit.assert_called_once_with()
+
+
+def test_confirm_send_still_rejects_missing_required_task_goal() -> None:
+    task = _task(status="pending_confirmation", version=2)
+    task.task_source = None
+    task.task_goal = None
+    service, uow = _workflow_context(task)
+
+    with pytest.raises(BusinessValidationError, match="task_goal"):
+        service.confirm_and_send(task.task_id, "CREATOR", 2, "unit-test")
+
+    uow.commit.assert_not_called()
+
+
 def test_confirm_send_sets_pending_accept_and_notifies_only_assignee() -> None:
     task = _task(status="pending_confirmation", version=2)
     participant = _participant(task)

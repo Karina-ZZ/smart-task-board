@@ -401,7 +401,7 @@ function saveTaskDraft(payload) {
   if (task && task.creatorEmployeeNo !== creator.employeeNo) throw new Error("SCOPE_DENIED");
   if (task && !["draft", "pending_confirm", "pending_confirmation", "returned"].includes(task.status)) throw new Error("STATUS_NOT_ALLOWED");
   const values = {
-    taskName: payload.taskName, taskDescription: payload.taskDescription, taskGoal: payload.taskGoal, taskSource: payload.taskSource || "AI任务助手",
+    taskName: payload.taskName, taskDescription: payload.taskDescription, taskGoal: payload.taskGoal, taskSource: payload.taskSource || null,
     mainAssigneeEmployeeNo: payload.mainAssigneeEmployeeNo, reportToEmployeeNo: payload.reportToEmployeeNo, reviewerEmployeeNo: payload.reviewerEmployeeNo || creator.employeeNo,
     collaboratorEmployeeNos: payload.collaboratorEmployeeNos || [], departmentId: payload.departmentId || creator.departmentId,
     startTime: payload.startTime || now(), deadline: payload.deadline, taskWeight: Number(payload.taskWeight || 3), deliverable: payload.deliverable || "",
@@ -442,7 +442,7 @@ function clearPerformanceMatch(taskId, _version) {
 
 function sendTask(payload) {
   const saved = saveTaskDraft(payload); const state = read(); const task = state.tasks.find((item) => item.taskId === saved.taskId);
-  const required=[task.taskName,task.taskDescription,task.taskGoal,task.taskSource,task.mainAssigneeEmployeeNo,task.reportToEmployeeNo,task.reviewerEmployeeNo,task.startTime,task.deadline,task.taskWeight];
+  const required=[task.taskName,task.taskDescription,task.taskGoal,task.mainAssigneeEmployeeNo,task.reportToEmployeeNo,task.reviewerEmployeeNo,task.startTime,task.deadline,task.taskWeight];
   if (required.some((value)=>value===null||value===undefined||value==="")) throw new Error("REQUIRED_FIELD_MISSING");
   if (new Date(task.deadline).getTime() < new Date(task.startTime).getTime()) throw new Error("DATE_RANGE_INVALID");
   if (state.nodes.some((node)=>node.taskId===task.taskId)) throw new Error("CREATOR_NODES_NOT_ALLOWED");

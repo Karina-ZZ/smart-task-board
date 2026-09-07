@@ -21,7 +21,7 @@ Page({
     aiQuestions: [], needsClarification: false, clarificationText: "", clarifying: false, confidenceLabel: "",
     peopleSheet: false, peopleField: "", peopleTitle: "", peopleKeyword: "",
     metricSheet: false, metricMatches: [], metricLoading: false,
-    saving: false,
+    userEditedFields: {}, saving: false,
   },
   onLoad() {
     Promise.all([api.creationDraft(), api.users()]).then(([draft, users]) => this.applyDraft(draft, users)).catch((error) => this.fail(error, "任务信息加载失败"));
@@ -40,19 +40,30 @@ Page({
   fail(error, fallback) { wx.showToast({ title:error?.message||fallback, icon:"none" }); },
   back() { wx.navigateBack(); },
   editSource() { router.replace("/pages/workbench/index"); },
-  input(event) { this.setData({ [`draft.${event.currentTarget.dataset.field}`]:event.detail.value }); },
+  markEdited(field) { this.setData({ userEditedFields: { ...this.data.userEditedFields, [field]: true } }); },
+  input(event) {
+    const field=event.currentTarget.dataset.field; const value=event.detail.value;
+    this.setData({ [`draft.${field}`]:value }); this.markEdited(field);
+    if(String(value||"").trim())this.resolveAiField(field);
+  },
   inputClarification(event) { this.setData({ clarificationText:event.detail.value }); },
+  clarificationProtectedFields(draft) {
+    const unresolved=new Set([...(draft.missingFields||[]),...(draft.lowConfidenceFields||[])]);
+    return Object.keys(this.data.userEditedFields||{}).filter((field)=>!unresolved.has(field));
+  },
   clarify() {
     const answer=this.data.clarificationText.trim(); if(!answer){this.fail(null,"请先回答AI追问");return;}
+    const currentDraft=this.normalizedDraft();
+    const protectedFields=this.clarificationProtectedFields(currentDraft);
     this.setData({clarifying:true}); wx.showLoading({title:"AI继续整理"});
-    api.clarifyTaskDraft(answer).then((draft)=>{wx.hideLoading();this.setData({clarifying:false,clarificationText:""});this.applyDraft(draft);wx.showToast({title:"识别结果已更新",icon:"success"});})
+    api.clarifyTaskDraft(answer,currentDraft,protectedFields).then((draft)=>{wx.hideLoading();this.setData({clarifying:false,clarificationText:""});this.applyDraft(draft);wx.showToast({title:"识别结果已更新",icon:"success"});})
       .catch((e)=>{wx.hideLoading();this.setData({clarifying:false});this.fail(e,"追问失败，请重试");});
   },
   resolveAiField(field) {
     const draft = this.data.draft || {};
     const missingFields = (draft.missingFields || []).filter((item) => item !== field);
     const lowConfidenceFields = (draft.lowConfidenceFields || []).filter((item) => item !== field);
-    const labels = { mainAssigneeEmployeeNo: "主承办", reportToEmployeeNo: "汇报", reviewerEmployeeNo: "验收", collaboratorEmployeeNos: "协同" };
+    const labels = { taskName:"任务名称", taskDescription:"任务内容", taskGoal:"任务目标", taskSource:"任务来源", mainAssigneeEmployeeNo:"主承办", reportToEmployeeNo:"汇报", reviewerEmployeeNo:"验收", collaboratorEmployeeNos:"协同", startTime:"开始时间", deadline:"截止时间", taskWeight:"任务权重" };
     const confirmQuestions = (draft.confirmQuestions || []).filter((item) => {
       const text = typeof item === "string" ? item : (item?.question || "");
       return !String(text).includes(labels[field] || field);
@@ -76,19 +87,18 @@ Page({
     if(field==="collaboratorEmployeeNos"){
       const list=[...new Set([...(this.data.draft.collaboratorEmployeeNos||[]),employeeNo])]; this.setData({"draft.collaboratorEmployeeNos":list,collaboratorDisplay:list.map((no)=>({employeeNo:no,name:this.data.users.find((u)=>u.employeeNo===no)?.name||no}))});
     } else { const name=this.data.users.find((u)=>u.employeeNo===employeeNo)?.name||employeeNo; const key=field==="mainAssigneeEmployeeNo"?"assigneeName":field==="reportToEmployeeNo"?"reportToName":"reviewerName"; this.setData({[`draft.${field}`]:employeeNo,[key]:name}); }
-    this.resolveAiField(field);
+    this.markEdited(field); this.resolveAiField(field);
     this.closePeople();
   },
-  removeCollaborator(event){const no=event.currentTarget.dataset.employee;const list=(this.data.draft.collaboratorEmployeeNos||[]).filter((item)=>item!==no);this.setData({"draft.collaboratorEmployeeNos":list,collaboratorDisplay:list.map((employeeNo)=>({employeeNo,name:this.data.users.find((u)=>u.employeeNo===employeeNo)?.name||employeeNo}))});},
+  removeCollaborator(event){const no=event.currentTarget.dataset.employee;const list=(this.data.draft.collaboratorEmployeeNos||[]).filter((item)=>item!==no);this.setData({"draft.collaboratorEmployeeNos":list,collaboratorDisplay:list.map((employeeNo)=>({employeeNo,name:this.data.users.find((u)=>u.employeeNo===employeeNo)?.name||employeeNo}))});this.markEdited("collaboratorEmployeeNos");},
   noop(){},
-  chooseStartDate(e){this.setData({startDate:e.detail.value});}, chooseStartTime(e){this.setData({startClock:e.detail.value});},
-  chooseDeadlineDate(e){this.setData({deadlineDate:e.detail.value});}, chooseDeadlineTime(e){this.setData({deadlineClock:e.detail.value});},
-  chooseWeight(e){this.setData({"draft.taskWeight":Number(e.currentTarget.dataset.value)});},
-  toggleUrgent(e){this.setData({"draft.isUrgent":e.detail.value});},
+  chooseStartDate(e){this.setData({startDate:e.detail.value});this.markEdited("startTime");this.resolveAiField("startTime");}, chooseStartTime(e){this.setData({startClock:e.detail.value});this.markEdited("startTime");this.resolveAiField("startTime");},
+  chooseDeadlineDate(e){this.setData({deadlineDate:e.detail.value});this.markEdited("deadline");this.resolveAiField("deadline");}, chooseDeadlineTime(e){this.setData({deadlineClock:e.detail.value});this.markEdited("deadline");this.resolveAiField("deadline");},
+  chooseWeight(e){this.setData({"draft.taskWeight":Number(e.currentTarget.dataset.value)});this.markEdited("taskWeight");this.resolveAiField("taskWeight");},
+  toggleUrgent(e){this.setData({"draft.isUrgent":e.detail.value});this.markEdited("isUrgent");},
   normalizedDraft(){return {...this.data.draft,startTime:`${this.data.startDate}T${this.data.startClock}:00+08:00`,deadline:`${this.data.deadlineDate}T${this.data.deadlineClock}:00+08:00`,reportCycle:"每周"};},
   validate(draft){
-    if(this.data.needsClarification){this.fail(null,"请先完成AI待确认问题");return false;}
-    const required=[draft.taskName,draft.taskDescription,draft.taskGoal,draft.taskSource,draft.mainAssigneeEmployeeNo,draft.reportToEmployeeNo,draft.reviewerEmployeeNo,draft.startTime,draft.deadline,draft.taskWeight];
+    const required=[draft.taskName,draft.taskDescription,draft.taskGoal,draft.mainAssigneeEmployeeNo,draft.reportToEmployeeNo,draft.reviewerEmployeeNo,draft.startTime,draft.deadline,draft.taskWeight];
     if(required.some((v)=>v===null||v===undefined||String(v).trim()==="")){this.fail(null,"请补齐所有必填信息");return false;}
     if(new Date(draft.deadline)<new Date(draft.startTime)){this.fail(null,"截止时间不能早于开始时间");return false;}
     return true;

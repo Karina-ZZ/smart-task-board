@@ -36,6 +36,6 @@ Page({
     const text = this.data.text.trim();
     if (!text) { wx.showToast({ title: "请先描述任务", icon: "none" }); return; }
     wx.showLoading({ title: "AI识别中" });
-    api.saveCreationDraft({ rawText: text, taskDescription: text, taskName: text.replace(/[，。,.]/g, " ").split(" ")[0].slice(0, 20), taskGoal: "按描述要求完成任务并提交验收", taskSource: "AI任务助手", taskWeight: 3, reportCycle: "每周" }).then(() => { wx.hideLoading(); router.go("/pages/create-details/index"); }).catch((error) => { wx.hideLoading(); wx.showToast({ title: error.message, icon: "none" }); });
+    api.saveCreationDraft({ rawText: text, taskDescription: text, taskName: text.replace(/[，。,.]/g, " ").split(" ")[0].slice(0, 20), taskGoal: "按描述要求完成任务并提交验收", taskSource: null, taskWeight: 3, reportCycle: "每周" }).then(() => { wx.hideLoading(); router.go("/pages/create-details/index"); }).catch((error) => { wx.hideLoading(); wx.showToast({ title: error.message, icon: "none" }); });
   },
 });
