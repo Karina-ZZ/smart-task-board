@@ -3,6 +3,7 @@
  * Responsibilities: define formal routes, protected boundaries, role gates, legacy redirects, and route placeholders.
  * Does not own: business page implementations, auth APIs, or backend permission authority.
  * Plan task: DEV-02.
+ * Hotfix: V1.1 Web Login Route.
  */
 
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
@@ -11,11 +12,12 @@ import { useAuth } from "../auth/useAuth";
 import { TaskDetailPage, TaskReportPage, TaskReviewPage } from "../features/task-detail";
 import { TaskIntakePage } from "../features/task-intake";
 import { TaskOverviewPage } from "../features/task-overview";
+import { LoginPage } from "../pages/LoginPage";
 import { WorkbenchPage } from "../features/workbench";
 import { AppShell, RouteLoadingState } from "./AppShell";
 import { canAccessExecutiveRoutes } from "./navigation";
 import { createReturnSource } from "./return-state";
-import { ForbiddenRoute, LoginRoute, NotFoundRoute, RoutePlaceholder } from "./RoutePlaceholders";
+import { ForbiddenRoute, NotFoundRoute, RoutePlaceholder } from "./RoutePlaceholders";
 
 function ProtectedLayout() {
   const { user, loading } = useAuth();
@@ -50,7 +52,7 @@ function LegacyTaskRedirect() {
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginRoute />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Navigate to="/workbench" replace />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/workbench" element={<WorkbenchPage />} />

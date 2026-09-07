@@ -1,15 +1,26 @@
+/**
+ * Feature: Web prototype login.
+ * Responsibilities: select a development identity and restore a safe internal return route.
+ * Does not own: enterprise WeCom login, token persistence, or backend authorization.
+ * Hotfix: V1.1 Web Login Route.
+ */
+
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { listPrototypeUsers } from "../api/endpoints";
+import { readReturnSourceState, resolveReturnTarget } from "../app/return-state";
 import { useAuth } from "../auth/useAuth";
 import { EmptyState, ErrorState, LoadingState } from "../components/Feedback";
 
 export function LoginPage() {
   const { user, login } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const source = readReturnSourceState(location.state);
+  const returnTarget = resolveReturnTarget(source);
   const [employeeNo, setEmployeeNo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<unknown>(null);
@@ -17,6 +28,7 @@ export function LoginPage() {
     queryKey: ["prototype-users"],
     queryFn: listPrototypeUsers,
     retry: false,
+    enabled: !user,
   });
   const loginErrorMessage =
     loginError === null
@@ -25,7 +37,7 @@ export function LoginPage() {
         ? loginError.message
         : "登录失败，请稍后重试。";
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={returnTarget} replace />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -34,7 +46,7 @@ export function LoginPage() {
     setLoginError(null);
     try {
       await login(employeeNo);
-      navigate("/", { replace: true });
+      navigate(returnTarget, { replace: true });
     } catch (error) {
       setLoginError(error);
     } finally {

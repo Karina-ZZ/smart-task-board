@@ -48,6 +48,56 @@ function userPayload(canAccessExecutive: boolean) {
   };
 }
 
+async function mockPrototypeLogin(page: Page) {
+  await page.route("**/api/v1/auth/prototype-users", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          employee_no: "DEV06_EMPLOYEE",
+          name: "Auth Employee",
+          department_id: null,
+          department_name: "测试部门",
+          role_type: "employee",
+        },
+      ]),
+    });
+  });
+  await page.route("**/api/v1/auth/login", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "dev-06-access-token",
+        refresh_token: "dev-06-refresh-token",
+        token_type: "bearer",
+        expires_in: 1800,
+      }),
+    });
+  });
+  await page.route("**/api/v1/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(userPayload(false)),
+    });
+  });
+  await page.route("**/api/v1/tasks?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [],
+        limit: 20,
+        offset: 0,
+        total: 0,
+        status_counts: {},
+      }),
+    });
+  });
+}
+
 async function mockSession(page: Page, canAccessExecutive: boolean) {
   await page.route("**/api/v1/me", async (route) => {
     await route.fulfill({
@@ -115,11 +165,27 @@ async function expectVisibleTouchTargets(page: Page) {
 }
 
 test.describe("DEV-06 auth projection", () => {
-  test("redirects anonymous protected routes to login without a loop", async ({ page }) => {
+  test("redirects anonymous protected routes to the real login page", async ({ page }) => {
+    await mockPrototypeLogin(page);
     await page.goto("/tasks");
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByText("登录后返回：/tasks")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "选择演示身份" })).toBeVisible();
+    await expect(page.getByText(/仅用于隔离开发和演示/)).toBeVisible();
+    await expect(page.getByText(/DEV-02/)).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("returns to the protected task route after prototype login", async ({ page }) => {
+    await mockPrototypeLogin(page);
+    await page.goto("/tasks?status=pending_accept");
+
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel("演示用户").selectOption("DEV06_EMPLOYEE");
+    await page.getByRole("button", { name: "进入任务看板" }).click();
+
+    await expect(page).toHaveURL(/\/tasks\?status=pending_accept$/);
+    await expect(page.getByTestId("task-overview-page")).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 

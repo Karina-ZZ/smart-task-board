@@ -6,6 +6,7 @@
  */
 
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -59,7 +60,11 @@ const roleOnlyExecutiveUser: CurrentUser = {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+  return (
+    <output data-testid="location">
+      {`${location.pathname}${location.search}${location.hash}`}
+    </output>
+  );
 }
 
 function renderRoutes({
@@ -91,6 +96,36 @@ function renderRoutes({
   );
 }
 
+function StatefulAuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const login = useCallback(async () => {
+    setUser(employeeUser);
+  }, []);
+  const auth = useMemo<AuthValue>(
+    () => ({ user, loading: false, login, logout: vi.fn() }),
+    [login, user],
+  );
+
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
+}
+
+function renderStatefulRoutes(route: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <StatefulAuthProvider>
+        <MemoryRouter initialEntries={[route]}>
+          <AppRoutes />
+          <LocationProbe />
+        </MemoryRouter>
+      </StatefulAuthProvider>
+    </QueryClientProvider>,
+  );
+}
+
 const formalTaskRoutes = [
   ["/task/22222222-2222-4222-8222-222222222222", "task-detail-page"],
   ["/task/22222222-2222-4222-8222-222222222222/report", "task-report-page"],
@@ -103,6 +138,51 @@ const placeholderTargetRoutes = [
   ["/notifications", "通知中心"],
   ["/profile", "我的"],
 ] as const;
+
+const prototypeUsers = [
+  {
+    employee_no: "E-CREATOR",
+    name: "测试创建人",
+    department_id: null,
+    department_name: "测试部门",
+    role_type: "employee",
+  },
+];
+
+function mockPrototypeUsersFetch() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string | URL | Request) => {
+      const pathname = new URL(String(url), "http://localhost").pathname;
+      if (pathname === "/api/v1/auth/prototype-users") {
+        return jsonResponse(prototypeUsers);
+      }
+      return jsonResponse({}, 404);
+    }),
+  );
+}
+
+function mockLoginAndTaskOverviewFetch() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string | URL | Request) => {
+      const pathname = new URL(String(url), "http://localhost").pathname;
+      if (pathname === "/api/v1/auth/prototype-users") {
+        return jsonResponse(prototypeUsers);
+      }
+      if (pathname === "/api/v1/tasks") {
+        return jsonResponse({
+          items: [taskSummary],
+          limit: 20,
+          offset: 0,
+          total: 1,
+          status_counts: {},
+        });
+      }
+      return jsonResponse({}, 404);
+    }),
+  );
+}
 
 function mockWorkbenchFetch() {
   vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request) => {
@@ -195,10 +275,16 @@ describe("DEV-02 target router", () => {
     vi.unstubAllGlobals();
   });
 
-  it("allows the login route to render for anonymous users", () => {
+  it("renders the real prototype login page for anonymous users", async () => {
+    mockPrototypeUsersFetch();
     renderRoutes({ route: "/login", user: null });
 
-    expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "选择演示身份" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/仅用于隔离开发和演示/)).toBeInTheDocument();
+    expect(screen.getByLabelText("演示用户")).toBeInTheDocument();
+    expect(screen.queryByText(/DEV-02/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
   });
 
@@ -259,11 +345,46 @@ describe("DEV-02 target router", () => {
     expect(screen.getByTestId("route-contract")).toHaveTextContent("No");
   });
 
-  it("redirects anonymous users from protected routes to login with source state", async () => {
+  it("redirects anonymous users from protected routes to the real login page", async () => {
+    mockPrototypeUsersFetch();
     renderRoutes({ route: "/tasks", user: null });
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/login"));
-    expect(screen.getByText("登录后返回：/tasks")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    });
+    expect(
+      await screen.findByRole("heading", { name: "选择演示身份" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/DEV-02/)).not.toBeInTheDocument();
+  });
+
+  it("restores the protected task route after prototype login", async () => {
+    mockLoginAndTaskOverviewFetch();
+    renderStatefulRoutes("/tasks?status=pending_accept");
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    });
+    await user.selectOptions(await screen.findByLabelText("演示用户"), "E-CREATOR");
+    await user.click(screen.getByRole("button", { name: "进入任务看板" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/tasks?status=pending_accept",
+      );
+    });
+    expect(await screen.findByTestId("task-overview-page")).toBeInTheDocument();
+  });
+
+  it("redirects an authenticated user away from login to workbench", async () => {
+    mockWorkbenchFetch();
+    renderRoutes({ route: "/login" });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/workbench");
+    });
+    expect(await screen.findByTestId("workbench-page")).toBeInTheDocument();
   });
 
   it("hides executive navigation for ordinary employees", () => {

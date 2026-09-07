@@ -99,11 +99,19 @@ async function expectTouchTargets(page: Page) {
 }
 
 test.describe("DEV-07 Task Intake", () => {
-  test("redirects anonymous users to login", async ({ page }) => {
+  test("redirects anonymous users to the real login page", async ({ page }) => {
+    await page.route("**/api/v1/auth/prototype-users", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([]),
+      });
+    });
     await page.goto("/create/details");
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("heading", { name: "登录" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "选择演示身份" })).toBeVisible();
+    await expect(page.getByText(/DEV-02/)).toHaveCount(0);
   });
 
   test("extracts text input without creating or sending a task", async ({ page }) => {
