@@ -22,12 +22,27 @@
   padding: 0 var(--stb-space-7) calc(98px + var(--stb-safe-bottom));
 }
 
+.stb-route-shell__content--workbench {
+  padding-top: max(12px, var(--stb-safe-top));
+}
+
 .stb-route-shell__loading {
   padding: var(--stb-space-8) var(--stb-space-7) calc(98px + var(--stb-safe-bottom));
 }
 
 .stb-route-shell__bell {
   position: relative;
+}
+
+.stb-route-shell__bell-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #ff4358;
 }
 
 .stb-route-shell__nav-icon {
@@ -94,8 +109,7 @@
     border-radius: 28px;
   }
 
-  .stb-bottom-nav {
+  .stb-bottom-nav-wrap {
     bottom: 22px;
-    border-radius: 0 0 28px 28px;
   }
 }

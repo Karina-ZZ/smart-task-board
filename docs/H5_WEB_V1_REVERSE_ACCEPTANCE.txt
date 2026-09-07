@@ -1,0 +1,22 @@
+H5网页第一版逐页联调版｜ZIP反向验收
+
+验收方式：
+1. 将候选 ZIP 解压到全新目录 /mnt/data/h5_page_reverse。
+2. 不复用开发工作树缓存或 pytest cache。
+3. 在解压目录重新运行后端非PG、H5合同、企业微信客户端/认证、小程序基线、Python compileall、TS/TSX源码语法检查。
+
+结果：
+- 后端非 PostgreSQL：617 passed / 41 deselected
+- H5迁移合同 + 企业微信客户端/认证定点：24 passed
+- Test16微信小程序累计：25 / 25 测试文件 PASS
+- 微信小程序 JS node --check：PASS
+- Python compileall：PASS
+- React/TypeScript源码语法：103 files / 0 syntax errors
+
+未执行/不得宣称PASS：
+- 41项真实PostgreSQL专项
+- Web npm ci / ESLint / Vitest / Vite build / Playwright（registry访问超时）
+- 真实企业微信 OAuth / 应用消息 / WebView / 真机麦克风ASR
+
+结论：
+ZIP中的代码内容与开发工作树的当前环境可执行门禁表现一致；可进入真实PG、完整Web依赖及企业微信真机门禁。

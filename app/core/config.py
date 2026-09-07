@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     wecom_app_secret: SecretStr | None = Field(default=None, repr=False)
     wecom_api_base_url: str = "https://qyapi.weixin.qq.com"
     wecom_request_timeout_seconds: int = Field(default=8, ge=1, le=30)
+    wecom_h5_base_url: str = ""
     chat_service_jwt_secret_key: SecretStr | None = Field(default=None, repr=False)
     chat_service_jwt_issuer: str = "smart-task-board"
     chat_service_jwt_audience: str = "wangxu-chat"

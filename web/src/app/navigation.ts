@@ -7,7 +7,7 @@
 
 import type { CurrentUser } from "../api/types";
 
-export type NavigationItemId = "workbench" | "executive" | "tasks" | "create" | "notifications" | "profile";
+export type NavigationItemId = "workbench" | "executive" | "tasks" | "notifications" | "profile";
 
 export interface ShellNavigationItem {
   id: NavigationItemId;
@@ -33,7 +33,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "login",
     path: "/login",
     title: "登录",
-    subtitle: "身份入口路由占位",
+    subtitle: "企业微信 H5 身份入口",
     protected: false,
   },
   {
@@ -48,7 +48,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "executive",
     path: "/executive",
     title: "团队任务态势",
-    subtitle: "高管看板路由占位",
+    subtitle: "团队指标、四象限与负荷热力图",
     navId: "executive",
     protected: true,
     executiveOnly: true,
@@ -65,7 +65,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "task-detail",
     path: "/task/:taskId",
     title: "任务详情",
-    subtitle: "任务详情路由占位",
+    subtitle: "概览、人员、节点、进度、绩效与真实操作",
     navId: "tasks",
     protected: true,
     backFallback: "/tasks",
@@ -74,7 +74,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "task-report",
     path: "/task/:taskId/report",
     title: "提交进度汇报",
-    subtitle: "汇报页路由占位",
+    subtitle: "进度汇报、卡点与资源处理",
     navId: "tasks",
     protected: true,
     backFallback: "/tasks",
@@ -83,7 +83,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "task-review",
     path: "/task/:taskId/review",
     title: "任务验收",
-    subtitle: "验收页路由占位",
+    subtitle: "完成申请、验收与返工",
     navId: "tasks",
     protected: true,
     backFallback: "/tasks",
@@ -92,17 +92,24 @@ export const targetRouteContracts: RouteContract[] = [
     id: "task-decomposition",
     path: "/task/:taskId/decomposition",
     title: "AI 拆解状态",
-    subtitle: "承办人接受后拆解状态路由占位",
+    subtitle: "承办人接受后自动 AI 拆解与失败重试",
     navId: "tasks",
     protected: true,
     backFallback: "/tasks",
   },
   {
+    id: "create-start",
+    path: "/create",
+    title: "描述任务",
+    subtitle: "创建任务 · 1/3",
+    protected: true,
+    backFallback: "/workbench",
+  },
+  {
     id: "create-details",
     path: "/create/details",
     title: "创建任务",
-    subtitle: "描述任务与信息确认路由占位",
-    navId: "create",
+    subtitle: "AI录入、多轮追问与任务级字段确认",
     protected: true,
     backFallback: "/workbench",
   },
@@ -110,8 +117,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "create-confirm",
     path: "/create/confirm",
     title: "确认发送",
-    subtitle: "创建人确认发送路由占位",
-    navId: "create",
+    subtitle: "绩效确认与最终发送",
     protected: true,
     backFallback: "/create/details",
   },
@@ -119,7 +125,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "notifications",
     path: "/notifications",
     title: "通知中心",
-    subtitle: "通知路由占位",
+    subtitle: "任务、节点、临期与验收通知",
     navId: "notifications",
     protected: true,
   },
@@ -127,7 +133,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "profile",
     path: "/profile",
     title: "我的",
-    subtitle: "个人中心路由占位",
+    subtitle: "当前员工身份、权限与个人摘要",
     navId: "profile",
     protected: true,
   },
@@ -135,7 +141,7 @@ export const targetRouteContracts: RouteContract[] = [
     id: "executive-employee-tasks",
     path: "/executive/employee-tasks",
     title: "员工负荷任务明细",
-    subtitle: "高管负荷下钻路由占位",
+    subtitle: "兼容入口，统一回到任务概览员工筛选",
     navId: "executive",
     protected: true,
     executiveOnly: true,
@@ -144,12 +150,11 @@ export const targetRouteContracts: RouteContract[] = [
 ];
 
 export const shellNavigationItems: ShellNavigationItem[] = [
-  { id: "workbench", label: "工作台", to: "/workbench", icon: "W" },
-  { id: "executive", label: "团队", to: "/executive", icon: "E", requiresExecutive: true },
-  { id: "tasks", label: "任务", to: "/tasks", icon: "T" },
-  { id: "create", label: "创建", to: "/create/details", icon: "+" },
-  { id: "notifications", label: "通知", to: "/notifications", icon: "N" },
-  { id: "profile", label: "我的", to: "/profile", icon: "M" },
+  { id: "workbench", label: "工作台", to: "/workbench", icon: "⌂" },
+  { id: "tasks", label: "任务", to: "/tasks", icon: "▤" },
+  { id: "executive", label: "团队", to: "/executive", icon: "◫", requiresExecutive: true },
+  { id: "notifications", label: "消息", to: "/notifications", icon: "◉" },
+  { id: "profile", label: "我的", to: "/profile", icon: "◎" },
 ];
 
 export function canAccessExecutiveRoutes(user: CurrentUser | null): boolean {

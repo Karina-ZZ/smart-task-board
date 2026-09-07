@@ -5,7 +5,7 @@
  * Plan task: DEV-05.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import type {
@@ -124,7 +124,8 @@ export function PeopleSection({ task }: { task: TaskDetail }) {
   );
 }
 
-export function NodesSection({ task }: { task: TaskDetail }) {
+export function NodesSection({ task, renderNodeActions }: { task: TaskDetail; renderNodeActions?: (node: TaskDetail["nodes"][number]) => ReactNode }) {
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const dependenciesBySuccessor = new Map<string, string[]>();
   task.dependencies.forEach((item) => {
     dependenciesBySuccessor.set(item.successor_node_id, [
@@ -132,34 +133,65 @@ export function NodesSection({ task }: { task: TaskDetail }) {
       item.predecessor_node_id,
     ]);
   });
+  const collaboratorsByNode = new Map<string, string[]>();
+  task.node_participants.forEach((item) => {
+    collaboratorsByNode.set(item.node_id, [
+      ...(collaboratorsByNode.get(item.node_id) ?? []),
+      item.employee_no,
+    ]);
+  });
   return (
     <Card title="节点执行" id="detail-nodes" className="stb-task-detail-section">
       {task.nodes.length === 0 ? (
-        <EmptyState title="暂无节点任务" detail="待接受或拆解前任务允许没有节点，这不是系统异常。" />
+        <EmptyState
+          title="暂无执行节点"
+          detail={task.status === "pending_accept" ? "承办人接受并完成AI拆解后生成节点。" : "当前任务没有有效节点。"}
+        />
       ) : (
         <div className="stb-task-detail-nodes">
-          {task.nodes.map((node) => (
-            <article id={`node-${node.node_id}`} tabIndex={-1} className="stb-task-detail-node" key={node.node_id}>
-              <div className="stb-task-detail-node__head">
-                <span className="stb-task-detail-node__order">{String(node.node_order).padStart(2, "0")}</span>
-                <div>
-                  <h3>{node.node_name}</h3>
-                  <p>{node.action_detail || "暂无动作说明"}</p>
-                </div>
-                <Badge tone={statusTone(node.status)}>{nodeStatusLabels[node.status] ?? node.status}</Badge>
-              </div>
-              <Progress value={node.progress_percent} label={`节点 ${node.node_order} 进度`} />
-              <KeyValueGrid rows={[
-                ["负责人", displayValue(node.owner_employee_no)],
-                ["开始时间", formatDateTime(node.planned_start_time)],
-                ["截止时间", formatDateTime(node.planned_deadline)],
-                ["交付物", displayValue(node.deliverable)],
-                ["验收标准", displayValue(node.acceptance_criteria)],
-                ["工具资料", displayValue(node.tools_or_materials)],
-                ["依赖前置", dependenciesBySuccessor.get(node.node_id)?.join("、") || "无"],
-              ]} />
-            </article>
-          ))}
+          {task.nodes.map((node) => {
+            const open = expandedNodeId === node.node_id;
+            const collaborators = collaboratorsByNode.get(node.node_id) ?? [];
+            return (
+              <article id={`node-${node.node_id}`} tabIndex={-1} className={`stb-task-detail-node${open ? " stb-task-detail-node--open" : ""}`} key={node.node_id}>
+                <button
+                  type="button"
+                  className="stb-task-detail-node__summary"
+                  aria-expanded={open}
+                  onClick={() => setExpandedNodeId(open ? null : node.node_id)}
+                >
+                  <span className="stb-task-detail-node__order">{String(node.node_order).padStart(2, "0")}</span>
+                  <span className="stb-task-detail-node__copy">
+                    <strong>{node.node_name}</strong>
+                    <small>{node.action_detail || "暂无动作说明"}</small>
+                    <Progress value={node.progress_percent} label={`节点 ${node.node_order} 进度`} />
+                  </span>
+                  <span className="stb-task-detail-node__status"><Badge tone={statusTone(node.status)}>{nodeStatusLabels[node.status] ?? node.status}</Badge><i>⌄</i></span>
+                </button>
+                {open && (
+                  <div className="stb-task-detail-node__body">
+                    <KeyValueGrid rows={[
+                      ["负责人", displayValue(node.owner_employee_no)],
+                      ["协同人", collaborators.join("、") || "无"],
+                      ["开始时间", formatDateTime(node.planned_start_time)],
+                      ["截止时间", formatDateTime(node.planned_deadline)],
+                      ["完成情况", node.completed_at ? formatDateTime(node.completed_at) : "未完成"],
+                      ["前置依赖", dependenciesBySuccessor.get(node.node_id)?.join("、") || "无"],
+                    ]} />
+                    <div className="stb-task-detail-long"><span>工具/资料</span><strong>{displayValue(node.tools_or_materials)}</strong></div>
+                    <div className="stb-task-detail-long"><span>最小文字成果</span><strong>{displayValue(node.deliverable)}</strong></div>
+                    {node.assignment_status && node.assignment_status !== "accepted" && node.assignment_status !== "not_required" && (
+                      <div className="stb-node-assignment-state">
+                        <Badge tone={node.assignment_status === "rejected" ? "danger" : "warning"}>{node.assignment_status === "pending" ? "待承接" : "无法承接"}</Badge>
+                        {node.assignment_reject_reason && <small>{node.assignment_reject_reason}</small>}
+                      </div>
+                    )}
+                    {renderNodeActions?.(node)}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </Card>

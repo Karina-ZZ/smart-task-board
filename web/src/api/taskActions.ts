@@ -135,6 +135,22 @@ export async function decideChangeRequest(
   });
 }
 
+export async function reassignTask(
+  taskId: string,
+  newAssigneeEmployeeNo: string,
+  version: number,
+  reason: string,
+): Promise<TaskActionResult> {
+  return apiRequest<TaskActionResult>(`/api/v1/tasks/${taskId}/assignee`, {
+    method: "PUT",
+    body: JSON.stringify({
+      expected_task_version: version,
+      new_assignee_employee_no: newAssigneeEmployeeNo,
+      reason,
+    }),
+  });
+}
+
 export async function mergeTask(
   taskId: string,
   targetTaskId: string,

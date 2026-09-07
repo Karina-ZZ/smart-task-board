@@ -2,6 +2,85 @@
 
 本仓库所有显著变更都记录在此文件中。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [H5 网页第一版] - 2026-09-07 — Test16 全功能迁移至企业微信自建应用 React H5
+
+> 在 Test16 Performance-Link Hotfix（commit `bd7400b`）之上叠加。本轮**只新增 H5 网页代码与文档**，PostgreSQL 业务表 / 字段 / Alembic / 任务状态机 / AI 拆解业务规则 / 节点承接与提醒 / 绩效 / 优先级 / 负荷 / 冲突计算 / 高管 KPI 与总体进度公式 / Test16 微信小程序生产代码：均未改动。Test16 微信小程序仍为唯一生产前端。
+
+### 新增
+
+#### 后端
+
+- **企业微信 H5 OAuth 身份**：`app/integrations/wecom/client.py` + `app/services/wecom_authentication.py` 已支持 H5 网页 OAuth code 换 `userid`，与 Test16 小程序共用同一身份流（`userid → users.wecom_user_id → employee_no → JWT`）。
+- **企业微信自建应用消息 Provider**：`app/integrations/wecom/message_provider.py` 新增 `WeComApplicationMessageProvider`，`AUTH_MODE=wecom` 时调用 `/cgi-bin/message/send`，收件人继续从 `employee_no` 映射 `users.wecom_user_id`。通知 Outbox、重试、幂等、提醒业务规则未重写。
+- `app/core/config.py` / `app/api/v1/auth.py` / `app/api/dependencies.py` 适配 H5 路径常量与微信回调校验。
+- `config-examples/backend.env.example` 新增 `WECOM_H5_BASE_URL=https://task.example.com`。
+
+#### 前端（H5 - `web/`）
+
+- 新增 H5 自有页面与交互 13 个：工作台（`features/workbench`）、任务概览（`features/task-overview`）、任务详情 + 汇报 + 验收 + 完成（`features/task-detail`）、创建三页（`features/task-intake` 含 `TaskCreateDetailsPage`/`TaskCreateDetailsPanel`/`TaskCreateStartPage` + `features/task-create/TaskConfirmPage`）、AI 拆解（`features/task-decomposition`）、通知中心（`features/notifications`）、我的（`features/profile`）、高管看板与员工任务下钻（`features/executive-dashboard`）。
+- 新增 `web/src/pages/WeComCallbackPage.tsx`（企业微信 OAuth 回调落地页）。
+- 新增 `web/src/integrations/wecom/oauth.ts` + `web/src/integrations/chat-service.ts`（H5 端 wecom/ChatService 集成）。
+- 新增 `web/.env.wecom.example`（Vite 端 wecom 与 ChatService 占位，无真实凭据）。
+- 改造底部导航（工作台 / 任务 / 团队（高管）/ 消息 / 我的），移除"创建"为 Tab；工作台恢复直接 AI 文字输入、语音、发送、3 项指标、四象限；任务详情恢复节点展开、节点动作、底部主动作、更多操作 Sheet、操作记录 Sheet；通知恢复全部/任务/提醒/系统四 Tab 并按 `target_type` 深链任务、节点、AI 拆解、汇报或验收；高管恢复部门选择 Sheet、周期 Tab、四指标、四象限、负荷热力图、负荷构成和员工任务下钻。
+- 移除浏览器原生 `window.prompt()` / `window.confirm()`，业务确认改为受控 Sheet。
+
+#### 测试
+
+- 新增 `tests/test_h5_web_v1_contract.py`（H5 静态迁移合同 + 企业微信客户端/认证定点 24 用例）。
+- 新增 `tests/integrations/test_wecom_client.py`（沿用 Test3 起累计，未重写）。
+
+### 本轮明确没有修改
+
+- PostgreSQL 业务表 / 字段 / Alembic 迁移 / 任务状态机 / AI 拆解业务规则 / 节点承接与提醒规则 / 绩效匹配、优先级、负荷、冲突计算 / 高管 KPI 与总体进度公式 / Test16 微信小程序生产代码。
+
+### 当前累计门禁（本环境实测）
+
+```text
+后端非 PostgreSQL 全量：617 passed / 41 deselected
+H5 静态迁移合同 + 企业微信客户端/认证定点：24 passed
+Test16 微信小程序累计：25 / 25 测试文件 PASS
+微信小程序 JS node --check：PASS
+Python compileall：PASS
+React/TypeScript 源码语法转译：103 files / 0 syntax errors
+tsc --noEmit（web/，含类型检查）：42 条类型层错误 → 见 docs/H5_WEB_V1_TSC_FINDINGS.txt
+```
+
+> 报告原报"语法转译 0 errors" 指 swc/esbuild parse 零错误，并非 tsc 类型零错误。tsc 报告需在用户本地 / CI 环境消除；本次未修复。
+
+### 当前环境限制
+
+- `npm ci` registry 访问超时，Web 完整依赖安装 + ESLint + Vitest + Vite build + Playwright E2E 仍未正式放行。
+- 当前容器无真实 PostgreSQL 服务，41 个 PG 专项待正式测试库执行。
+- 无真实 CorpID/AgentID/Secret/可信域名/测试员工，真实企业微信 OAuth 和应用消息 E2E 待部署执行。
+- 企业微信移动 WebView、375/390/430、键盘、安全区、真机麦克风/ASR 待真机验收。
+
+### 当前定位
+
+```text
+IMPLEMENTATION: DONE
+CURRENT-ENV PAGE INTEGRATION: PASS
+NON-PG REGRESSION: PASS
+WECHAT-MINIPROGRAM BASELINE REGRESSION: PASS
+TSC TYPECHECK (web/): 42 ERRORS / SEE docs/H5_WEB_V1_TSC_FINDINGS.txt
+WEB FULL NPM GATE: BLOCKED BY NETWORK
+REAL POSTGRESQL: PENDING
+REAL WECOM E2E: PENDING
+```
+
+本版本可以进入真实环境门禁，但不是生产放行证明。
+
+### 文档
+
+- 新增 `docs/H5_WEB_V1_EXECUTION_REPORT.md`（执行报告）。
+- 新增 `docs/H5_WEB_V1_MIGRATION_MATRIX.md`（Test16 → H5 逐页映射矩阵）。
+- 新增 `docs/H5_WEB_V1_PAGE_INTEGRATION_REPORT.md`（页面级联调报告）。
+- 新增 `docs/WECOM_H5_DEPLOYMENT.md`（企业微信 H5 部署说明）。
+- 新增 `docs/H5_WEB_V1_DIFF.txt`（变更范围清单）。
+- 新增 `docs/H5_WEB_V1_REVERSE_ACCEPTANCE.txt`（ZIP 反向验收记录）。
+- 新增 `docs/H5_WEB_V1_TSC_FINDINGS.txt`（tsc 类型层错误快照与影响判定）。
+
+---
+
 ## [功能 16] - 2026-09-03 — 企业微信登录 + 安全配置 + 发布门禁
 
 ### 新增

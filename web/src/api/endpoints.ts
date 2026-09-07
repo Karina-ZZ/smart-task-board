@@ -1,5 +1,6 @@
 import { apiRequest } from "./client";
 import type {
+  AiTokenResponse,
   ArchivePayload,
   ArchiveSearchResponse,
   AuthTokenPayload,
@@ -43,6 +44,12 @@ import type {
   TaskDetail,
   TaskInputPayload,
   TaskIntakeResponse,
+  TaskCreationPerson,
+  TaskDecomposition,
+  ExecutiveOverview,
+  ExecutiveMember,
+  ExecutiveTaskPage,
+  WeComLoginResponse,
   TaskIssue,
   TaskIssuePage,
   TaskNode,
@@ -71,10 +78,12 @@ export function listPrototypeUsers(): Promise<PrototypeUser[]> {
   return apiRequest<PrototypeUser[]>("/api/v1/auth/prototype-users", {}, { anonymous: true });
 }
 
-export const listUsers = listPrototypeUsers;
+export function listUsers(keyword?: string): Promise<TaskCreationPerson[]> {
+  return apiRequest<TaskCreationPerson[]>(withQuery("/api/v1/users", { keyword, limit: 100 }));
+}
 
 export async function listDepartments(): Promise<DepartmentOption[]> {
-  const users = await listPrototypeUsers();
+  const users = await listUsers();
   const byId = new Map<string, DepartmentOption>();
   users.forEach((user) => {
     if (!user.department_id || !user.department_name) return;
@@ -100,6 +109,18 @@ export function issueAuthTokens(payload: AuthTokenPayload): Promise<AuthTokenRes
   return apiRequest<AuthTokenResponse>(
     "/api/v1/auth/login",
     { method: "POST", body: JSON.stringify(payload) },
+    { anonymous: true },
+  );
+}
+
+export function issueAiToken(): Promise<AiTokenResponse> {
+  return apiRequest<AiTokenResponse>("/api/v1/auth/ai-token", { method: "POST" });
+}
+
+export function wecomLogin(code: string): Promise<WeComLoginResponse> {
+  return apiRequest<WeComLoginResponse>(
+    "/api/v1/auth/wecom",
+    { method: "POST", body: JSON.stringify({ code }) },
     { anonymous: true },
   );
 }
@@ -135,6 +156,13 @@ export function listTasks(params: QueryParams): Promise<PaginatedTasks> {
 export function createTask(payload: CreateTaskPayload): Promise<TaskActionResult> {
   return apiRequest<TaskActionResult>("/api/v1/tasks", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTaskDraft(taskId: string, payload: Record<string, unknown>): Promise<TaskActionResult> {
+  return apiRequest<TaskActionResult>(`/api/v1/tasks/${taskId}/draft`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
@@ -225,6 +253,50 @@ export function confirmTaskInput(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getTaskDecomposition(taskId: string): Promise<TaskDecomposition> {
+  return apiRequest<TaskDecomposition>(`/api/v1/tasks/${taskId}/decomposition`);
+}
+
+export function executeTaskDecomposition(taskId: string, decompositionId: string): Promise<TaskDecomposition> {
+  return apiRequest<TaskDecomposition>(`/api/v1/tasks/${taskId}/decomposition/execute`, {
+    method: "POST",
+    body: JSON.stringify({ decomposition_id: decompositionId }),
+  });
+}
+
+export function retryTaskDecomposition(taskId: string, taskVersion: number): Promise<TaskActionResult> {
+  return apiRequest<TaskActionResult>(`/api/v1/tasks/${taskId}/decomposition/retry`, {
+    method: "POST",
+    body: JSON.stringify({ expected_task_version: taskVersion }),
+  });
+}
+
+export function acceptNodeAssignment(taskId: string, nodeId: string, taskVersion: number) {
+  return apiRequest(`/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/accept-assignment`, {
+    method: "POST",
+    body: JSON.stringify({ expected_task_version: taskVersion }),
+  });
+}
+
+export function rejectNodeAssignment(taskId: string, nodeId: string, taskVersion: number, reason: string) {
+  return apiRequest(`/api/v1/tasks/${taskId}/nodes/${nodeId}/actions/reject-assignment`, {
+    method: "POST",
+    body: JSON.stringify({ expected_task_version: taskVersion, reason }),
+  });
+}
+
+export function getExecutiveOverview(departmentId?: string | null, period: "week" | "month" = "week"): Promise<ExecutiveOverview> {
+  return apiRequest<ExecutiveOverview>(withQuery("/api/v1/executive/overview", { departmentId, period }));
+}
+
+export function listExecutiveMembers(departmentId?: string | null): Promise<ExecutiveMember[]> {
+  return apiRequest<ExecutiveMember[]>(withQuery("/api/v1/executive/members", { departmentId }));
+}
+
+export function listExecutiveTasks(params: QueryParams): Promise<ExecutiveTaskPage> {
+  return apiRequest<ExecutiveTaskPage>(withQuery("/api/v1/executive/tasks", params));
 }
 
 export function listProgressReports(taskId: string, params?: QueryParams): Promise<ProgressReportPage> {

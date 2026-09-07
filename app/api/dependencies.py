@@ -12,7 +12,7 @@ from app.core.config import get_settings
 from app.core.security import InvalidPrototypeTokenError, decode_access_token
 from app.db.session import SessionLocal, get_db
 from app.db.unit_of_work import UnitOfWork
-from app.integrations.wecom import WeComClient
+from app.integrations.wecom import WeComApplicationMessageProvider, WeComClient
 from app.services.authentication import AuthenticationService
 from app.services.business_capabilities import (
     ArchiveReuseService,
@@ -209,7 +209,14 @@ def get_planning_analytics_service(
 
 def get_notification_service(
     session: Annotated[Session, Depends(get_db)],
+    client: Annotated[WeComClient, Depends(get_wecom_client)],
 ) -> ReminderNotificationService:
+    settings = get_settings()
+    if settings.auth_mode == "wecom":
+        return ReminderNotificationService(
+            session,
+            provider=WeComApplicationMessageProvider(session, settings, client),
+        )
     return ReminderNotificationService(session)
 
 

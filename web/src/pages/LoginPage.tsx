@@ -1,12 +1,12 @@
 /**
- * Feature: Web prototype login.
- * Responsibilities: select a development identity and restore a safe internal return route.
- * Does not own: enterprise WeCom login, token persistence, or backend authorization.
+ * Feature: Web dual-mode login (WeCom H5 production + prototype development).
+ * Responsibilities: start enterprise WeCom OAuth in production or select an isolated development identity, then restore a safe internal route.
+ * Does not own: WeCom secrets, token persistence internals, employee mapping, or backend authorization.
  * Hotfix: V1.1 Web Login Route.
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError } from "../api/client";
@@ -14,6 +14,7 @@ import { listPrototypeUsers } from "../api/endpoints";
 import { readReturnSourceState, resolveReturnTarget } from "../app/return-state";
 import { useAuth } from "../auth/useAuth";
 import { EmptyState, LoadingState } from "../components/Feedback";
+import { beginWeComOauth, isWeComAuthMode } from "../integrations/wecom/oauth";
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -36,8 +37,39 @@ export function LoginPage() {
       : loginError instanceof ApiError && loginError.message.trim()
         ? loginError.message
         : "登录失败，请稍后重试。";
+  const wecomMode = isWeComAuthMode();
+
+  useEffect(() => {
+    if (user || !wecomMode) return;
+    try {
+      window.location.replace(beginWeComOauth(returnTarget));
+    } catch (error) {
+      setLoginError(error);
+    }
+  }, [returnTarget, user, wecomMode]);
 
   if (user) return <Navigate to={returnTarget} replace />;
+  if (wecomMode) {
+    return (
+      <main className="login-page">
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="brand-mark large">序</div>
+          <p className="eyebrow">旺序AI任务中枢</p>
+          <h1 id="login-title">正在进入企业应用</h1>
+          <p className="prototype-warning">正在通过企业微信安全识别你的员工身份。</p>
+          {loginErrorMessage ? (
+            <div className="state-card error-state" role="alert">
+              <strong>企业微信登录未完成</strong>
+              <p>{loginErrorMessage}</p>
+              <button className="button secondary" onClick={() => window.location.replace(beginWeComOauth(returnTarget))}>重新登录</button>
+            </div>
+          ) : (
+            <LoadingState label="正在跳转企业微信身份验证…" />
+          )}
+        </section>
+      </main>
+    );
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

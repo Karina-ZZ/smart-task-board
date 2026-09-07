@@ -119,7 +119,7 @@ def issue_tokens(
 @router.post(
     "/wecom",
     response_model=LoginResponse,
-    summary="Sign in through a WeCom Mini Program login code",
+    summary="Sign in through a WeCom H5 web OAuth code",
 )
 def wecom_login(
     request: WeComLoginRequest,

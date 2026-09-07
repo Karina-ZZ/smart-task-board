@@ -5,10 +5,13 @@
  * Plan task: DEV-04.
  */
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, createSearchParams, useLocation, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 
-import type { TaskOverviewNode, TaskStatus, TaskSummary } from "../../api/types";
+import type { ExecutiveMember, TaskOverviewNode, TaskStatus, TaskSummary } from "../../api/types";
+import { ApiError } from "../../api/client";
+import { listExecutiveMembers } from "../../api/endpoints";
 import { createReturnSource } from "../../app/return-state";
 import { Badge, Button, Card, EmptyState, ErrorState, Progress, Sheet, Skeleton, Typography } from "../../shared/components";
 import {
@@ -159,6 +162,7 @@ function FilterSummary({ filters, onReset }: { filters: TaskOverviewFilters; onR
     filters.datePreset === "month" ? "本月开始" : "",
     filters.datePreset === "custom" && filters.startDate && filters.endDate ? `${filters.startDate} 至 ${filters.endDate}` : "",
     filters.search ? `搜索：${filters.search}` : "",
+    filters.source === "executive" && filters.employeeNo ? `员工：${filters.employeeName || filters.employeeNo}` : "",
   ].filter(Boolean);
 
   if (labels.length === 0) {
@@ -175,21 +179,13 @@ function FilterSummary({ filters, onReset }: { filters: TaskOverviewFilters; onR
 
 function TaskCard({ task }: { task: TaskSummary }) {
   const location = useLocation();
+  const progress = Math.min(100, Math.max(0, task.progress_percent ?? 0));
   return (
-    <Link
-      className="stb-task-overview-card"
-      to={taskTarget(task.task_id)}
-      state={{ source: createReturnSource(location, "任务概览") }}
-    >
-      <span className="stb-task-overview-card__head">
-        <Badge tone={task.is_overdue ? "danger" : "info"}>{statusLabel(task.status)}</Badge>
-        <span>{task.task_no ?? "未编号"}</span>
-      </span>
+    <Link className="stb-task-overview-card" to={taskTarget(task.task_id)} state={{ source: createReturnSource(location, "任务概览") }}>
+      <span className="stb-task-overview-card__head"><Badge tone={task.is_overdue ? "danger" : "info"}>{statusLabel(task.status)}</Badge><span>{task.task_no ?? "未编号"}</span></span>
       <strong>{task.task_name}</strong>
-      <span className="stb-task-overview-card__meta">
-        <span>承办：{task.main_assignee?.name ?? "未指定"}</span>
-        <span>截止：{formatDateTime(task.deadline)}</span>
-      </span>
+      <span className="stb-task-overview-card__meta"><span>承办：{task.main_assignee?.name ?? "未指定"}</span><span>截止：{formatDateTime(task.deadline)}</span></span>
+      <Progress value={progress} label="任务进度" />
     </Link>
   );
 }
@@ -218,112 +214,33 @@ function NodeTaskCard({ node }: { node: TaskOverviewNode }) {
 }
 
 function FilterSheet({
-  open,
-  filters,
-  onClose,
-  onApply,
-  onReset,
+  open, filters, members, onClose, onApply, onReset,
 }: {
-  open: boolean;
-  filters: TaskOverviewFilters;
-  onClose: () => void;
-  onApply: (filters: TaskOverviewFilters) => void;
-  onReset: () => void;
+  open: boolean; filters: TaskOverviewFilters; members: ExecutiveMember[]; onClose: () => void; onApply: (filters: TaskOverviewFilters) => void; onReset: () => void;
 }) {
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    onApply(resetPage({
-      ...filters,
-      mode: String(form.get("mode") || "tasks") as TaskOverviewFilters["mode"],
-      status: String(form.get("status") || "") as TaskOverviewFilters["status"],
-      quadrant: String(form.get("quadrant") || "") as TaskOverviewFilters["quadrant"],
-      support: form.get("support") === "open" ? "open" : "",
-      nearDue: form.get("nearDue") === "true",
-      datePreset: String(form.get("datePreset") || "all") as TaskOverviewFilters["datePreset"],
-      startDate: String(form.get("startDate") || ""),
-      endDate: String(form.get("endDate") || ""),
-      search: String(form.get("search") || ""),
-      sortBy: String(form.get("sortBy") || "deadline") as TaskOverviewFilters["sortBy"],
-      sortOrder: String(form.get("sortOrder") || "asc") as TaskOverviewFilters["sortOrder"],
-    }));
+  const [draft, setDraft] = useState(filters);
+  useEffect(() => { if (open) setDraft(filters); }, [open, filters]);
+  function patch(value: Partial<TaskOverviewFilters>) { setDraft((current) => ({ ...current, ...value })); }
+  function apply() {
+    if (draft.datePreset === "custom" && (!draft.startDate || !draft.endDate)) return;
+    if (draft.datePreset === "custom" && draft.startDate > draft.endDate) return;
+    onApply(resetPage({ ...draft, startDate: draft.datePreset === "custom" ? draft.startDate : "", endDate: draft.datePreset === "custom" ? draft.endDate : "" }));
   }
-
+  const choices = (items: Array<{ value: string; label: string }>, value: string, onChange: (value: string) => void) => <div className="stb-task-filter__choices">{items.map((item) => <button key={item.value || "all"} type="button" className={value === item.value ? "is-active" : ""} onClick={() => onChange(item.value)}>{item.label}</button>)}</div>;
   return (
     <Sheet open={open} title="任务筛选" onClose={onClose}>
-      <form className="stb-task-filter" onSubmit={submit}>
-        <label>
-          <span>搜索</span>
-          <input name="search" defaultValue={filters.search} placeholder="任务或节点名称" />
-        </label>
-        <label>
-          <span>任务类型</span>
-          <select name="mode" defaultValue={filters.mode}>
-            {modeOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label>
-          <span>任务状态</span>
-          <select name="status" defaultValue={filters.status}>
-            <option value="">全部</option>
-            {overviewStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label>
-          <span>优先级四象限</span>
-          <select name="quadrant" defaultValue={filters.quadrant}>
-            <option value="">全部</option>
-            {quadrantOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label className="stb-task-filter__check">
-          <input name="nearDue" type="checkbox" value="true" defaultChecked={filters.nearDue} />
-          <span>仅看未来3天临期</span>
-        </label>
-        <label className="stb-task-filter__check">
-          <input name="support" type="checkbox" value="open" defaultChecked={filters.support === "open"} />
-          <span>需要支持</span>
-        </label>
-        <label>
-          <span>开始时间</span>
-          <select name="datePreset" defaultValue={filters.datePreset}>
-            {datePresetOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <div className="stb-task-filter__dates">
-          <label>
-            <span>开始日期</span>
-            <input name="startDate" type="date" defaultValue={filters.startDate} />
-          </label>
-          <label>
-            <span>结束日期</span>
-            <input name="endDate" type="date" defaultValue={filters.endDate} />
-          </label>
-        </div>
-        <div className="stb-task-filter__dates">
-          <label>
-            <span>排序</span>
-            <select name="sortBy" defaultValue={filters.sortBy}>
-              <option value="deadline">截止时间</option>
-              <option value="created_at">创建时间</option>
-              <option value="updated_at">更新时间</option>
-              <option value="status">状态</option>
-              <option value="task_weight">权重</option>
-            </select>
-          </label>
-          <label>
-            <span>顺序</span>
-            <select name="sortOrder" defaultValue={filters.sortOrder}>
-              <option value="asc">升序</option>
-              <option value="desc">降序</option>
-            </select>
-          </label>
-        </div>
-        <div className="stb-task-filter__actions">
-          <Button variant="secondary" onClick={onReset}>重置</Button>
-          <Button type="submit">应用筛选</Button>
-        </div>
-      </form>
+      <div className="stb-task-filter">
+        {filters.source === "executive" ? <div className="stb-task-filter__group"><b>员工姓名</b><small>仅显示当前高管授权部门范围内的员工</small>{choices([{ value: "", label: "全部员工" }, ...members.map((member) => ({ value: member.employee_no, label: member.name }))], draft.employeeNo, (employeeNo) => { const member = members.find((item) => item.employee_no === employeeNo); patch({ employeeNo, employeeName: member?.name ?? "", mode: "tasks" }); })}</div> : <>
+          <label><span>搜索</span><input value={draft.search} onChange={(event) => patch({ search: event.target.value })} placeholder="任务或节点名称" /></label>
+          <div className="stb-task-filter__group"><b>任务类型</b>{choices(modeOptions, draft.mode, (value) => patch({ mode: value as TaskOverviewFilters["mode"] }))}</div>
+        </>}
+        <div className="stb-task-filter__group"><b>任务状态</b>{choices([{ value: "", label: "全部" }, ...overviewStatuses], draft.status, (value) => patch({ status: value as TaskOverviewFilters["status"] }))}</div>
+        <div className="stb-task-filter__group"><b>优先级四象限</b>{choices([{ value: "", label: "全部" }, ...quadrantOptions], draft.quadrant, (value) => patch({ quadrant: value as TaskOverviewFilters["quadrant"] }))}</div>
+        {filters.source !== "executive" && <><label className="stb-task-filter__check"><input type="checkbox" checked={draft.nearDue} onChange={(event) => patch({ nearDue: event.target.checked })}/><span>仅看未来3天临期</span></label><label className="stb-task-filter__check"><input type="checkbox" checked={draft.support === "open"} onChange={(event) => patch({ support: event.target.checked ? "open" : "" })}/><span>需要支持</span></label></>}
+        <div className="stb-task-filter__group"><b>开始时间</b>{choices(datePresetOptions, draft.datePreset, (value) => patch({ datePreset: value as TaskOverviewFilters["datePreset"] }))}{draft.datePreset === "custom" && <div className="stb-task-filter__dates"><label><span>开始日期</span><input type="date" value={draft.startDate} onChange={(event) => patch({ startDate: event.target.value })}/></label><label><span>结束日期</span><input type="date" value={draft.endDate} onChange={(event) => patch({ endDate: event.target.value })}/></label></div>}</div>
+        {filters.source !== "executive" && <div className="stb-task-filter__dates"><label><span>排序</span><select value={draft.sortBy} onChange={(event) => patch({ sortBy: event.target.value as TaskOverviewFilters["sortBy"] })}><option value="deadline">截止时间</option><option value="created_at">创建时间</option><option value="updated_at">更新时间</option><option value="status">状态</option><option value="task_weight">权重</option></select></label><label><span>顺序</span><select value={draft.sortOrder} onChange={(event) => patch({ sortOrder: event.target.value as TaskOverviewFilters["sortOrder"] })}><option value="asc">升序</option><option value="desc">降序</option></select></label></div>}
+        <div className="stb-task-filter__actions"><Button variant="secondary" onClick={onReset}>重置</Button><Button onClick={apply}>应用筛选</Button></div>
+      </div>
     </Sheet>
   );
 }
@@ -334,6 +251,11 @@ export function TaskOverviewPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const filters = useMemo(() => parseTaskOverviewFilters(searchParams), [searchParams]);
   const query = useTaskOverview(filters);
+  const executiveMembers = useQuery({
+    queryKey: ["executive-members", filters.departmentId],
+    queryFn: () => listExecutiveMembers(filters.departmentId || null),
+    enabled: filters.source === "executive",
+  });
 
   useEffect(() => {
     const saved = sessionStorage.getItem(scrollKey);
@@ -350,19 +272,8 @@ export function TaskOverviewPage() {
 
   function resetFilters() {
     applyFilters({
-      ...filters,
-      mode: "tasks",
-      status: "",
-      quadrant: "",
-      support: "",
-      nearDue: false,
-      datePreset: "all",
-      startDate: "",
-      endDate: "",
-      search: "",
-      page: 1,
-      sortBy: "deadline",
-      sortOrder: "asc",
+      ...filters, mode: "tasks", status: "", quadrant: "", support: "", nearDue: false, datePreset: "all",
+      startDate: "", endDate: "", search: "", page: 1, sortBy: "deadline", sortOrder: "asc",
     });
   }
 
@@ -382,11 +293,11 @@ export function TaskOverviewPage() {
 
   return (
     <section className="stb-task-overview" data-testid="task-overview-page">
-      <StatusCounts
+      {filters.source !== "executive" && <StatusCounts
         activeStatus={filters.status}
         counts={query.data?.status_counts ?? {}}
         onSelect={(status) => updateFilters({ mode: "tasks", status })}
-      />
+      />}
       <Card className="stb-task-overview-panel">
         <div className="stb-task-overview-toolbar">
           <div>
@@ -397,8 +308,8 @@ export function TaskOverviewPage() {
           </div>
           <Button variant="secondary" onClick={() => setFilterOpen(true)}>更多筛选</Button>
         </div>
-        <ModeTabs mode={filters.mode} onChange={(mode) => updateFilters({ mode })} />
-        <div className="stb-task-overview-quick-status" aria-label="状态快捷筛选">
+        {filters.source !== "executive" && <ModeTabs mode={filters.mode} onChange={(mode) => updateFilters({ mode })} />}
+        {filters.source !== "executive" && <div className="stb-task-overview-quick-status" aria-label="状态快捷筛选">
           {overviewStatusCounts.map((status) => (
             <button
               key={status}
@@ -409,12 +320,12 @@ export function TaskOverviewPage() {
               {statusLabel(status)}
             </button>
           ))}
-        </div>
+        </div>}
         <FilterSummary filters={filters} onReset={resetFilters} />
         {query.isError && (
           <ErrorState
-            title="任务概览暂时无法加载"
-            detail="请检查筛选条件后重试。"
+            title={query.error instanceof ApiError && query.error.status === 403 ? "无权查看该员工任务" : "任务概览暂时无法加载"}
+            detail={query.error instanceof ApiError ? query.error.message : "请检查筛选条件后重试。"}
             action={<Button variant="secondary" onClick={() => void query.refetch()}>重试</Button>}
           />
         )}
@@ -438,16 +349,10 @@ export function TaskOverviewPage() {
           </nav>
         )}
       </Card>
-      <Link
-        className="stb-task-overview-create"
-        to={`/create/details?${createSearchParams({ source: "tasks" }).toString()}`}
-        state={{ source: createReturnSource(location, "任务概览") }}
-      >
-        创建任务
-      </Link>
       <FilterSheet
         open={filterOpen}
         filters={filters}
+        members={executiveMembers.data ?? []}
         onClose={() => setFilterOpen(false)}
         onApply={applyFilters}
         onReset={resetFilters}

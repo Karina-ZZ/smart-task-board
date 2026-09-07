@@ -105,22 +105,34 @@ export function TopBar({ title, subtitle, leading, actions }: { title: string; s
   );
 }
 
-export function BottomNavigation({ items, activeId, onSelect }: { items: Array<{ id: string; label: string; icon: ReactNode }>; activeId: string; onSelect?: (id: string) => void }) {
+export function BottomNavigation({ items, activeId, onSelect }: { items: Array<{ id: string; label: string; icon: ReactNode; badge?: number }>; activeId: string; onSelect?: (id: string) => void }) {
   return (
-    <nav className="stb-bottom-nav" aria-label="底部导航">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          className={cx("stb-bottom-nav__item", item.id === activeId && "stb-bottom-nav__item--active")}
-          aria-current={item.id === activeId ? "page" : undefined}
-          onClick={() => onSelect?.(item.id)}
-          type="button"
-        >
-          <span aria-hidden="true">{item.icon}</span>
-          <span>{item.label}</span>
-        </button>
-      ))}
-    </nav>
+    <div className="stb-bottom-nav-wrap">
+      <nav className="stb-bottom-nav" aria-label="底部导航">
+        {items.map((item) => {
+          const active = item.id === activeId;
+          return (
+            <button
+              key={item.id}
+              className={cx(
+                "stb-bottom-nav__item",
+                active && "stb-bottom-nav__item--active",
+                item.id === "workbench" && active && "stb-bottom-nav__item--home-active",
+              )}
+              aria-current={active ? "page" : undefined}
+              onClick={() => onSelect?.(item.id)}
+              type="button"
+            >
+              <span className={cx("stb-bottom-nav__icon-wrap", item.id === "workbench" && "stb-bottom-nav__home-circle")} aria-hidden="true">
+                {item.icon}
+                {Boolean(item.badge) && <span className="stb-bottom-nav__badge">{item.badge && item.badge > 9 ? "9+" : item.badge}</span>}
+              </span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
 

@@ -1,285 +1,127 @@
 /**
- * Feature: V1.1 Workbench page.
- * Responsibilities: render the second-version Workbench surface using current-user summary and task APIs.
- * Does not own: task creation workflow, AI extraction, priority calculation, or notification read state.
- * Plan task: DEV-03.
+ * Feature: Test16-equivalent employee Workbench.
+ * Responsibilities: reproduce the approved mobile Workbench components, direct AI intake, filters, support items, and task-card navigation.
+ * Does not own: task creation confirmation, AI provider implementation, priority calculation, or backend authorization.
+ * Plan task: H5-MIGRATION-01.
  */
 
-import { Link, useLocation, useNavigate, createSearchParams } from "react-router-dom";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
-import type { TaskSummary } from "../../api/types";
-import { canAccessExecutiveRoutes } from "../../app/navigation";
+import { submitTaskInput } from "../../api/endpoints";
+import type { TaskInputType, TaskSummary } from "../../api/types";
 import { createReturnSource } from "../../app/return-state";
 import { useAuth } from "../../auth/useAuth";
-import { Badge, Button, Card, EmptyState, ErrorState, Progress, Skeleton, Typography } from "../../shared/components";
-import {
-  type WorkbenchQuadrant,
-  type WorkbenchStatusFilter,
-} from "./api";
+import { transcribeBrowserRecording } from "../../integrations/chat-service";
+import { Button, EmptyState, ErrorState, Skeleton, useToast } from "../../shared/components";
+import { type WorkbenchQuadrant, type WorkbenchStatusFilter, workbenchStatusTabs } from "./api";
 import { useWorkbenchData } from "./hooks";
 import "./WorkbenchPage.css";
 
+const DRAFT_KEY = "smarttaskboard.dev07.intake-draft";
+const STATUS_GROUPS: Record<WorkbenchStatusFilter, string[]> = {
+  pending_accept: ["pending_accept", "pending_acceptance"],
+  decomposing: ["decomposing"],
+  decomposition_failed: ["decomposition_failed"],
+  in_progress: ["in_progress"],
+  blocked: ["blocked"],
+  pending_report: ["pending_report"],
+  pending_review: ["pending_review"],
+};
+
 const statusLabels: Record<string, string> = {
-  draft: "草稿",
-  pending_confirmation: "待确认",
+  pending_accept: "待接受",
   pending_acceptance: "待接受",
-  returned: "已退回",
+  decomposing: "AI拆解中",
+  decomposition_failed: "拆解失败",
   in_progress: "进行中",
+  blocked: "受阻",
+  pending_report: "待汇报",
   pending_review: "待验收",
   completed: "已完成",
   archived: "已归档",
-  cancelled: "已取消",
-  withdrawn: "已撤回",
-  merged: "已合并",
-  closed: "已关闭",
+  returned: "已退回",
 };
 
-const metricTone: Record<string, "info" | "success" | "warning" | "danger" | "neutral"> = {
-  pending_acceptance: "warning",
-  in_progress: "info",
-  pending_review: "success",
-  support: "danger",
-};
-
-function taskRoute(taskId: string) {
-  return `/task/${encodeURIComponent(taskId)}`;
+function chinaDateParts() {
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    hour: "numeric",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(new Date()).reduce<Record<string, string>>((result, item) => {
+    result[item.type] = item.value;
+    return result;
+  }, {});
+  const hour = Number(parts.hour || 8);
+  const greeting = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
+  return { greeting, dateLabel: `${parts.month}月${parts.day}日 · ${parts.weekday}` };
 }
 
-function formatDeadline(value: string | null): string {
-  if (!value) return "未设置";
+function formatDeadline(value: string | null) {
+  if (!value) return "未设置截止时间";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "未设置";
-  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+  if (Number.isNaN(date.getTime())) return "未设置截止时间";
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date);
 }
 
-function readWorkloadScore(value: Record<string, unknown> | null): number | null {
-  if (!value) return null;
-  const raw = value.workload_score;
-  const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
-  return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : null;
+function remainingLabel(task: TaskSummary) {
+  if (task.is_overdue) return "已逾期";
+  if (typeof task.days_until_deadline !== "number") return "时间待定";
+  if (task.days_until_deadline === 0) return "今天截止";
+  if (task.days_until_deadline === 1) return "明天截止";
+  if (task.days_until_deadline > 1) return `剩${task.days_until_deadline}天`;
+  return "已逾期";
 }
 
-function LoadingWorkbench() {
+function draftFromSession() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "{}") as { rawText?: unknown };
+    return typeof value.rawText === "string" ? value.rawText : "";
+  } catch {
+    return "";
+  }
+}
+
+function persistDraft(rawText: string, inputId: string | null = null, intake: unknown = null) {
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ rawText, inputId, intake }));
+}
+
+function WorkbenchLoading() {
   return (
-    <section className="stb-workbench stb-workbench--loading" aria-label="正在加载工作台">
-      <Skeleton height={96} />
-      <Skeleton height={118} />
-      <Skeleton height={186} />
-      <Skeleton height={220} />
+    <section className="stb-workbench" aria-label="正在加载工作台">
+      <Skeleton height={52} />
+      <Skeleton height={146} />
+      <Skeleton height={94} />
+      <Skeleton height={180} />
+      <Skeleton height={150} />
     </section>
   );
 }
 
-function tasksQuery(params: Record<string, string>) {
-  return `/tasks?${createSearchParams(params).toString()}`;
-}
-
-function WorkbenchHeader({ userName, unreadCount }: { userName: string; unreadCount: number }) {
-  const location = useLocation();
-
+function TaskCard({ task, onOpen }: { task: TaskSummary; onOpen: () => void }) {
+  const progress = Math.min(100, Math.max(0, task.progress_percent ?? 0));
   return (
-    <section className="stb-workbench-hero" aria-labelledby="workbench-welcome">
-      <div>
-        <Typography variant="caption" as="p">SMARTTASKBOARD V1.1</Typography>
-        <div id="workbench-welcome">
-          <Typography variant="sectionTitle" as="h2">早上好，{userName}</Typography>
-        </div>
-        <Typography variant="secondary" as="p">所有摘要均来自当前账号可访问的任务范围。</Typography>
-      </div>
-      <Link
-        className="stb-workbench-icon-link"
-        to="/notifications"
-        state={{ source: createReturnSource(location, "工作台") }}
-        aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : "通知"}
-      >
-        N
-        {unreadCount > 0 && <span className="stb-workbench-dot" aria-hidden="true" />}
-      </Link>
-    </section>
-  );
-}
-
-function Metrics({
-  pendingAcceptance,
-  inProgress,
-  pendingReview,
-  supportCount,
-}: {
-  pendingAcceptance: number;
-  inProgress: number;
-  pendingReview: number;
-  supportCount: number;
-}) {
-  const items: Array<
-    | { id: "pending_acceptance" | "in_progress" | "pending_review"; label: string; value: number; status: WorkbenchStatusFilter }
-    | { id: "support"; label: string; value: number; href: string }
-  > = [
-    { id: "pending_acceptance", label: "待接受", value: pendingAcceptance, status: "pending_acceptance" as const },
-    { id: "in_progress", label: "进行中", value: inProgress, status: "in_progress" as const },
-    { id: "pending_review", label: "待验收", value: pendingReview, status: "pending_review" as const },
-    { id: "support", label: "需要支持", value: supportCount, href: "/tasks?support=open" },
-  ];
-
-  return (
-    <section className="stb-workbench-section" aria-labelledby="workbench-metrics">
-      <div className="stb-workbench-section__head">
-        <div id="workbench-metrics">
-          <Typography variant="sectionTitle" as="h2">任务指标</Typography>
-        </div>
-      </div>
-      <div className="stb-workbench-metrics">
-        {items.map((item) => {
-          const className = "stb-workbench-metric";
-          if ("href" in item) {
-            return (
-              <Link key={item.id} className={className} to={item.href} aria-label={`${item.label} ${item.value}，查看任务概览`}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <Badge tone={metricTone[item.id]}>查看</Badge>
-              </Link>
-            );
-          }
-          return (
-            <Link
-              key={item.id}
-              className={className}
-              to={tasksQuery({ status: item.status })}
-              aria-label={`${item.label} ${item.value}，按状态查看任务概览`}
-            >
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <Badge tone={metricTone[item.id]}>查看</Badge>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function Quadrants({
-  items,
-}: {
-  items: Array<{ id: WorkbenchQuadrant; label: string; count: number }>;
-}) {
-  return (
-    <section className="stb-workbench-section" aria-labelledby="workbench-quadrants">
-      <div className="stb-workbench-section__head">
-        <div id="workbench-quadrants">
-          <Typography variant="sectionTitle" as="h2">任务风险四象限</Typography>
-        </div>
-      </div>
-      <div className="stb-workbench-quadrants">
-        {items.map((item) => (
-          <Link
-            key={item.id}
-            className={`stb-workbench-quadrant stb-workbench-quadrant--${item.id}`}
-            to={tasksQuery({ quadrant: item.id })}
-            aria-label={`${item.label} ${item.count}，按象限查看任务概览`}
-          >
-            <span>{item.label}</span>
-            <strong>{item.count}</strong>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SupportCard({
-  openIssueCount,
-  blockedTaskCount,
-  conflictCount,
-  workloadScore,
-}: {
-  openIssueCount: number;
-  blockedTaskCount: number;
-  conflictCount: number;
-  workloadScore: number | null;
-}) {
-  return (
-    <Card className="stb-workbench-support">
-      <div className="stb-workbench-support__body">
-        <div>
-          <Typography variant="sectionTitle" as="h2">需要支持</Typography>
-          <Typography variant="secondary" as="p">卡点、逾期和冲突入口统一进入任务概览处理。</Typography>
-        </div>
-        <div className="stb-workbench-support__numbers" aria-label="支持摘要">
-          <span><strong>{openIssueCount}</strong>卡点</span>
-          <span><strong>{blockedTaskCount}</strong>受阻</span>
-          <span><strong>{conflictCount}</strong>冲突</span>
-        </div>
-        {workloadScore !== null && <Progress value={workloadScore} label="后端负荷评分" />}
-      </div>
-      <Link className="stb-workbench-row-link" to="/tasks?support=open">查看需要支持任务</Link>
-    </Card>
-  );
-}
-
-function QuickTaskInput() {
-  const location = useLocation();
-
-  return (
-    <section className="stb-workbench-ai" aria-labelledby="workbench-ai">
-      <div>
-        <div id="workbench-ai">
-          <Typography variant="sectionTitle" as="h2">AI 任务助手</Typography>
-        </div>
-        <Typography variant="secondary" as="p">从这里进入正式任务描述与信息确认流程。</Typography>
-      </div>
-      <div className="stb-workbench-ai__actions">
-        <Link className="stb-workbench-primary-link" to="/create/details" state={{ source: createReturnSource(location, "工作台") }}>描述任务</Link>
-        <Link
-          className="stb-workbench-voice-link"
-          to="/create/details"
-          state={{ source: createReturnSource(location, "工作台") }}
-          aria-label="语音描述任务"
-        >
-          语音入口
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function TaskList({ tasks }: { tasks: TaskSummary[] }) {
-  const location = useLocation();
-
-  return (
-    <section className="stb-workbench-section" aria-labelledby="workbench-task-list">
-      <div className="stb-workbench-section__head">
-        <div>
-          <div id="workbench-task-list">
-            <Typography variant="sectionTitle" as="h2">任务信息管理</Typography>
-          </div>
-        </div>
-        <Link className="stb-workbench-inline-link" to="/tasks" state={{ source: createReturnSource(location, "工作台") }}>全部任务</Link>
-      </div>
-      {tasks.length === 0 ? (
-        <EmptyState title="当前筛选下暂无任务" detail="没有符合当前服务端查询或优先级投影的任务。" />
-      ) : (
-        <div className="stb-workbench-task-list">
-          {tasks.map((task) => (
-            <Link
-              key={task.task_id}
-              className="stb-workbench-task"
-              to={taskRoute(task.task_id)}
-              state={{ source: createReturnSource(location, "工作台") }}
-            >
-              <span className="stb-workbench-task__head">
-                <Badge tone={task.is_overdue ? "danger" : "info"}>{statusLabels[task.status] ?? task.status}</Badge>
-                <span>{task.task_no ?? "未编号"}</span>
-              </span>
-              <strong>{task.task_name}</strong>
-              <span className="stb-workbench-task__meta">
-                <span>承办：{task.main_assignee?.name ?? "未指定"}</span>
-                <span>截止：{formatDeadline(task.deadline)}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
+    <button className="stb-workbench-task" type="button" onClick={onOpen} aria-label={`打开任务 ${task.task_name}`}>
+      <span className="stb-workbench-task__head">
+        <span className={`stb-workbench-status stb-workbench-status--${task.status}`}>{statusLabels[task.status] ?? task.status}</span>
+        <span className="stb-workbench-task__number">{task.task_no ?? "未编号"}</span>
+      </span>
+      <strong className="stb-workbench-task__name">{task.task_name}</strong>
+      <span className="stb-workbench-task__meta">
+        <span>{task.main_assignee?.name ?? "待分配"}</span>
+        <span>·</span>
+        <span className={task.is_overdue ? "stb-workbench-danger" : undefined}>{remainingLabel(task)}</span>
+      </span>
+      <span className="stb-workbench-task__progress"><i style={{ width: `${progress}%` }} /></span>
+      <span className="stb-workbench-task__foot">
+        <span>{formatDeadline(task.deadline)}</span>
+        <b>{progress}%</b>
+      </span>
+    </button>
   );
 }
 
@@ -287,58 +129,217 @@ export function WorkbenchPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const query = useWorkbenchData({});
+  const { showToast } = useToast();
+  const query = useWorkbenchData();
+  const [taskFilter, setTaskFilter] = useState<WorkbenchStatusFilter>("in_progress");
+  const [quadrantFilter, setQuadrantFilter] = useState<WorkbenchQuadrant | "">("");
+  const [draftText, setDraftText] = useState(draftFromSession);
+  const [inputType, setInputType] = useState<TaskInputType>("text");
+  const [submitting, setSubmitting] = useState(false);
+  const [voiceState, setVoiceState] = useState<"idle" | "listening" | "transcribing">("idle");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const taskSectionRef = useRef<HTMLElement | null>(null);
+  const date = useMemo(chinaDateParts, []);
 
-  if (query.isLoading) return <LoadingWorkbench />;
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
-  if (query.isError) {
-    return (
-      <ErrorState
-        title="工作台暂时无法加载"
-        detail="请稍后重试；错误详情已由 API 客户端屏蔽内部信息。"
-        action={<Button variant="secondary" onClick={() => void query.refetch()}>重试</Button>}
-      />
-    );
+  useEffect(() => {
+    persistDraft(draftText);
+  }, [draftText]);
+
+  async function submitDraft(event?: FormEvent) {
+    event?.preventDefault();
+    const text = draftText.trim();
+    if (!text) {
+      showToast("请先描述任务");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await submitTaskInput({ input_type: inputType, raw_text: text, source_channel: "web" });
+      persistDraft(text, result.input_id, result);
+      navigate("/create/details", { state: { source: createReturnSource(location, "工作台") } });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "识别失败，请稍后重试");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
+  async function toggleVoice() {
+    if (voiceState === "listening" && recorderRef.current) {
+      recorderRef.current.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      showToast("当前企业微信环境不支持录音，请改用文字输入");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const chunks: BlobPart[] = [];
+      const recorder = new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (!blob.size) {
+          setVoiceState("idle");
+          showToast("没有录到有效语音，请重新录入");
+          return;
+        }
+        try {
+          setVoiceState("transcribing");
+          const text = await transcribeBrowserRecording(blob);
+          setInputType("voice");
+          setDraftText(text);
+          showToast("语音已转为文字");
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : "语音识别失败，请改用文字");
+        } finally {
+          setVoiceState("idle");
+        }
+      };
+      recorder.onerror = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        setVoiceState("idle");
+        showToast("录音失败，请改用文字输入");
+      };
+      setVoiceState("listening");
+      recorder.start();
+    } catch {
+      setVoiceState("idle");
+      showToast("需要麦克风权限，请允许后重试或直接输入文字");
+    }
+  }
+
+  if (query.isLoading) return <WorkbenchLoading />;
+  if (query.isError) {
+    return <ErrorState title="工作台加载失败" detail="请检查网络后重新加载。" action={<Button onClick={() => void query.refetch()}>重新加载</Button>} />;
+  }
   if (!query.data) return null;
-  const { summary, tasks, quadrants } = query.data;
-  const totalSignals = summary.created_task_count + summary.assigned_task_count + summary.inbox_count + summary.unread_notification_count;
-  const workloadScore = readWorkloadScore(summary.latest_workload);
+
+  const { summary, tasks, quadrants, supportItems } = query.data;
+  const statuses = STATUS_GROUPS[taskFilter];
+  const visibleTasks = tasks.filter((task) => {
+    const statusMatch = statuses.includes(task.status);
+    const quadrantMatch = !quadrantFilter || task.priority_quadrant === quadrantFilter;
+    return statusMatch && quadrantMatch;
+  });
+  const inProgress = tasks.filter((task) => ["in_progress", "blocked", "pending_report"].includes(task.status)).length;
+  const avatarText = user?.name ? user.name.slice(-1) : "序";
+
+  function selectStatus(value: WorkbenchStatusFilter) {
+    setTaskFilter(value);
+    window.setTimeout(() => taskSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function selectQuadrant(value: WorkbenchQuadrant) {
+    setQuadrantFilter((current) => current === value ? "" : value);
+    window.setTimeout(() => taskSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function openTask(taskId: string, nodeId?: string | null) {
+    navigate(`/task/${encodeURIComponent(taskId)}${nodeId ? `#node-${encodeURIComponent(nodeId)}` : ""}`, {
+      state: { source: createReturnSource(location, "工作台") },
+    });
+  }
 
   return (
     <div className="stb-workbench" data-testid="workbench-page">
-      <WorkbenchHeader userName={user?.name ?? "当前用户"} unreadCount={summary.unread_notification_count} />
-      {totalSignals === 0 && tasks.length === 0 ? (
-        <EmptyState
-          title="暂无工作台数据"
-          detail="当前账号没有可见任务、待处理事项或通知。"
-          action={<Button onClick={() => navigate("/create/details", { state: { source: createReturnSource(location, "工作台") } })}>创建任务</Button>}
-        />
-      ) : (
-        <>
-          <Metrics
-            pendingAcceptance={summary.pending_acceptance_count}
-            inProgress={summary.in_progress_count}
-            pendingReview={summary.completion_review_count}
-            supportCount={summary.open_issue_count}
+      <header className="stb-workbench-header">
+        <div className="stb-workbench-greeting-copy">
+          <h1>{date.greeting}，{user?.name ?? "同事"}</h1>
+          <span>{date.dateLabel}</span>
+        </div>
+        <div className="stb-workbench-header-actions">
+          <button type="button" className="stb-workbench-bell" aria-label="打开消息" onClick={() => navigate("/notifications", { state: { source: createReturnSource(location, "工作台") } })}>
+            <span aria-hidden="true">♢</span>
+            {summary.unread_notification_count > 0 && <i />}
+          </button>
+          <button type="button" className="stb-workbench-avatar" aria-label="打开个人中心" onClick={() => navigate("/profile", { state: { source: createReturnSource(location, "工作台") } })}>{avatarText}</button>
+        </div>
+      </header>
+
+      <section className="stb-workbench-ai" aria-label="一句话创建新任务">
+        <span className="stb-workbench-ai__watermark" aria-hidden="true">AI</span>
+        <div className="stb-workbench-ai__copy">
+          <h2>一句话，创建新任务</h2>
+          <p>自动识别目标、人员和截止时间</p>
+        </div>
+        <form className="stb-workbench-ai__input-row" onSubmit={(event) => void submitDraft(event)}>
+          <input
+            value={draftText}
+            maxLength={1000}
+            onChange={(event) => { setInputType("text"); setDraftText(event.target.value); }}
+            placeholder="描述任务，例如：周五前完成招聘月报复核…"
+            aria-label="任务描述"
           />
-          <Quadrants items={quadrants} />
-          <SupportCard
-            openIssueCount={summary.open_issue_count}
-            blockedTaskCount={summary.blocked_task_count}
-            conflictCount={summary.open_conflict_count}
-            workloadScore={workloadScore}
-          />
-          <QuickTaskInput />
-          {canAccessExecutiveRoutes(user) && (
-            <Link className="stb-workbench-executive" to="/executive" state={{ source: createReturnSource(location, "工作台") }}>
-              团队态势
-            </Link>
-          )}
-          <TaskList tasks={tasks} />
-        </>
-      )}
+          <button type="button" className={voiceState === "listening" ? "stb-workbench-ai__voice is-recording" : "stb-workbench-ai__voice"} onClick={() => void toggleVoice()} aria-label="语音描述">
+            {voiceState === "listening" ? "■" : voiceState === "transcribing" ? "…" : "◉"}
+          </button>
+          <button type="submit" className="stb-workbench-ai__send" disabled={submitting} aria-label="识别任务信息">{submitting ? "…" : "➜"}</button>
+        </form>
+      </section>
+
+      <section className="stb-workbench-metric-strip" aria-label="任务指标">
+        <button type="button" onClick={() => selectStatus("in_progress")}>
+          <span>进行中任务</span><strong className="blue">{inProgress}</strong><small>项</small>
+        </button>
+        <div><span>临期任务</span><strong className="red">{summary.due_within_3_days_count}</strong><small>项</small></div>
+        <div><span>按期完成率</span><strong className="teal">{summary.on_time_completion_rate}</strong><small>%</small><em>近{summary.completion_rate_period_days}天</em></div>
+      </section>
+
+      <section className="stb-workbench-panel">
+        <div className="stb-workbench-panel__head">
+          <h2>任务风险四象限</h2>
+          {quadrantFilter ? <button type="button" onClick={() => setQuadrantFilter("")}>清除筛选</button> : <span>点击筛选任务</span>}
+        </div>
+        <div className="stb-workbench-quadrants">
+          {quadrants.map((item) => (
+            <button key={item.id} type="button" className={`stb-workbench-quadrant stb-workbench-quadrant--${item.id}${quadrantFilter === item.id ? " is-selected" : ""}`} onClick={() => selectQuadrant(item.id)}>
+              <i aria-hidden="true">{item.id === "important_urgent" ? "!" : item.id === "important_not_urgent" ? "◆" : item.id === "urgent_not_important" ? "↗" : "✓"}</i>
+              <span><b>{item.label}</b><small>{item.hint}</small></span>
+              <strong>{item.count}</strong>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="stb-workbench-support">
+        <div className="stb-workbench-panel__head stb-workbench-support__head">
+          <h2><i aria-hidden="true">↔</i>需要我支持</h2>
+          <span className="stb-workbench-support__badge">{supportItems.length}项待响应</span>
+        </div>
+        {supportItems.length ? supportItems.map((item) => (
+          <button key={`${item.taskId}:${item.supportNodeId ?? "task"}`} type="button" className="stb-workbench-support__row" onClick={() => openTask(item.taskId, item.supportNodeId)}>
+            <span><b>{item.taskName}</b><small>{item.supportReason}</small></span><em>查看 ›</em>
+          </button>
+        )) : <div className="stb-workbench-support__empty">当前没有待响应的协作事项</div>}
+      </section>
+
+      <section className="stb-workbench-task-section" ref={taskSectionRef}>
+        <div className="stb-workbench-panel__head stb-workbench-task-heading">
+          <h2>任务信息管理</h2>
+          <button type="button" onClick={() => navigate("/tasks?reset=1")}>全部任务 ›</button>
+        </div>
+        <div className="stb-workbench-status-tabs" role="tablist" aria-label="任务状态筛选">
+          {workbenchStatusTabs.map((tab) => (
+            <button key={tab.key} type="button" role="tab" aria-selected={taskFilter === tab.key} className={taskFilter === tab.key ? "is-active" : ""} onClick={() => selectStatus(tab.key)}>{tab.label}</button>
+          ))}
+        </div>
+        {quadrantFilter && <div className="stb-workbench-filter-notice"><span>已叠加四象限筛选</span><button type="button" onClick={() => setQuadrantFilter("")}>清除</button></div>}
+        {visibleTasks.length ? <div className="stb-workbench-task-list">{visibleTasks.map((task) => <TaskCard key={task.task_id} task={task} onOpen={() => openTask(task.task_id)} />)}</div> : <EmptyState title="当前筛选下暂无任务" />}
+      </section>
     </div>
   );
 }

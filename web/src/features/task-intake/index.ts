@@ -6,3 +6,6 @@
  */
 
 export { TaskIntakePage } from "./TaskIntakePage";
+
+export { TaskCreateStartPage } from "./TaskCreateStartPage";
+export { TaskCreateDetailsPage } from "./TaskCreateDetailsPage";

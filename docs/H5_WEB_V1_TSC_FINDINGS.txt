@@ -1,0 +1,140 @@
+H5_WEB_V1 tsc --noEmit Findings
+=================================
+环境：当前 workbuddy workspace（Karina-ZZ/smart-task-board H5 V1 同步后）
+命令：npx tsc --noEmit（web/）
+基线对比：HEAD = bd7400b（H5 V1 同步前）tsc 报 0 条错误
+
+结果
+----
+总计 42 条 src/** 错误，分布于 10 个文件（仅 web/，后端 .py 已 py_compile 通过）。
+
+错误类型分布
+  TS2339 Property 'X' does not exist on type ...     28
+  TS2559 Type has no properties in common with ...    5
+  TS7006 Parameter implicitly has 'any' type          3
+  TS2345 Argument of type ... not assignable          3
+  TS2769 No overload matches this call                2
+  TS2554 Expected N arguments, got M                 1
+
+主要类别
+--------
+
+A. useQuery + listUsers(keyword?) 类型不兼容（基线 listUsers = listPrototypeUsers 无参数）
+   - src/pages/NewTaskPage.tsx (130, 140, 355, 372, 386)
+   - src/pages/TaskDetailPage.tsx (92)
+
+B. 新增页面使用未声明的 feedback.show(...) 方法（实际接口只有 showToast）
+   - src/features/notifications/NotificationsPage.tsx (67, 77)
+   - src/features/task-detail/TaskCompletionPage.tsx (52, 61, 66, 70)
+   - src/features/task-detail/TaskExecutionControls.tsx (126, 150, 155, 163, 168, 177, 184, 190, 196, 203, 208, 248, 250, 427, 430)
+   - src/features/task-detail/TaskReportPage.tsx (65, 74)
+   - src/features/task-detail/TaskReviewPage.tsx (62, 72)
+
+C. useNavigate() 第 2 参数 state 不被 NavigateOptions 接受
+   - src/features/notifications/NotificationsPage.tsx (88, 90, 92, 94, 96)
+
+D. 新增 TaskCreateDetailsPanel / __tests__/api.test.ts 中的隐式 any / 参数数量问题
+   - src/features/task-intake/TaskCreateDetailsPanel.tsx (198, 212)
+   - src/features/workbench/__tests__/api.test.ts (119)
+
+影响判定
+--------
+- B 类与 C 类为运行时不报错（TypeScript 仅在调用方推断过严，运行时无影响）。
+- A 类可能影响 NewTaskPage / pages/TaskDetailPage 在 H5 V1 路径下的实际渲染（users.data 在严格类型下为 {}）。
+
+与执行报告的口径关系
+--------------------
+执行报告 H5_WEB_V1_EXECUTION_REPORT.md §4 自报：
+  "React/TypeScript 源码语法转译：103 files / 0 syntax errors"
+指的是语法层（swc/esbuild parse）零错误，并非 tsc --noEmit 类型检查零错误。
+报告 §6 明确承认："当前环境 npm ci 访问 registry 超时，故不能宣称 ESLint/Vitest/Vite build/Playwright PASS"。
+当前 workbuddy 环境的 web/node_modules 为既有可用副本，可执行 tsc --noEmit，故发现上述 42 条类型层错误。
+
+后续建议
+--------
+1. 修 listUsers 签名兼容 useQuery，或在 NewTaskPage / pages/TaskDetailPage 调用点改写 queryFn 适配 QueryFunctionContext。
+2. 在 web/shared feedback 工具上补充 show() 方法或修正调用点改用 showToast()。
+3. useNavigate() 第 2 参数 state 移除，或在 router 侧扩展 NavigateOptions。
+4. TaskCreateDetailsPanel / api.test.ts 显式标注类型。
+
+本附件作为本次 H5 V1 同步的真实门禁快照，不在本次 commit 中修复；保留供后续轮次处置。
+
+=== 完整 tsc 输出（附录） ===
+
+```text
+src/features/notifications/NotificationsPage.tsx(67,26): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/notifications/NotificationsPage.tsx(77,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/notifications/NotificationsPage.tsx(88,52): error TS2559: Type '{ source: ReturnSource; }' has no properties in common with type 'NavigateOptions'.
+src/features/notifications/NotificationsPage.tsx(90,55): error TS2559: Type '{ source: ReturnSource; }' has no properties in common with type 'NavigateOptions'.
+src/features/notifications/NotificationsPage.tsx(92,48): error TS2559: Type '{ source: ReturnSource; }' has no properties in common with type 'NavigateOptions'.
+src/features/notifications/NotificationsPage.tsx(94,48): error TS2559: Type '{ source: ReturnSource; }' has no properties in common with type 'NavigateOptions'.
+src/features/notifications/NotificationsPage.tsx(96,52): error TS2559: Type '{ source: ReturnSource; }' has no properties in common with type 'NavigateOptions'.
+src/features/task-detail/TaskCompletionPage.tsx(52,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskCompletionPage.tsx(61,31): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskCompletionPage.tsx(66,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskCompletionPage.tsx(70,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(126,31): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(150,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(155,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(163,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(168,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(177,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(184,17): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(190,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(196,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(203,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(208,15): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(248,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(250,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(427,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskExecutionControls.tsx(430,31): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskReportPage.tsx(65,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskReportPage.tsx(74,31): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskReviewPage.tsx(62,13): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-detail/TaskReviewPage.tsx(72,31): error TS2339: Property 'show' does not exist on type '{ showToast: (message: string) => void; }'.
+src/features/task-intake/TaskCreateDetailsPanel.tsx(198,26): error TS2345: Argument of type 'TaskPerformanceMatchSummary | null' is not assignable to parameter of type 'SetStateAction<PerformanceMatch | null>'.
+  Type 'TaskPerformanceMatchSummary' is not assignable to type 'SetStateAction<PerformanceMatch | null>'.
+    Type 'TaskPerformanceMatchSummary' is missing the following properties from type 'PerformanceMatch': type_score, business_unit_score, metric_name_score, definition_formula_score, and 4 more.
+src/features/task-intake/TaskCreateDetailsPanel.tsx(212,26): error TS2345: Argument of type 'TaskPerformanceMatchSummary | PerformanceMatch' is not assignable to parameter of type 'SetStateAction<PerformanceMatch | null>'.
+  Type 'TaskPerformanceMatchSummary' is not assignable to type 'SetStateAction<PerformanceMatch | null>'.
+    Type 'TaskPerformanceMatchSummary' is missing the following properties from type 'PerformanceMatch': type_score, business_unit_score, metric_name_score, definition_formula_score, and 4 more.
+src/features/workbench/__tests__/api.test.ts(119,29): error TS2554: Expected 0 arguments, but got 1.
+src/pages/NewTaskPage.tsx(130,49): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<unknown, Error, unknown, string[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<unknown, Error>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<unknown, string[]>'.
+      Types of parameters 'keyword' and 'context' are incompatible.
+        Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<TaskCreationPerson[], Error, TaskCreationPerson[], string[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'unique symbol | QueryFunction<TaskCreationPerson[], string[], never> | undefined'.
+      Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<TaskCreationPerson[], string[], never>'.
+        Types of parameters 'keyword' and 'context' are incompatible.
+          Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+  Overload 3 of 3, '(options: UseQueryOptions<TaskCreationPerson[], Error, TaskCreationPerson[], string[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'unique symbol | QueryFunction<TaskCreationPerson[], string[], never> | undefined'.
+      Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<TaskCreationPerson[], string[], never>'.
+        Types of parameters 'keyword' and 'context' are incompatible.
+          Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+src/pages/NewTaskPage.tsx(140,29): error TS2345: Argument of type '{}' is not assignable to parameter of type 'PrototypeUser[]'.
+  Type '{}' is missing the following properties from type 'PrototypeUser[]': length, pop, push, concat, and 29 more.
+src/pages/NewTaskPage.tsx(355,32): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/NewTaskPage.tsx(355,37): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/pages/NewTaskPage.tsx(372,32): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/NewTaskPage.tsx(372,37): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/pages/NewTaskPage.tsx(386,32): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/NewTaskPage.tsx(386,37): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/pages/TaskDetailPage.tsx(92,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<unknown, Error, unknown, string[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<unknown, Error>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<unknown, string[]>'.
+      Types of parameters 'keyword' and 'context' are incompatible.
+        Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<TaskCreationPerson[], Error, TaskCreationPerson[], string[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'unique symbol | QueryFunction<TaskCreationPerson[], string[], never> | undefined'.
+      Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<TaskCreationPerson[], string[], never>'.
+        Types of parameters 'keyword' and 'context' are incompatible.
+          Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+  Overload 3 of 3, '(options: UseQueryOptions<TaskCreationPerson[], Error, TaskCreationPerson[], string[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'unique symbol | QueryFunction<TaskCreationPerson[], string[], never> | undefined'.
+      Type '(keyword?: string | undefined) => Promise<TaskCreationPerson[]>' is not assignable to type 'QueryFunction<TaskCreationPerson[], string[], never>'.
+        Types of parameters 'keyword' and 'context' are incompatible.
+          Type '{ client: QueryClient; queryKey: string[]; signal: AbortSignal; meta: Record<string, unknown> | undefined; pageParam?: unknown; direction?: unknown; }' is not assignable to type 'string'.
+```
